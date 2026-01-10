@@ -23,7 +23,7 @@ def cargar_catalogo():
     try:
         # AQUI ESTA EL CAMBIO: Leemos el ZIP directamente
         # Pandas es listo y descomprime el archivo en memoria
-        df = pd.read_csv("lista_precios.csv.zip", compression='zip', dtype=str, encoding='latin-1')
+        df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
         return df
     except Exception as e:
@@ -54,4 +54,5 @@ else:
 
 # 6. Pie de página
 st.write("---")
+
 st.caption("Precios con IVA incluido. Vigencia Mes en Curso.")
