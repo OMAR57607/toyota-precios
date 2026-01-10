@@ -8,7 +8,7 @@ st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="ce
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff; }
-    h1 { color: #CC0000; }
+    h1 { color: #000000; }
     </style>
     """, unsafe_allow_html=True)
 
