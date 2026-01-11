@@ -46,11 +46,13 @@ class PDF(FPDF):
         self.cell(0, 5, 'COTIZACION DE REFACCIONES Y SERVICIOS', 0, 1, 'C')
         self.ln(5)
 
+   # --- DENTRO DE LA CLASE PDF (Footer del PDF) ---
     def footer(self):
         self.set_y(-30)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(128)
-        self.multi_cell(0, 4, 'Precios en MXN. Incluyen IVA (16%). Sujetos a cambio sin previo aviso. Descripciones traducidas bajo NOM-050-SCFI-2004.', 0, 'C')
+        # Cambiamos "sin previo aviso" por vigencia clara
+        self.multi_cell(0, 4, 'Precios en MXN. Incluyen IVA (16%). Cotizacion valida exclusivamente por el dia de su emision. Descripciones traducidas para cumplimiento de la NOM-050-SCFI-2004.', 0, 'C')
 
 def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf = PDF()
@@ -281,5 +283,20 @@ st.markdown("""
         Todos los precios están expresados en Moneda Nacional (MXN) e incluyen Impuesto al Valor Agregado (IVA) al finalizar el cálculo.
         <br>Las descripciones de productos han sido traducidas para cumplimiento de la <strong>NOM-050-SCFI-2004</strong>.
         <br>Precios sujetos a cambio sin previo aviso.
+    </div>
+""", unsafe_allow_html=True)
+
+
+
+# --- AL FINAL DEL ARCHIVO (Footer de la Pantalla) ---
+st.markdown(f"""
+    <div class="legal-footer">
+        <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br>
+        1. Precios vigentes al día: <strong>{fecha_hoy}</strong>.<br>
+        2. Todos los montos incluyen IVA (16%).<br>
+        3. Esta consulta cumple con la obligación de exhibición de precios conforme al <strong>Art. 7 de la LFPC</strong>.<br>
+        4. Las descripciones de productos cumplen con la <strong>NOM-050-SCFI-2004</strong>.<br>
+        5. <strong>Nota:</strong> Una vez emitida la cotización, los precios se respetarán únicamente durante el día de su generación. 
+        Para compras posteriores, favor de verificar la vigencia de la lista de precios.
     </div>
 """, unsafe_allow_html=True)
