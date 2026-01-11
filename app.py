@@ -1,23 +1,30 @@
 import streamlit as st
 import pandas as pd
 from deep_translator import GoogleTranslator
+import urllib.parse  # Librería estándar para crear links de WhatsApp
 
-# 1. Configuración
+# 1. Configuración de página
 st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wide")
 
-# Inicializar el carrito en la memoria del navegador
+# Inicializar carrito
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 
-# 2. Estilos
+# 2. ESTILOS (Optimizados para Modo Oscuro/Claro)
 st.markdown("""
     <style>
-    .stApp { background-color: #ffffff; }
-    h1 { color: #eb0a1e; }
+    h1 { color: #eb0a1e !important; } /* Rojo Toyota */
+    
+    /* Estilo para el aviso legal */
+    .profeco-text {
+        font-size: 0.8rem;
+        color: gray;
+        text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# Función de traducción para PROFECO
+# Función de traducción robusta
 @st.cache_data
 def traducir_profe(texto):
     try:
@@ -28,78 +35,111 @@ def traducir_profe(texto):
 
 # 3. Encabezado
 st.title("🚗 Consulta de Precios")
-st.markdown("**Toyota Los Fuertes** | Lista Oficial con IVA")
+st.markdown("**Toyota Los Fuertes** | Sistema de Cotización Oficial")
 st.write("---")
 
-# 4. Carga de datos (DESDE ZIP)
+# 4. Carga segura del ZIP
 @st.cache_data
 def cargar_catalogo():
     try:
         df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
-        # LIMPIEZA DE COLUMNAS: Quita espacios y pone todo en mayúsculas
+        # Limpieza de columnas
         df.columns = [c.strip().upper() for c in df.columns]
         return df
     except Exception as e:
-        st.error(f"Error al leer el archivo: {e}")
+        st.error(f"Error cargando datos: {e}")
         return None
 
 df = cargar_catalogo()
 
 if df is not None:
-    # Creamos dos columnas: una para buscar y otra para el carrito
-    col_izq, col_der = st.columns([2, 1])
+    # --- BUSCADOR ---
+    busqueda = st.text_input("🔍 Escribe SKU o Nombre:", placeholder="Ej. 90430...")
 
-    with col_izq:
-        st.info("👇 Escribe el SKU o Descripción")
-        busqueda = st.text_input("Buscar:", label_visibility="collapsed")
+    if busqueda:
+        busqueda = busqueda.upper().strip()
+        # Buscamos coincidencias
+        mask = df.apply(lambda x: x.astype(str).str.contains(busqueda, case=False)).any(axis=1)
+        resultados = df[mask].head(10).copy() 
 
-        if busqueda:
-            busqueda = busqueda.upper().strip()
-            # Buscamos en todas las columnas
-            mask = df.apply(lambda x: x.astype(str).str.contains(busqueda, case=False)).any(axis=1)
-            resultados = df[mask].head(25).copy() # Copia para evitar alertas de Pandas
+        if not resultados.empty:
+            # Detectar columnas
+            c_sku = [c for c in resultados.columns if 'PART' in c or 'NUM' in c][0]
+            c_desc = [c for c in resultados.columns if 'DESC' in c][0]
+            c_precio = [c for c in resultados.columns if 'PRICE' in c or 'PRECIO' in c][0]
 
-            if not resultados.empty:
-                # Identificar nombres de columnas dinámicamente
-                c_sku = [c for c in resultados.columns if 'PART' in c or 'NUM' in c][0]
-                c_desc = [c for c in resultados.columns if 'DESC' in c][0]
-                c_precio = [c for c in resultados.columns if 'PRICE' in c or 'PRECIO' in c][0]
+            st.success(f"Resultados encontrados:")
 
-                # Traducir solo lo que se va a mostrar
-                with st.spinner('Traduciendo descripciones...'):
-                    resultados['DESCRIPCIÓN_ES'] = resultados[c_desc].apply(traducir_profe)
-                
-                # Mostrar resultados con opción de añadir
-                for i, row in resultados.iterrows():
-                    c1, c2, c3 = st.columns([3, 1, 1])
-                    c1.write(f"**{row['DESCRIPCIÓN_ES']}** ({row[c_sku]})")
-                    c2.write(f"${row[c_precio]}")
-                    if c3.button("Añadir 🛒", key=f"btn_{i}"):
-                        item = {"SKU": row[c_sku], "Desc": row['DESCRIPCIÓN_ES'], "Precio": row[c_precio]}
-                        st.session_state.carrito.append(item)
-                        st.toast(f"Agregado: {row[c_sku]}")
-            else:
-                st.error("❌ No encontrado.")
+            for i, row in resultados.iterrows():
+                # Variables temporales
+                desc_es = traducir_profe(row[c_desc])
+                precio_val = row[c_precio]
+                sku_val = row[c_sku]
 
-    with col_der:
-        st.subheader("🛒 Carrito")
-        if st.session_state.carrito:
-            df_carro = pd.DataFrame(st.session_state.carrito)
-            st.table(df_carro[['SKU', 'Precio']])
-            
-            # Convertir precios a número para sumar
-            total = pd.to_numeric(df_carro['Precio'], errors='coerce').sum()
-            st.write(f"### Total: ${total:,.2f}")
-            
-            if st.button("Vaciar Carrito"):
+                # --- TARJETA DE PRODUCTO ---
+                with st.container():
+                    c1, c2 = st.columns([3, 1])
+                    with c1:
+                        st.markdown(f"**{desc_es}**")
+                        st.caption(f"SKU: {sku_val}")
+                    with c2:
+                        st.markdown(f"**${precio_val}**")
+                        if st.button(f"Añadir ➕", key=f"add_{i}"):
+                            st.session_state.carrito.append({
+                                "SKU": sku_val, 
+                                "Descripción": desc_es, 
+                                "Precio": precio_val
+                            })
+                            st.toast("✅ Agregado al carrito")
+                    st.divider() 
+        else:
+            st.warning("No se encontraron resultados.")
+
+    # --- CARRITO Y WHATSAPP ---
+    if st.session_state.carrito:
+        st.write("---")
+        st.subheader(f"🛒 Cotización Actual")
+        
+        df_carro = pd.DataFrame(st.session_state.carrito)
+        st.table(df_carro)
+        
+        # Calcular total
+        suma = pd.to_numeric(df_carro['Precio'], errors='coerce').sum()
+        st.metric("Total (IVA Incluido)", f"${suma:,.2f}")
+        
+        # --- LÓGICA WHATSAPP ---
+        # 1. Construir el mensaje de texto
+        msg = "*COTIZACIÓN - TOYOTA LOS FUERTES*\n\n"
+        for index, row in df_carro.iterrows():
+            msg += f"🔧 {row['Descripción']}\n   SKU: {row['SKU']} | ${row['Precio']}\n\n"
+        msg += f"*TOTAL: ${suma:,.2f} MXN*"
+        
+        # 2. Codificar mensaje para URL (cambia espacios por %20, etc.)
+        msg_encoded = urllib.parse.quote(msg)
+        
+        # 3. Crear Link
+        whatsapp_link = f"https://wa.me/?text={msg_encoded}"
+
+        # Botones de acción
+        col_wa, col_borrar = st.columns([2,1])
+        with col_wa:
+            st.link_button("📲 Enviar Cotización por WhatsApp", whatsapp_link, type="primary")
+        with col_borrar:
+            if st.button("🗑️ Borrar Todo"):
                 st.session_state.carrito = []
                 st.rerun()
-        else:
-            st.write("Tu carrito está vacío.")
 
 else:
-    st.error("Error: No encuentro 'lista_precios.zip' o las columnas no coinciden.")
+    st.error("⚠️ Error de base de datos.")
 
+# --- FOOTER PROFECO ---
 st.write("---")
-st.caption("Precios con IVA incluido. Descripciones traducidas para cumplimiento de normativas PROFECO.")
+st.markdown("""
+    <div class='profeco-text'>
+    <p><strong>INFORMACIÓN AL CONSUMIDOR (PROFECO):</strong></p>
+    <p>1. Todos los precios están expresados en Moneda Nacional (MXN) e incluyen el Impuesto al Valor Agregado (IVA).</p>
+    <p>2. Las descripciones de los productos han sido traducidas al español para cumplimiento de la <strong>NOM-050-SCFI-2004</strong>.</p>
+    <p>3. Los precios están sujetos a cambio sin previo aviso. La vigencia de esta cotización es inmediata.</p>
+    </div>
+    """, unsafe_allow_html=True)
