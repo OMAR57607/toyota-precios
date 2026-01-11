@@ -12,35 +12,37 @@ st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wi
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 
-# 2. ESTILOS CSS
+# 2. ESTILOS CSS "DINÁMICOS"
+# Quitamos los colores fijos (#333, #666) para que Streamlit use blanco o negro automáticamente.
 st.markdown("""
     <style>
-    /* Título principal en Rojo Toyota */
+    /* El título principal sí lo dejamos rojo, se ve bien en ambos modos */
     h1 { color: #eb0a1e !important; text-align: center; }
     
-    /* Subtítulos */
-    h3 { color: #333 !important; }
-    
-    /* Botones más estéticos */
+    /* Botones con estilo limpio */
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
     
-    /* Texto Legal Profeco en pantalla */
+    /* Footer Legal: Usamos opacidad en lugar de color fijo.
+       Así se adapta: Texto blanco (al 70%) en modo oscuro, Texto negro (al 70%) en modo claro. */
     .legal-footer {
         text-align: center;
         font-size: 12px;
-        color: #666;
+        opacity: 0.7; /* Truco para que se vea grisáceo en cualquier fondo */
         margin-top: 50px;
         padding-top: 20px;
-        border-top: 1px solid #ddd;
+        border-top: 1px solid rgba(128, 128, 128, 0.2); /* Línea sutil dinámica */
     }
+    
+    /* Ajuste para que las tablas ocupen todo el ancho en móviles */
+    [data-testid="stDataFrame"] { width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CLASE PARA GENERAR EL PDF ---
+# --- CLASE PARA GENERAR EL PDF (Esto siempre será Blanco/Negro para imprimir) ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
-        self.set_text_color(235, 10, 30) # Rojo
+        self.set_text_color(235, 10, 30) # Rojo Toyota
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
         self.set_font('Arial', '', 10)
         self.set_text_color(0)
@@ -79,7 +81,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 8)
     for item in carrito:
-        desc = item['Descripción'][:50] # Cortar si es muy largo
+        desc = item['Descripción'][:50]
         pdf.cell(15, 8, str(int(item['Cantidad'])), 1, 0, 'C')
         pdf.cell(35, 8, item['SKU'], 1, 0, 'C')
         pdf.cell(85, 8, desc, 1, 0, 'L')
@@ -139,9 +141,8 @@ fecha_hoy = datetime.now().strftime("%d/%m/%Y")
 
 # --- INTERFAZ PRINCIPAL ---
 
-# ENCABEZADO PROMINENTE EN PANTALLA
 st.title("TOYOTA LOS FUERTES")
-st.markdown("<h4 style='text-align: center; color: gray;'>Sistema de Cotización y Consulta de Precios</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; opacity: 0.6;'>Sistema de Cotización y Consulta de Precios</h4>", unsafe_allow_html=True)
 st.write("---")
 
 # 1. BUSCADOR
@@ -256,7 +257,7 @@ if st.session_state.carrito:
         link = f"https://wa.me/?text={urllib.parse.quote(msg)}"
         st.link_button("📲 Enviar WhatsApp", link)
 
-# FOOTER LEGAL EN PANTALLA (PROFECO)
+# FOOTER LEGAL
 st.markdown("""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br>
