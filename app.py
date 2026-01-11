@@ -3,107 +3,103 @@ import pandas as pd
 from deep_translator import GoogleTranslator
 
 # 1. Configuración
-st.set_page_config(page_title="Toyota Los Fuertes - Cotizador", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wide")
 
-# Inicializar el carrito en la memoria de la sesión si no existe
+# Inicializar el carrito en la memoria del navegador
 if 'carrito' not in st.session_state:
-    st.session_state.carrito = pd.DataFrame(columns=['PART_NUMBER', 'DESCRIPTION', 'DESCRIPTION_ES', 'PRICE'])
+    st.session_state.carrito = []
 
 # 2. Estilos
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff; }
-    .stHeader { background-color: #eb0a1e; } /* Rojo Toyota */
+    h1 { color: #eb0a1e; }
     </style>
     """, unsafe_allow_html=True)
 
-# Función de traducción (PROFECO)
+# Función de traducción para PROFECO
 @st.cache_data
-def traducir_texto(texto):
+def traducir_profe(texto):
     try:
-        if pd.isna(texto) or texto == "": return texto
-        return GoogleTranslator(source='en', target='es').translate(texto)
+        if pd.isna(texto) or texto == "": return "Sin descripción"
+        return GoogleTranslator(source='en', target='es').translate(str(texto))
     except:
         return texto
 
 # 3. Encabezado
-st.title("🚗 Sistema de Consulta y Cotización")
-st.markdown("**Toyota Los Fuertes** | Control de Precios e Inventario")
+st.title("🚗 Consulta de Precios")
+st.markdown("**Toyota Los Fuertes** | Lista Oficial con IVA")
+st.write("---")
 
-# 4. Carga de datos
+# 4. Carga de datos (DESDE ZIP)
 @st.cache_data
 def cargar_catalogo():
     try:
-        # Asegúrate de que el nombre coincida con tu archivo en GitHub
         df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
-        # Limpieza básica de precios si es necesario
-        if 'PRICE' in df.columns:
-            df['PRICE'] = pd.to_numeric(df['PRICE'], errors='coerce').fillna(0)
+        # LIMPIEZA DE COLUMNAS: Quita espacios y pone todo en mayúsculas
+        df.columns = [c.strip().upper() for c in df.columns]
         return df
     except Exception as e:
-        st.error(f"Error al cargar base de datos: {e}")
+        st.error(f"Error al leer el archivo: {e}")
         return None
 
 df = cargar_catalogo()
 
-# --- INTERFAZ DE COLUMNAS ---
-col_busqueda, col_carrito = st.columns([2, 1])
+if df is not None:
+    # Creamos dos columnas: una para buscar y otra para el carrito
+    col_izq, col_der = st.columns([2, 1])
 
-with col_busqueda:
-    st.subheader("🔍 Buscador de Refacciones")
-    if df is not None:
-        busqueda = st.text_input("Ingresa SKU o Nombre de pieza:", placeholder="Ej. Filter...")
+    with col_izq:
+        st.info("👇 Escribe el SKU o Descripción")
+        busqueda = st.text_input("Buscar:", label_visibility="collapsed")
 
         if busqueda:
             busqueda = busqueda.upper().strip()
+            # Buscamos en todas las columnas
             mask = df.apply(lambda x: x.astype(str).str.contains(busqueda, case=False)).any(axis=1)
-            resultados = df[mask].head(20).copy() # Limitamos a 20 para rapidez
-            
+            resultados = df[mask].head(25).copy() # Copia para evitar alertas de Pandas
+
             if not resultados.empty:
-                # TRADUCCIÓN EN TIEMPO REAL (Solo de los resultados)
-                with st.spinner('Traduciendo descripciones para PROFECO...'):
-                    resultados['DESCRIPTION_ES'] = resultados['DESCRIPTION'].apply(traducir_texto)
-                
-                st.write(f"Se encontraron {len(resultados)} coincidencias:")
-                
-                # Seleccionar columnas a mostrar
-                vista_previa = resultados[['PART_NUMBER', 'DESCRIPTION_ES', 'PRICE']].copy()
-                
-                # MÉTODO DE SELECCIÓN: Usamos st.data_editor para permitir selección
-                vista_previa['Seleccionar'] = False
-                edited_df = st.data_editor(
-                    vista_previa,
-                    hide_index=True,
-                    column_config={"Seleccionar": st.column_config.CheckboxColumn(required=True)},
-                    use_container_width=True
-                )
+                # Identificar nombres de columnas dinámicamente
+                c_sku = [c for c in resultados.columns if 'PART' in c or 'NUM' in c][0]
+                c_desc = [c for c in resultados.columns if 'DESC' in c][0]
+                c_precio = [c for c in resultados.columns if 'PRICE' in c or 'PRECIO' in c][0]
 
-                if st.button("Añadir seleccionados al carrito 🛒"):
-                    items_a_agregar = edited_df[edited_df['Seleccionar'] == True]
-                    if not items_a_agregar.empty:
-                        # Concatenar al carrito existente
-                        st.session_state.carrito = pd.concat([st.session_state.carrito, items_a_agregar.drop(columns=['Seleccionar'])], ignore_index=True)
-                        st.success("¡Agregado!")
-                        st.rerun()
+                # Traducir solo lo que se va a mostrar
+                with st.spinner('Traduciendo descripciones...'):
+                    resultados['DESCRIPCIÓN_ES'] = resultados[c_desc].apply(traducir_profe)
+                
+                # Mostrar resultados con opción de añadir
+                for i, row in resultados.iterrows():
+                    c1, c2, c3 = st.columns([3, 1, 1])
+                    c1.write(f"**{row['DESCRIPCIÓN_ES']}** ({row[c_sku]})")
+                    c2.write(f"${row[c_precio]}")
+                    if c3.button("Añadir 🛒", key=f"btn_{i}"):
+                        item = {"SKU": row[c_sku], "Desc": row['DESCRIPCIÓN_ES'], "Precio": row[c_precio]}
+                        st.session_state.carrito.append(item)
+                        st.toast(f"Agregado: {row[c_sku]}")
             else:
-                st.error("No se encontraron resultados.")
+                st.error("❌ No encontrado.")
 
-with col_carrito:
-    st.subheader("🛒 Mi Cotización")
-    if not st.session_state.carrito.empty:
-        st.dataframe(st.session_state.carrito, hide_index=True)
-        
-        total = st.session_state.carrito['PRICE'].sum()
-        st.metric("Total (IVA Incluido)", f"${total:,.2f}")
-        
-        if st.button("Vaciar Carrito 🗑️"):
-            st.session_state.carrito = pd.DataFrame(columns=['PART_NUMBER', 'DESCRIPTION', 'DESCRIPTION_ES', 'PRICE'])
-            st.rerun()
-    else:
-        st.write("El carrito está vacío.")
+    with col_der:
+        st.subheader("🛒 Carrito")
+        if st.session_state.carrito:
+            df_carro = pd.DataFrame(st.session_state.carrito)
+            st.table(df_carro[['SKU', 'Precio']])
+            
+            # Convertir precios a número para sumar
+            total = pd.to_numeric(df_carro['Precio'], errors='coerce').sum()
+            st.write(f"### Total: ${total:,.2f}")
+            
+            if st.button("Vaciar Carrito"):
+                st.session_state.carrito = []
+                st.rerun()
+        else:
+            st.write("Tu carrito está vacío.")
 
-# 6. Pie de página
+else:
+    st.error("Error: No encuentro 'lista_precios.zip' o las columnas no coinciden.")
+
 st.write("---")
-st.caption("Cumplimiento con NOM de PROFECO: Descripciones traducidas automáticamente.")
-
+st.caption("Precios con IVA incluido. Descripciones traducidas para cumplimiento de normativas PROFECO.")
