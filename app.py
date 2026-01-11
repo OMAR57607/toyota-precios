@@ -15,8 +15,6 @@ st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; }
     .profeco-text { font-size: 0.8rem; color: gray; text-align: center; }
-    
-    /* Ajuste para que el selector de cantidad se vea bien alineado */
     div[data-testid="stNumberInput"] { margin-bottom: 0px; }
     </style>
     """, unsafe_allow_html=True)
@@ -67,12 +65,18 @@ if df is not None:
 
             for i, row in resultados.iterrows():
                 desc_es = traducir_profe(row[c_desc])
-                precio_val = float(row[c_precio]) # Aseguramos que sea número
                 sku_val = row[c_sku]
+                
+                # --- CORRECCIÓN DEL ERROR ---
+                # Limpiamos el precio de comas y signos antes de convertir
+                try:
+                    precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
+                    precio_val = float(precio_texto)
+                except ValueError:
+                    precio_val = 0.0 # Si falla, ponemos 0 para que no rompa la app
 
-                # --- TARJETA DE PRODUCTO CON SELECTOR ---
+                # --- TARJETA DE PRODUCTO ---
                 with st.container():
-                    # Dividimos en 3 columnas: Info | Cantidad | Botón
                     c1, c2, c3 = st.columns([3, 1, 1])
                     
                     with c1:
@@ -80,12 +84,10 @@ if df is not None:
                         st.caption(f"SKU: {sku_val} | Unitario: ${precio_val:,.2f}")
                     
                     with c2:
-                        # Selector de cantidad
                         cantidad = st.number_input("Cant.", min_value=1, value=1, key=f"cant_{i}", label_visibility="collapsed")
                     
                     with c3:
                         if st.button(f"Añadir ➕", key=f"add_{i}"):
-                            # Añadimos al carrito con la cantidad seleccionada
                             st.session_state.carrito.append({
                                 "SKU": sku_val, 
                                 "Descripción": desc_es, 
@@ -98,14 +100,13 @@ if df is not None:
         else:
             st.warning("No se encontraron resultados.")
 
-    # --- CARRITO Y DESGLOSE ---
+    # --- CARRITO Y CÁLCULOS ---
     if st.session_state.carrito:
         st.write("---")
         st.subheader(f"🛒 Cotización")
         
         df_carro = pd.DataFrame(st.session_state.carrito)
         
-        # Mostramos tabla editada para que se vea limpio
         st.dataframe(
             df_carro, 
             column_config={
@@ -116,18 +117,17 @@ if df is not None:
             use_container_width=True
         )
         
-        # --- CÁLCULOS FINANCIEROS (IVA 16%) ---
+        # CÁLCULOS
         gran_total = df_carro['Importe'].sum()
         subtotal = gran_total / 1.16
         iva = gran_total - subtotal
         
-        # Mostramos el desglose en columnas métricas
         col_sub, col_iva, col_tot = st.columns(3)
-        col_sub.metric("Subtotal (Antes de IVA)", f"${subtotal:,.2f}")
+        col_sub.metric("Subtotal", f"${subtotal:,.2f}")
         col_iva.metric("IVA (16%)", f"${iva:,.2f}")
-        col_tot.metric("Gran Total (Neto)", f"${gran_total:,.2f}")
+        col_tot.metric("Total Neto", f"${gran_total:,.2f}")
         
-        # --- WHATSAPP CON DESGLOSE ---
+        # --- WHATSAPP ---
         msg = "*COTIZACIÓN OFICIAL - TOYOTA*\n\n"
         for index, row in df_carro.iterrows():
             msg += f"▪ {row['Cantidad']}x {row['Descripción']}\n   SKU: {row['SKU']} | Imp: ${row['Importe']:,.2f}\n"
@@ -135,16 +135,16 @@ if df is not None:
         msg += "\n----------------------------------"
         msg += f"\nSubtotal: ${subtotal:,.2f}"
         msg += f"\nIVA (16%): ${iva:,.2f}"
-        msg += f"\n*TOTAL A PAGAR: ${gran_total:,.2f} MXN*"
+        msg += f"\n*TOTAL: ${gran_total:,.2f} MXN*"
         
         msg_encoded = urllib.parse.quote(msg)
         whatsapp_link = f"https://wa.me/?text={msg_encoded}"
 
         c_wa, c_del = st.columns([2, 1])
         with c_wa:
-            st.link_button("📲 Enviar Cotización Completa", whatsapp_link, type="primary")
+            st.link_button("📲 Enviar WhatsApp", whatsapp_link, type="primary")
         with c_del:
-            if st.button("🗑️ Borrar Carrito"):
+            if st.button("🗑️ Vaciar"):
                 st.session_state.carrito = []
                 st.rerun()
 
