@@ -1,3 +1,3 @@
 streamlit
 pandas
-deep-translator
+deep_translator
