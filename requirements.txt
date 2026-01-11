@@ -1,4 +1,6 @@
 streamlit
 pandas
-deep_translator
+deep-translator
 fpdf
+pyzbar
+pillow
