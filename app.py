@@ -67,13 +67,12 @@ if df is not None:
                 desc_es = traducir_profe(row[c_desc])
                 sku_val = row[c_sku]
                 
-                # --- CORRECCIÓN DEL ERROR ---
-                # Limpiamos el precio de comas y signos antes de convertir
+                # --- LIMPIEZA DE PRECIO ---
                 try:
                     precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
                     precio_val = float(precio_texto)
                 except ValueError:
-                    precio_val = 0.0 # Si falla, ponemos 0 para que no rompa la app
+                    precio_val = 0.0
 
                 # --- TARJETA DE PRODUCTO ---
                 with st.container():
@@ -81,7 +80,8 @@ if df is not None:
                     
                     with c1:
                         st.markdown(f"**{desc_es}**")
-                        st.caption(f"SKU: {sku_val} | Unitario: ${precio_val:,.2f}")
+                        # Indicamos que es precio antes de IVA
+                        st.caption(f"SKU: {sku_val} | Base: ${precio_val:,.2f}")
                     
                     with c2:
                         cantidad = st.number_input("Cant.", min_value=1, value=1, key=f"cant_{i}", label_visibility="collapsed")
@@ -91,16 +91,16 @@ if df is not None:
                             st.session_state.carrito.append({
                                 "SKU": sku_val, 
                                 "Descripción": desc_es, 
-                                "Precio Unit.": precio_val,
+                                "Precio Base": precio_val,
                                 "Cantidad": cantidad,
                                 "Importe": precio_val * cantidad
                             })
-                            st.toast(f"✅ Se agregaron {cantidad} piezas")
+                            st.toast(f"✅ Agregado")
                     st.divider() 
         else:
             st.warning("No se encontraron resultados.")
 
-    # --- CARRITO Y CÁLCULOS ---
+    # --- CARRITO Y CÁLCULOS CORREGIDOS ---
     if st.session_state.carrito:
         st.write("---")
         st.subheader(f"🛒 Cotización")
@@ -110,32 +110,35 @@ if df is not None:
         st.dataframe(
             df_carro, 
             column_config={
-                "Precio Unit.": st.column_config.NumberColumn(format="$%.2f"),
+                "Precio Base": st.column_config.NumberColumn(format="$%.2f"),
                 "Importe": st.column_config.NumberColumn(format="$%.2f")
             },
             hide_index=True,
             use_container_width=True
         )
         
-        # CÁLCULOS
-        gran_total = df_carro['Importe'].sum()
-        subtotal = gran_total / 1.16
-        iva = gran_total - subtotal
+        # --- NUEVA LÓGICA DE IVA ---
+        # 1. El Subtotal es la suma directa de los importes
+        subtotal = df_carro['Importe'].sum()
+        # 2. El IVA se calcula SOBRE el subtotal
+        iva = subtotal * 0.16
+        # 3. El Total es la suma
+        gran_total = subtotal + iva
         
         col_sub, col_iva, col_tot = st.columns(3)
         col_sub.metric("Subtotal", f"${subtotal:,.2f}")
         col_iva.metric("IVA (16%)", f"${iva:,.2f}")
         col_tot.metric("Total Neto", f"${gran_total:,.2f}")
         
-        # --- WHATSAPP ---
+        # --- WHATSAPP CORREGIDO ---
         msg = "*COTIZACIÓN OFICIAL - TOYOTA*\n\n"
         for index, row in df_carro.iterrows():
-            msg += f"▪ {row['Cantidad']}x {row['Descripción']}\n   SKU: {row['SKU']} | Imp: ${row['Importe']:,.2f}\n"
+            msg += f"▪ {row['Cantidad']}x {row['Descripción']}\n   SKU: {row['SKU']} | Base: ${row['Importe']:,.2f}\n"
         
         msg += "\n----------------------------------"
         msg += f"\nSubtotal: ${subtotal:,.2f}"
         msg += f"\nIVA (16%): ${iva:,.2f}"
-        msg += f"\n*TOTAL: ${gran_total:,.2f} MXN*"
+        msg += f"\n*TOTAL A PAGAR: ${gran_total:,.2f} MXN*"
         
         msg_encoded = urllib.parse.quote(msg)
         whatsapp_link = f"https://wa.me/?text={msg_encoded}"
@@ -151,11 +154,11 @@ if df is not None:
 else:
     st.error("⚠️ Error: No se encuentra 'lista_precios.zip'.")
 
-# Footer Profeco
+# Footer Profeco actualizado
 st.write("---")
 st.markdown("""
     <div class='profeco-text'>
-    <p><strong>INFORMACIÓN LEGAL:</strong> Precios en Moneda Nacional (MXN). El desglose de IVA se calcula automáticamente (Tasa 16%).
+    <p><strong>INFORMACIÓN LEGAL:</strong> Precios mostrados antes de IVA. Se agrega el 16% de Impuesto al Valor Agregado al final de la cotización.
     Las descripciones son traducidas bajo la NOM-050-SCFI-2004.</p>
     </div>
     """, unsafe_allow_html=True)
