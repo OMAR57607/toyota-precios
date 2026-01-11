@@ -14,45 +14,65 @@ if 'carrito' not in st.session_state:
 if 'modo_impresion' not in st.session_state:
     st.session_state.modo_impresion = False
 
-# 2. ESTILOS CSS MEJORADOS (Solución PDF en blanco)
+# 2. ESTILOS CSS "NUCLEAR" (Solución definitiva PDF en blanco)
 st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; }
     
-    /* CSS ESPECÍFICO PARA IMPRESIÓN */
+    /* === REGLAS PARA IMPRESIÓN === */
     @media print {
-        /* 1. Desbloquear altura y scroll para que no salga cortado/blanco */
-        html, body, [data-testid="stAppViewContainer"], .main {
+        /* 1. RESET TOTAL DE CONTENEDORES DE STREAMLIT */
+        html, body, .stApp, [data-testid="stAppViewContainer"], .main, [data-testid="stHeader"] {
             overflow: visible !important;
             height: auto !important;
+            position: static !important;
+            width: 100% !important;
+            display: block !important;
         }
         
-        /* 2. Ocultar elementos de interfaz de Streamlit */
-        header, footer, [data-testid="stSidebar"], 
-        .stButton, .stTextInput, .stNumberInput, .stSelectbox, 
-        div[data-testid="stToolbar"], div[data-testid="stDecoration"], .no-print {
-            display: none !important;
+        /* 2. OCULTAR INTERFAZ DE USUARIO (Botones, Inputs, Sidebar, etc.) */
+        header, footer, 
+        [data-testid="stSidebar"], 
+        .stButton, button,
+        .stTextInput, .stNumberInput, .stSelectbox, 
+        div[data-testid="stToolbar"], 
+        div[data-testid="stDecoration"], 
+        .no-print {
+            display: none !important; 
+            visibility: hidden !important;
+            height: 0 !important;
         }
         
-        /* 3. Ajustar márgenes de la hoja */
+        /* 3. AJUSTAR MÁRGENES DE LA HOJA */
         .block-container {
-            padding-top: 20px !important;
+            padding-top: 10px !important;
             padding-left: 20px !important;
             padding-right: 20px !important;
+            padding-bottom: 20px !important;
+            margin: 0 !important;
             max-width: 100% !important;
         }
         
-        /* 4. Asegurar que textos y tablas sean negros y visibles */
-        body, .stApp {
-            background-color: white !important;
+        /* 4. FORZAR COLORES (Para que salga el logo rojo y textos negros) */
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
             color: black !important;
         }
         
-        /* 5. Mostrar firma */
-        .signature-section { display: block !important; }
+        /* 5. EXCEPCIONES DE COLOR */
+        .invoice-title { color: #eb0a1e !important; }
+        .total-highlight { color: #eb0a1e !important; }
+        
+        /* 6. ASEGURAR QUE LA FIRMA SE VEA */
+        .signature-section { 
+            display: block !important; 
+            margin-top: 50px !important;
+            page-break-inside: avoid;
+        }
     }
     
-    /* Estilos Visuales Pantalla */
+    /* Estilos Visuales en Pantalla */
     .invoice-header {
         text-align: center; margin-bottom: 20px; padding-bottom: 10px;
         border-bottom: 2px solid #eb0a1e;
@@ -60,7 +80,7 @@ st.markdown("""
     .invoice-title { font-size: 24px; font-weight: bold; color: #eb0a1e; margin: 0; }
     
     .signature-section {
-        margin-top: 50px; text-align: center; page-break-inside: avoid;
+        margin-top: 80px; text-align: center; page-break-inside: avoid;
     }
     .signature-line {
         border-top: 1px solid #000; width: 250px; margin: 0 auto; padding-top: 5px; font-weight: bold;
@@ -151,14 +171,12 @@ if not st.session_state.modo_impresion:
         
         ce1, ce2, ce3 = st.columns([2, 1, 1])
         with ce1:
-            # SELECTOR DE SERVICIOS PREDEFINIDOS
             opciones = ["Mano de Obra", "Pintura", "Hojalatería", "Instalación", "Servicio Foráneo", "Diagnóstico", "Otro"]
             tipo_servicio = st.selectbox("Tipo de Servicio:", opciones)
-            
             if tipo_servicio == "Otro":
                 desc_final = st.text_input("Escribe el nombre del servicio:", value="Servicio General")
             else:
-                desc_final = tipo_servicio # Toma el valor del selector
+                desc_final = tipo_servicio
 
         with ce2:
             precio_manual = st.number_input("Costo (Antes de IVA):", min_value=0.0, format="%.2f")
@@ -187,7 +205,6 @@ if not st.session_state.modo_impresion:
         df_carro = pd.DataFrame(st.session_state.carrito)
         st.dataframe(df_carro, hide_index=True, use_container_width=True)
         
-        # CÁLCULOS
         subtotal = df_carro['Importe'].sum()
         iva = subtotal * 0.16
         gran_total = subtotal + iva
@@ -197,7 +214,6 @@ if not st.session_state.modo_impresion:
         col_iva.metric("IVA (16%)", f"${iva:,.2f}")
         col_tot.metric("Total Neto", f"${gran_total:,.2f}")
 
-        # BOTONES
         col_btns = st.columns([1, 1, 2])
         with col_btns[0]:
             if st.button("🖨️ Vista Previa"):
@@ -238,19 +254,31 @@ else:
         iva = subtotal * 0.16
         gran_total = subtotal + iva
 
-        st.table(df_carro[['Cantidad', 'SKU', 'Descripción', 'Precio Base', 'Importe']])
+        # Tabla HTML pura para evitar problemas de rendering al imprimir
+        # Convertimos el DataFrame a HTML limpio
+        html_table = df_carro[['Cantidad', 'SKU', 'Descripción', 'Precio Base', 'Importe']].to_html(index=False, classes='table-style', border=0, justify='left')
+        
+        # Inyectamos estilo simple para la tabla
+        st.markdown("""
+        <style>
+        .table-style { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .table-style th { border-bottom: 2px solid #eb0a1e; text-align: left; padding: 5px; }
+        .table-style td { border-bottom: 1px solid #ddd; padding: 8px; }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(html_table, unsafe_allow_html=True)
 
         st.markdown(f"""
-        <div style="text-align: right; margin-top: 10px;">
+        <div style="text-align: right; margin-top: 20px;">
             <p><strong>Subtotal:</strong> ${subtotal:,.2f}</p>
             <p><strong>IVA (16%):</strong> ${iva:,.2f}</p>
-            <h3 style="color: #eb0a1e;">TOTAL: ${gran_total:,.2f} MXN</h3>
+            <h3 class="total-highlight">TOTAL: ${gran_total:,.2f} MXN</h3>
         </div>
         """, unsafe_allow_html=True)
 
         st.markdown("""
         <div class="signature-section">
-            <br><br><br>
             <div class="signature-line">Firma del Asesor / Cliente</div>
         </div>
         <div style='text-align: center; font-size: 10px; color: gray; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px;'>
