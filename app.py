@@ -4,41 +4,38 @@ from deep_translator import GoogleTranslator
 import urllib.parse
 from datetime import datetime
 from fpdf import FPDF
+from PIL import Image
+from pyzbar.pyzbar import decode # Librería para leer códigos de barras
 
-# 1. Configuración de página
+# 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wide")
 
-# Inicializar variables
+# Inicializar variables de estado
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 
-# 2. ESTILOS CSS "DINÁMICOS"
-# Quitamos los colores fijos (#333, #666) para que Streamlit use blanco o negro automáticamente.
+# 2. ESTILOS CSS (Dinámicos y limpios)
 st.markdown("""
     <style>
-    /* El título principal sí lo dejamos rojo, se ve bien en ambos modos */
+    /* Título Toyota Rojo */
     h1 { color: #eb0a1e !important; text-align: center; }
     
-    /* Botones con estilo limpio */
+    /* Ajustes generales */
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
     
-    /* Footer Legal: Usamos opacidad en lugar de color fijo.
-       Así se adapta: Texto blanco (al 70%) en modo oscuro, Texto negro (al 70%) en modo claro. */
+    /* Footer Legal con opacidad para adaptarse a modo noche/día */
     .legal-footer {
         text-align: center;
         font-size: 12px;
-        opacity: 0.7; /* Truco para que se vea grisáceo en cualquier fondo */
+        opacity: 0.7;
         margin-top: 50px;
         padding-top: 20px;
-        border-top: 1px solid rgba(128, 128, 128, 0.2); /* Línea sutil dinámica */
+        border-top: 1px solid rgba(128, 128, 128, 0.2);
     }
-    
-    /* Ajuste para que las tablas ocupen todo el ancho en móviles */
-    [data-testid="stDataFrame"] { width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CLASE PARA GENERAR EL PDF (Esto siempre será Blanco/Negro para imprimir) ---
+# --- CLASE PDF ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
@@ -53,7 +50,7 @@ class PDF(FPDF):
         self.set_y(-30)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(128)
-        self.multi_cell(0, 4, 'Precios en Moneda Nacional (MXN). Incluyen IVA (16%). Sujetos a cambio sin previo aviso. Descripciones traducidas bajo NOM-050-SCFI-2004.', 0, 'C')
+        self.multi_cell(0, 4, 'Precios en MXN. Incluyen IVA (16%). Sujetos a cambio sin previo aviso. Descripciones traducidas bajo NOM-050-SCFI-2004.', 0, 'C')
 
 def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf = PDF()
@@ -67,7 +64,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf.cell(0, 10, f'Fecha: {fecha}', 0, 1, 'R')
     pdf.ln(5)
 
-    # Encabezados Tabla
+    # Encabezados
     pdf.set_fill_color(235, 10, 30)
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 9)
@@ -77,7 +74,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf.cell(25, 8, 'P. Base', 1, 0, 'C', True)
     pdf.cell(30, 8, 'Importe', 1, 1, 'C', True)
 
-    # Contenido
+    # Filas
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 8)
     for item in carrito:
@@ -145,11 +142,32 @@ st.title("TOYOTA LOS FUERTES")
 st.markdown("<h4 style='text-align: center; opacity: 0.6;'>Sistema de Cotización y Consulta de Precios</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# 1. BUSCADOR
+# 1. SECCIÓN DE ESCÁNER Y BÚSQUEDA
+sku_detectado = ""
+
+# Checkbox para activar cámara (ahorra batería y espacio si no se usa)
+if st.checkbox("📸 Activar Escáner de Código de Barras"):
+    img_file = st.camera_input("Toma una foto clara del código")
+    if img_file is not None:
+        try:
+            imagen = Image.open(img_file)
+            codigos = decode(imagen)
+            if codigos:
+                # Tomamos el primer código que encuentre
+                sku_detectado = codigos[0].data.decode("utf-8")
+                st.success(f"✅ Código detectado: **{sku_detectado}**")
+            else:
+                st.warning("⚠️ No se detectó código. Intenta acercarte más o mejorar la luz.")
+        except Exception as e:
+            st.error(f"Error al procesar imagen: {e}")
+
 if df is not None:
+    # Usamos el SKU detectado como valor por defecto si existe
+    valor_inicial = sku_detectado if sku_detectado else ""
+    
     col_search, col_date = st.columns([4, 1])
     with col_search:
-        busqueda = st.text_input("🔍 Buscar Refacción (SKU o Nombre):", placeholder="Ej. Filtro, 90430...")
+        busqueda = st.text_input("🔍 Buscar Refacción (SKU o Nombre):", value=valor_inicial, placeholder="Ej. Filtro, 90430...")
     with col_date:
         st.markdown(f"**Fecha:**\n{fecha_hoy}")
 
@@ -190,7 +208,7 @@ if df is not None:
         else:
             st.warning("No se encontraron resultados.")
 
-# 2. SERVICIOS PREDEFINIDOS
+# 2. SECCIÓN DE SERVICIOS
 st.markdown("### 🛠️ Agregar Servicios / Mano de Obra")
 with st.expander("Clic aquí para agregar servicios", expanded=False):
     st.info("💡 Ingresa el precio **sin IVA**. El sistema agregará el 16% al final.")
@@ -212,7 +230,7 @@ with st.expander("Clic aquí para agregar servicios", expanded=False):
                 })
                 st.rerun()
 
-# 3. CARRITO
+# 3. CARRITO DE COMPRAS
 if st.session_state.carrito:
     st.write("---")
     st.subheader(f"🛒 Carrito de Cotización")
@@ -229,7 +247,6 @@ if st.session_state.carrito:
     c_iva.metric("IVA (16%)", f"${iva:,.2f}")
     c_tot.metric("TOTAL NETO", f"${gran_total:,.2f}")
 
-    # ACCIONES
     col_pdf, col_del, col_wa = st.columns([1, 1, 2])
     
     with col_pdf:
