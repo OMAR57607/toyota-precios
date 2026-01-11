@@ -14,46 +14,56 @@ if 'carrito' not in st.session_state:
 if 'modo_impresion' not in st.session_state:
     st.session_state.modo_impresion = False
 
-# 2. ESTILOS CSS
+# 2. ESTILOS CSS MEJORADOS (Solución PDF en blanco)
 st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; }
     
-    /* CSS IMPRESIÓN */
+    /* CSS ESPECÍFICO PARA IMPRESIÓN */
     @media print {
-        /* Ocultar todo lo que no sea la hoja de factura */
-        .stButton, .stTextInput, .stNumberInput, div[data-testid="stToolbar"], 
-        div[data-testid="stDecoration"], footer, header, .no-print {
+        /* 1. Desbloquear altura y scroll para que no salga cortado/blanco */
+        html, body, [data-testid="stAppViewContainer"], .main {
+            overflow: visible !important;
+            height: auto !important;
+        }
+        
+        /* 2. Ocultar elementos de interfaz de Streamlit */
+        header, footer, [data-testid="stSidebar"], 
+        .stButton, .stTextInput, .stNumberInput, .stSelectbox, 
+        div[data-testid="stToolbar"], div[data-testid="stDecoration"], .no-print {
             display: none !important;
         }
-        [data-testid="stSidebar"] { display: none !important; }
         
-        body, .stApp { background-color: white !important; color: black !important; }
-        .block-container { padding: 0rem 1rem !important; }
+        /* 3. Ajustar márgenes de la hoja */
+        .block-container {
+            padding-top: 20px !important;
+            padding-left: 20px !important;
+            padding-right: 20px !important;
+            max-width: 100% !important;
+        }
         
-        /* Forzar que la firma se vea bien al imprimir */
-        .signature-section { display: block !important; break-inside: avoid; }
+        /* 4. Asegurar que textos y tablas sean negros y visibles */
+        body, .stApp {
+            background-color: white !important;
+            color: black !important;
+        }
+        
+        /* 5. Mostrar firma */
+        .signature-section { display: block !important; }
     }
     
-    /* Encabezado Factura */
+    /* Estilos Visuales Pantalla */
     .invoice-header {
         text-align: center; margin-bottom: 20px; padding-bottom: 10px;
         border-bottom: 2px solid #eb0a1e;
     }
     .invoice-title { font-size: 24px; font-weight: bold; color: #eb0a1e; margin: 0; }
     
-    /* Sección de Firma */
     .signature-section {
-        margin-top: 50px;
-        text-align: center;
-        page-break-inside: avoid;
+        margin-top: 50px; text-align: center; page-break-inside: avoid;
     }
     .signature-line {
-        border-top: 1px solid #000;
-        width: 250px;
-        margin: 0 auto;
-        padding-top: 5px;
-        font-weight: bold;
+        border-top: 1px solid #000; width: 250px; margin: 0 auto; padding-top: 5px; font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -93,7 +103,7 @@ if not st.session_state.modo_impresion:
     
     st.write("---")
 
-    # 1. SECCIÓN: BUSCADOR DE REFACCIONES
+    # 1. BUSCADOR
     if df is not None:
         busqueda = st.text_input("🔍 Buscar Refacción (SKU o Nombre):", placeholder="Ej. Filtro, 90430...")
 
@@ -134,25 +144,42 @@ if not st.session_state.modo_impresion:
             else:
                 st.warning("No se encontraron resultados.")
 
-    # 2. SECCIÓN: AGREGAR MANO DE OBRA (EXTRA)
-    st.markdown("### 🛠️ Agregar Mano de Obra / Extras")
-    with st.expander("Clic aquí para agregar conceptos manuales", expanded=False):
+    # 2. SECCIÓN: SERVICIOS Y EXTRAS (Predefinidos)
+    st.markdown("### 🛠️ Agregar Servicios / Mano de Obra")
+    with st.expander("Clic aquí para agregar servicios", expanded=False):
+        st.info("💡 Ingresa el precio **sin IVA**. El sistema agregará el 16% al final.")
+        
         ce1, ce2, ce3 = st.columns([2, 1, 1])
         with ce1:
-            desc_man = st.text_input("Descripción del servicio:", value="Mano de Obra")
-        with ce2:
-            precio_man = st.number_input("Costo (Antes de IVA):", min_value=0.0, format="%.2f")
-        with ce3:
-            st.write("") # Espacio
-            st.write("")
-            if st.button("Agregar Extra 🔧"):
-                st.session_state.carrito.append({
-                    "SKU": "SERV-EXT", "Descripción": desc_man, "Precio Base": precio_man,
-                    "Cantidad": 1, "Importe": precio_man
-                })
-                st.rerun()
+            # SELECTOR DE SERVICIOS PREDEFINIDOS
+            opciones = ["Mano de Obra", "Pintura", "Hojalatería", "Instalación", "Servicio Foráneo", "Diagnóstico", "Otro"]
+            tipo_servicio = st.selectbox("Tipo de Servicio:", opciones)
+            
+            if tipo_servicio == "Otro":
+                desc_final = st.text_input("Escribe el nombre del servicio:", value="Servicio General")
+            else:
+                desc_final = tipo_servicio # Toma el valor del selector
 
-    # 3. SECCIÓN: CARRITO Y ACCIONES
+        with ce2:
+            precio_manual = st.number_input("Costo (Antes de IVA):", min_value=0.0, format="%.2f")
+        
+        with ce3:
+            st.write("") 
+            st.write("")
+            if st.button("Agregar Servicio 🔧"):
+                if precio_manual > 0:
+                    st.session_state.carrito.append({
+                        "SKU": "SERVICIO", 
+                        "Descripción": desc_final, 
+                        "Precio Base": precio_manual,
+                        "Cantidad": 1, 
+                        "Importe": precio_manual 
+                    })
+                    st.rerun()
+                else:
+                    st.error("El costo debe ser mayor a 0")
+
+    # 3. CARRITO
     if st.session_state.carrito:
         st.write("---")
         st.subheader(f"🛒 Carrito ({fecha_hoy})")
@@ -181,7 +208,6 @@ if not st.session_state.modo_impresion:
                 st.session_state.carrito = []
                 st.rerun()
         with col_btns[2]:
-            # WHATSAPP
             msg = f"*COTIZACIÓN TOYOTA LOS FUERTES*\n📅 Fecha: {fecha_hoy}\n\n"
             for _, row in df_carro.iterrows():
                 msg += f"▪ {row['Cantidad']}x {row['Descripción']}\n   Base: ${row['Importe']:,.2f}\n"
@@ -195,7 +221,6 @@ if not st.session_state.modo_impresion:
 else:
     fecha_hora = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    # Encabezado Oficial
     st.markdown(f"""
         <div class="invoice-header">
             <p class="invoice-title">TOYOTA LOS FUERTES</p>
@@ -213,10 +238,8 @@ else:
         iva = subtotal * 0.16
         gran_total = subtotal + iva
 
-        # Tabla limpia
         st.table(df_carro[['Cantidad', 'SKU', 'Descripción', 'Precio Base', 'Importe']])
 
-        # Totales
         st.markdown(f"""
         <div style="text-align: right; margin-top: 10px;">
             <p><strong>Subtotal:</strong> ${subtotal:,.2f}</p>
@@ -225,24 +248,18 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # Área de Firma (Solo visible en esta vista y en papel)
         st.markdown("""
         <div class="signature-section">
             <br><br><br>
             <div class="signature-line">Firma del Asesor / Cliente</div>
         </div>
-        """, unsafe_allow_html=True)
-
-        # Footer Legal
-        st.markdown("""
         <div style='text-align: center; font-size: 10px; color: gray; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px;'>
             <p>Precios sujetos a cambio sin previo aviso. Vigencia inmediata. 
             Mano de obra y refacciones cotizadas bajo estándares Toyota.</p>
         </div>
         """, unsafe_allow_html=True)
 
-        # --- BOTONES DE ACCIÓN (Se ocultan al imprimir gracias al CSS) ---
-        st.markdown("<div class='no-print'>", unsafe_allow_html=True) # Inicio bloque No-Print
+        st.markdown("<div class='no-print'>", unsafe_allow_html=True) 
         c_volver, c_print = st.columns([1, 4])
         
         with c_volver:
@@ -251,28 +268,18 @@ else:
                 st.rerun()
         
         with c_print:
-            # BOTÓN JAVASCRIPT PARA IMPRIMIR
             components.html("""
             <script>
-            function printPage() {
-                window.print();
-            }
+            function printPage() { window.print(); }
             </script>
             <button onclick="printPage()" style="
-                background-color: #eb0a1e; 
-                color: white; 
-                padding: 10px 20px; 
-                border: none; 
-                border-radius: 5px; 
-                cursor: pointer;
-                font-family: sans-serif;
-                font-weight: bold;
-                font-size: 16px;">
+                background-color: #eb0a1e; color: white; padding: 10px 20px; 
+                border: none; border-radius: 5px; cursor: pointer; 
+                font-family: sans-serif; font-weight: bold; font-size: 16px;">
                 🖨️ Imprimir / Guardar como PDF
             </button>
             """, height=60)
-            
-        st.markdown("</div>", unsafe_allow_html=True) # Fin bloque No-Print
+        st.markdown("</div>", unsafe_allow_html=True) 
 
     else:
         st.warning("Carrito vacío.")
