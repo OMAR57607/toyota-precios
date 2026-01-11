@@ -5,37 +5,38 @@ import urllib.parse
 from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
-from pyzbar.pyzbar import decode # Librería para leer códigos de barras
+from pyzbar.pyzbar import decode
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wide")
 
-# Inicializar variables de estado
+# Inicializar variables
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 
-# 2. ESTILOS CSS (Dinámicos y limpios)
+# 2. ESTILOS CSS (Adaptables y Limpios)
 st.markdown("""
     <style>
     /* Título Toyota Rojo */
     h1 { color: #eb0a1e !important; text-align: center; }
     
-    /* Ajustes generales */
+    /* Botones */
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
     
-    /* Footer Legal con opacidad para adaptarse a modo noche/día */
+    /* Footer Legal Dinámico (Opacidad para Modo Noche/Día) */
     .legal-footer {
         text-align: center;
-        font-size: 12px;
+        font-size: 11px;
         opacity: 0.7;
         margin-top: 50px;
         padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
+        font-family: sans-serif;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CLASE PDF ---
+# --- CLASE PDF (GENERADOR DE DOCUMENTO) ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
@@ -46,29 +47,28 @@ class PDF(FPDF):
         self.cell(0, 5, 'COTIZACION DE REFACCIONES Y SERVICIOS', 0, 1, 'C')
         self.ln(5)
 
-   # --- DENTRO DE LA CLASE PDF (Footer del PDF) ---
     def footer(self):
         self.set_y(-30)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(128)
-        # Cambiamos "sin previo aviso" por vigencia clara
-        self.multi_cell(0, 4, 'Precios en MXN. Incluyen IVA (16%). Cotizacion valida exclusivamente por el dia de su emision. Descripciones traducidas para cumplimiento de la NOM-050-SCFI-2004.', 0, 'C')
+        # --- AQUÍ ESTÁ EL CAMBIO DE VIGENCIA PARA EL PDF ---
+        self.multi_cell(0, 4, 'Precios en Moneda Nacional (MXN). Incluyen IVA (16%). VIGENCIA: Esta cotizacion es valida por 24 HORAS a partir de su emision. Descripciones bajo NOM-050-SCFI-2004.', 0, 'C')
 
 def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=30)
     
-    # Fecha
+    # Fecha y Hora
     pdf.set_font('Arial', 'B', 10)
     pdf.set_text_color(0)
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
-    pdf.cell(0, 10, f'Fecha: {fecha}', 0, 1, 'R')
+    pdf.cell(0, 10, f'Fecha de Emision: {fecha}', 0, 1, 'R')
     pdf.ln(5)
 
-    # Encabezados
-    pdf.set_fill_color(235, 10, 30)
-    pdf.set_text_color(255)
+    # Encabezados de Tabla
+    pdf.set_fill_color(235, 10, 30) # Fondo Rojo
+    pdf.set_text_color(255) # Texto Blanco
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(15, 8, 'Cant.', 1, 0, 'C', True)
     pdf.cell(35, 8, 'SKU', 1, 0, 'C', True)
@@ -76,7 +76,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf.cell(25, 8, 'P. Base', 1, 0, 'C', True)
     pdf.cell(30, 8, 'Importe', 1, 1, 'C', True)
 
-    # Filas
+    # Contenido del Carrito
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 8)
     for item in carrito:
@@ -105,7 +105,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf.cell(25, 8, 'TOTAL:', 0, 0, 'R')
     pdf.cell(30, 8, f"${total:,.2f}", 0, 1, 'R')
 
-    # Firma
+    # Línea de Firma
     pdf.ln(25)
     pdf.set_draw_color(0)
     pdf.line(60, pdf.get_y(), 150, pdf.get_y())
@@ -147,21 +147,21 @@ st.write("---")
 # 1. SECCIÓN DE ESCÁNER Y BÚSQUEDA
 sku_detectado = ""
 
-# Checkbox para activar cámara (ahorra batería y espacio si no se usa)
+# Checkbox para activar cámara
 if st.checkbox("📸 Activar Escáner de Código de Barras"):
-    img_file = st.camera_input("Toma una foto clara del código")
+    st.info("Apunta la cámara al código de barras de la caja.")
+    img_file = st.camera_input("Toma una foto clara del código", label_visibility="collapsed")
     if img_file is not None:
         try:
             imagen = Image.open(img_file)
             codigos = decode(imagen)
             if codigos:
-                # Tomamos el primer código que encuentre
                 sku_detectado = codigos[0].data.decode("utf-8")
                 st.success(f"✅ Código detectado: **{sku_detectado}**")
             else:
-                st.warning("⚠️ No se detectó código. Intenta acercarte más o mejorar la luz.")
+                st.warning("⚠️ No se detectó código. Intenta mejorar la luz.")
         except Exception as e:
-            st.error(f"Error al procesar imagen: {e}")
+            st.error(f"Error: {e}")
 
 if df is not None:
     # Usamos el SKU detectado como valor por defecto si existe
@@ -273,22 +273,11 @@ if st.session_state.carrito:
         for _, row in df_carro.iterrows():
             msg += f"▪ {row['Cantidad']}x {row['Descripción']} (${row['Importe']:,.2f})\n"
         msg += f"\nSubtotal: ${subtotal:,.2f}\nIVA: ${iva:,.2f}\n*TOTAL: ${gran_total:,.2f}*"
+        msg += "\n\n_Vigencia: 24 horas_"
         link = f"https://wa.me/?text={urllib.parse.quote(msg)}"
         st.link_button("📲 Enviar WhatsApp", link)
 
-# FOOTER LEGAL
-st.markdown("""
-    <div class="legal-footer">
-        <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br>
-        Todos los precios están expresados en Moneda Nacional (MXN) e incluyen Impuesto al Valor Agregado (IVA) al finalizar el cálculo.
-        <br>Las descripciones de productos han sido traducidas para cumplimiento de la <strong>NOM-050-SCFI-2004</strong>.
-        <br>Precios sujetos a cambio sin previo aviso.
-    </div>
-""", unsafe_allow_html=True)
-
-
-
-# --- AL FINAL DEL ARCHIVO (Footer de la Pantalla) ---
+# FOOTER LEGAL ACTUALIZADO (VIGENCIA 24 HRS)
 st.markdown(f"""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br>
@@ -296,7 +285,6 @@ st.markdown(f"""
         2. Todos los montos incluyen IVA (16%).<br>
         3. Esta consulta cumple con la obligación de exhibición de precios conforme al <strong>Art. 7 de la LFPC</strong>.<br>
         4. Las descripciones de productos cumplen con la <strong>NOM-050-SCFI-2004</strong>.<br>
-        5. <strong>Nota:</strong> Una vez emitida la cotización, los precios se respetarán únicamente durante el día de su generación. 
-        Para compras posteriores, favor de verificar la vigencia de la lista de precios.
+        5. <strong>IMPORTANTE:</strong> Esta cotización tiene una vigencia de <strong>24 horas</strong> a partir de su emisión.
     </div>
 """, unsafe_allow_html=True)
