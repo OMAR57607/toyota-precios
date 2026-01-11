@@ -4,7 +4,6 @@ from deep_translator import GoogleTranslator
 import urllib.parse
 from datetime import datetime
 from fpdf import FPDF
-import base64
 
 # 1. Configuración de página
 st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wide")
@@ -13,34 +12,47 @@ st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wi
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 
-# 2. ESTILOS CSS (Limpios, ya no necesitamos el hack de impresión)
+# 2. ESTILOS CSS
 st.markdown("""
     <style>
-    h1 { color: #eb0a1e !important; }
-    .stButton button { width: 100%; border-radius: 5px; }
+    /* Título principal en Rojo Toyota */
+    h1 { color: #eb0a1e !important; text-align: center; }
+    
+    /* Subtítulos */
+    h3 { color: #333 !important; }
+    
+    /* Botones más estéticos */
+    .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
+    
+    /* Texto Legal Profeco en pantalla */
+    .legal-footer {
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+        margin-top: 50px;
+        padding-top: 20px;
+        border-top: 1px solid #ddd;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # --- CLASE PARA GENERAR EL PDF ---
 class PDF(FPDF):
     def header(self):
-        # Título
         self.set_font('Arial', 'B', 16)
-        self.set_text_color(235, 10, 30) # Rojo Toyota
+        self.set_text_color(235, 10, 30) # Rojo
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
-        # Subtítulo
         self.set_font('Arial', '', 10)
-        self.set_text_color(0, 0, 0)
+        self.set_text_color(0)
         self.cell(0, 5, 'COTIZACION DE REFACCIONES Y SERVICIOS', 0, 1, 'C')
         self.ln(5)
 
     def footer(self):
-        self.set_y(-25)
+        self.set_y(-30)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(128)
-        self.multi_cell(0, 4, 'Precios en Moneda Nacional (MXN). Sujetos a cambio sin previo aviso. Descripciones traducidas bajo NOM-050-SCFI-2004. Esta cotizacion tiene vigencia inmediata.', 0, 'C')
+        self.multi_cell(0, 4, 'Precios en Moneda Nacional (MXN). Incluyen IVA (16%). Sujetos a cambio sin previo aviso. Descripciones traducidas bajo NOM-050-SCFI-2004.', 0, 'C')
 
-# Función para crear el PDF y devolver los bytes
 def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf = PDF()
     pdf.add_page()
@@ -50,28 +62,24 @@ def generar_pdf_bytes(carrito, subtotal, iva, total):
     pdf.set_font('Arial', 'B', 10)
     pdf.set_text_color(0)
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
-    pdf.cell(0, 10, f'Fecha de Emision: {fecha}', 0, 1, 'R')
+    pdf.cell(0, 10, f'Fecha: {fecha}', 0, 1, 'R')
     pdf.ln(5)
 
-    # Encabezados de Tabla
-    pdf.set_fill_color(235, 10, 30) # Fondo Rojo
-    pdf.set_text_color(255) # Texto Blanco
-    pdf.set_font('Arial', 'B', 10)
-    
-    # Anchos: Cant(15), SKU(35), Desc(80), Unit(30), Importe(30) = 190 total
+    # Encabezados Tabla
+    pdf.set_fill_color(235, 10, 30)
+    pdf.set_text_color(255)
+    pdf.set_font('Arial', 'B', 9)
     pdf.cell(15, 8, 'Cant.', 1, 0, 'C', True)
     pdf.cell(35, 8, 'SKU', 1, 0, 'C', True)
     pdf.cell(85, 8, 'Descripcion', 1, 0, 'C', True)
     pdf.cell(25, 8, 'P. Base', 1, 0, 'C', True)
     pdf.cell(30, 8, 'Importe', 1, 1, 'C', True)
 
-    # Filas
-    pdf.set_text_color(0) # Texto Negro
-    pdf.set_font('Arial', '', 9)
-    
+    # Contenido
+    pdf.set_text_color(0)
+    pdf.set_font('Arial', '', 8)
     for item in carrito:
-        desc = item['Descripción'][:45] # Recortar si es muy largo para que quepa
-        
+        desc = item['Descripción'][:50] # Cortar si es muy largo
         pdf.cell(15, 8, str(int(item['Cantidad'])), 1, 0, 'C')
         pdf.cell(35, 8, item['SKU'], 1, 0, 'C')
         pdf.cell(85, 8, desc, 1, 0, 'L')
@@ -79,42 +87,40 @@ def generar_pdf_bytes(carrito, subtotal, iva, total):
         pdf.cell(30, 8, f"${item['Importe']:,.2f}", 1, 1, 'R')
 
     pdf.ln(5)
-
+    
     # Totales
     pdf.set_font('Arial', '', 10)
-    pdf.cell(130) # Mover a la derecha
-    pdf.cell(30, 6, 'Subtotal:', 0, 0, 'R')
+    pdf.cell(135)
+    pdf.cell(25, 6, 'Subtotal:', 0, 0, 'R')
     pdf.cell(30, 6, f"${subtotal:,.2f}", 0, 1, 'R')
     
-    pdf.cell(130)
-    pdf.cell(30, 6, 'IVA (16%):', 0, 0, 'R')
+    pdf.cell(135)
+    pdf.cell(25, 6, 'IVA (16%):', 0, 0, 'R')
     pdf.cell(30, 6, f"${iva:,.2f}", 0, 1, 'R')
     
     pdf.set_font('Arial', 'B', 12)
     pdf.set_text_color(235, 10, 30)
-    pdf.cell(130)
-    pdf.cell(30, 8, 'TOTAL:', 0, 0, 'R')
+    pdf.cell(135)
+    pdf.cell(25, 8, 'TOTAL:', 0, 0, 'R')
     pdf.cell(30, 8, f"${total:,.2f}", 0, 1, 'R')
 
-    # Línea de Firma
+    # Firma
     pdf.ln(25)
     pdf.set_draw_color(0)
-    pdf.line(60, pdf.get_y(), 150, pdf.get_y()) # Línea centrada
+    pdf.line(60, pdf.get_y(), 150, pdf.get_y())
     pdf.set_text_color(0)
-    pdf.set_font('Arial', 'B', 9)
+    pdf.set_font('Arial', 'B', 8)
     pdf.cell(0, 5, 'Firma de Autorizacion / Asesor', 0, 1, 'C')
 
-    # Retornar el PDF como string binario
     return pdf.output(dest='S').encode('latin-1')
 
-# Traducción
+# Traductor
 @st.cache_data
 def traducir_profe(texto):
     try:
         if pd.isna(texto) or texto == "": return "Sin descripción"
         return GoogleTranslator(source='en', target='es').translate(str(texto))
-    except:
-        return texto
+    except: return texto
 
 # Carga de datos
 @st.cache_data
@@ -133,18 +139,18 @@ fecha_hoy = datetime.now().strftime("%d/%m/%Y")
 
 # --- INTERFAZ PRINCIPAL ---
 
-c_titulo, c_fecha = st.columns([3, 1])
-with c_titulo:
-    st.title("🚗 Consulta de Precios")
-    st.markdown("**Toyota Los Fuertes** | Sistema de Cotización Oficial")
-with c_fecha:
-    st.markdown(f"### 📅 {fecha_hoy}")
-
+# ENCABEZADO PROMINENTE EN PANTALLA
+st.title("TOYOTA LOS FUERTES")
+st.markdown("<h4 style='text-align: center; color: gray;'>Sistema de Cotización y Consulta de Precios</h4>", unsafe_allow_html=True)
 st.write("---")
 
 # 1. BUSCADOR
 if df is not None:
-    busqueda = st.text_input("🔍 Buscar Refacción (SKU o Nombre):", placeholder="Ej. Filtro, 90430...")
+    col_search, col_date = st.columns([4, 1])
+    with col_search:
+        busqueda = st.text_input("🔍 Buscar Refacción (SKU o Nombre):", placeholder="Ej. Filtro, 90430...")
+    with col_date:
+        st.markdown(f"**Fecha:**\n{fecha_hoy}")
 
     if busqueda:
         busqueda = busqueda.upper().strip()
@@ -163,7 +169,7 @@ if df is not None:
                 try:
                     precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
                     precio_val = float(precio_texto)
-                except ValueError: precio_val = 0.0
+                except: precio_val = 0.0
 
                 with st.container():
                     c1, c2, c3 = st.columns([3, 1, 1])
@@ -173,7 +179,7 @@ if df is not None:
                     with c2:
                         cantidad = st.number_input("Cant.", min_value=1, value=1, key=f"cant_{i}", label_visibility="collapsed")
                     with c3:
-                        if st.button(f"Añadir ➕", key=f"add_{i}"):
+                        if st.button("Añadir ➕", key=f"add_{i}"):
                             st.session_state.carrito.append({
                                 "SKU": sku_val, "Descripción": desc_es, "Precio Base": precio_val,
                                 "Cantidad": cantidad, "Importe": precio_val * cantidad
@@ -183,85 +189,79 @@ if df is not None:
         else:
             st.warning("No se encontraron resultados.")
 
-# 2. SECCIÓN: SERVICIOS Y EXTRAS (Predefinidos)
+# 2. SERVICIOS PREDEFINIDOS
 st.markdown("### 🛠️ Agregar Servicios / Mano de Obra")
 with st.expander("Clic aquí para agregar servicios", expanded=False):
     st.info("💡 Ingresa el precio **sin IVA**. El sistema agregará el 16% al final.")
-    
     ce1, ce2, ce3 = st.columns([2, 1, 1])
     with ce1:
         opciones = ["Mano de Obra", "Pintura", "Hojalatería", "Instalación", "Servicio Foráneo", "Diagnóstico", "Otro"]
-        tipo_servicio = st.selectbox("Tipo de Servicio:", opciones)
-        if tipo_servicio == "Otro":
-            desc_final = st.text_input("Escribe el nombre del servicio:", value="Servicio General")
-        else:
-            desc_final = tipo_servicio
-
+        tipo = st.selectbox("Tipo:", opciones)
+        desc_final = st.text_input("Descripción:", value="Servicio General") if tipo == "Otro" else tipo
     with ce2:
-        precio_manual = st.number_input("Costo (Antes de IVA):", min_value=0.0, format="%.2f")
-    
+        precio_manual = st.number_input("Costo (Base):", min_value=0.0, format="%.2f")
     with ce3:
-        st.write("") 
         st.write("")
-        if st.button("Agregar Servicio 🔧"):
+        st.write("")
+        if st.button("Agregar 🔧"):
             if precio_manual > 0:
                 st.session_state.carrito.append({
-                    "SKU": "SERVICIO", 
-                    "Descripción": desc_final, 
-                    "Precio Base": precio_manual,
-                    "Cantidad": 1, 
-                    "Importe": precio_manual 
+                    "SKU": "SERV", "Descripción": desc_final, "Precio Base": precio_manual,
+                    "Cantidad": 1, "Importe": precio_manual
                 })
                 st.rerun()
-            else:
-                st.error("El costo debe ser mayor a 0")
 
 # 3. CARRITO
 if st.session_state.carrito:
     st.write("---")
-    st.subheader(f"🛒 Carrito ({fecha_hoy})")
+    st.subheader(f"🛒 Carrito de Cotización")
     
     df_carro = pd.DataFrame(st.session_state.carrito)
     st.dataframe(df_carro, hide_index=True, use_container_width=True)
     
-    # CÁLCULOS
     subtotal = df_carro['Importe'].sum()
     iva = subtotal * 0.16
     gran_total = subtotal + iva
 
-    col_sub, col_iva, col_tot = st.columns(3)
-    col_sub.metric("Subtotal", f"${subtotal:,.2f}")
-    col_iva.metric("IVA (16%)", f"${iva:,.2f}")
-    col_tot.metric("Total Neto", f"${gran_total:,.2f}")
+    c_sub, c_iva, c_tot = st.columns(3)
+    c_sub.metric("Subtotal", f"${subtotal:,.2f}")
+    c_iva.metric("IVA (16%)", f"${iva:,.2f}")
+    c_tot.metric("TOTAL NETO", f"${gran_total:,.2f}")
 
-    # BOTONES DE ACCIÓN
-    col_pdf, col_borrar, col_wa = st.columns([1, 1, 2])
+    # ACCIONES
+    col_pdf, col_del, col_wa = st.columns([1, 1, 2])
     
     with col_pdf:
-        # GENERACIÓN DEL PDF
         try:
             pdf_bytes = generar_pdf_bytes(st.session_state.carrito, subtotal, iva, gran_total)
             st.download_button(
                 label="📄 Descargar PDF",
                 data=pdf_bytes,
-                file_name=f"Cotizacion_Toyota_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                file_name=f"Cotizacion_Toyota_{datetime.now().strftime('%d%m%Y')}.pdf",
                 mime="application/pdf",
                 type="primary"
             )
-        except Exception as e:
-            st.error(f"Error PDF: {e}")
+        except Exception as e: st.error(f"Error PDF: {e}")
 
-    with col_borrar:
-        if st.button("🗑️ Vaciar Todo"):
+    with col_del:
+        if st.button("🗑️ Vaciar"):
             st.session_state.carrito = []
             st.rerun()
             
     with col_wa:
-        msg = f"*COTIZACIÓN TOYOTA LOS FUERTES*\n📅 Fecha: {fecha_hoy}\n\n"
+        msg = f"*COTIZACIÓN TOYOTA LOS FUERTES*\n📅 {fecha_hoy}\n\n"
         for _, row in df_carro.iterrows():
-            msg += f"▪ {row['Cantidad']}x {row['Descripción']}\n   Base: ${row['Importe']:,.2f}\n"
-        msg += f"\nSubtotal: ${subtotal:,.2f}"
-        msg += f"\nIVA (16%): ${iva:,.2f}"
-        msg += f"\n*TOTAL: ${gran_total:,.2f} MXN*"
+            msg += f"▪ {row['Cantidad']}x {row['Descripción']} (${row['Importe']:,.2f})\n"
+        msg += f"\nSubtotal: ${subtotal:,.2f}\nIVA: ${iva:,.2f}\n*TOTAL: ${gran_total:,.2f}*"
         link = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-        st.link_button("📲 Enviar WhatsApp", link, type="secondary")
+        st.link_button("📲 Enviar WhatsApp", link)
+
+# FOOTER LEGAL EN PANTALLA (PROFECO)
+st.markdown("""
+    <div class="legal-footer">
+        <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br>
+        Todos los precios están expresados en Moneda Nacional (MXN) e incluyen Impuesto al Valor Agregado (IVA) al finalizar el cálculo.
+        <br>Las descripciones de productos han sido traducidas para cumplimiento de la <strong>NOM-050-SCFI-2004</strong>.
+        <br>Precios sujetos a cambio sin previo aviso.
+    </div>
+""", unsafe_allow_html=True)
