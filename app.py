@@ -273,8 +273,7 @@ if df is not None:
 
             st.success(f"Resultados encontrados:")
             
-            # --- MODIFICACIÓN: SE ELIMINARON LOS ENCABEZADOS AQUÍ ---
-            # Ahora los resultados empiezan directamente
+            # --- SIN ENCABEZADOS DE TABLA (SOLICITUD CUMPLIDA) ---
 
             for i, row in resultados.iterrows():
                 desc_es = traducir_profe(row[c_desc])
@@ -317,7 +316,9 @@ if df is not None:
 st.markdown("### 🛠️ Agregar Servicios / Mano de Obra")
 with st.expander("Clic aquí para agregar servicios", expanded=False):
     st.info("💡 Ingresa precio sin IVA.")
-    ce1, ce2, ce3, ce4 = st.columns([2, 1, 1, 1])
+    # --- MODIFICACIÓN: SE REMOVIÓ EL SELECTBOX DE ESTATUS EN SERVICIOS ---
+    ce1, ce2, ce3 = st.columns([3, 1, 1])
+    
     with ce1:
         opciones = ["Mano de Obra", "Pintura", "Hojalatería", "Instalación", "Servicio Foráneo", "Diagnóstico", "Otro"]
         tipo = st.selectbox("Tipo:", opciones)
@@ -325,8 +326,6 @@ with st.expander("Clic aquí para agregar servicios", expanded=False):
     with ce2:
         precio_manual = st.number_input("Costo (Unitario):", min_value=0.0, format="%.2f")
     with ce3:
-        estatus_serv = st.selectbox("Estatus:", ["Disponible", "No Disponible", "Back Order"])
-    with ce4:
         st.write("")
         st.write("")
         if st.button("Agregar 🔧"):
@@ -335,6 +334,7 @@ with st.expander("Clic aquí para agregar servicios", expanded=False):
                 iva_serv = precio_manual * 0.16
                 total_serv = precio_manual + iva_serv
                 
+                # Por defecto, el servicio es "Disponible"
                 st.session_state.carrito.append({
                     "SKU": "SERV",
                     "Descripción": desc_final,
@@ -342,7 +342,7 @@ with st.expander("Clic aquí para agregar servicios", expanded=False):
                     "Precio Base": precio_manual,
                     "IVA": iva_serv,
                     "Importe Total": total_serv,
-                    "Estatus": estatus_serv
+                    "Estatus": "Disponible" 
                 })
                 st.rerun()
 
