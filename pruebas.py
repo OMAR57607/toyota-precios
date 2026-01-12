@@ -251,7 +251,6 @@ def procesar_lista_sku(lista_skus):
 
 # --- INTERFAZ PRINCIPAL ---
 
-st.sidebar.image("https://www.toyota.mx/sites/default/files/logo-toyota.png", width=150)
 st.sidebar.title("Menú Asesor")
 modo = st.sidebar.radio("Selecciona una opción:", ["🔍 Cotizador Manual", "📂 Importador Masivo"])
 
