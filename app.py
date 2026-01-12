@@ -49,7 +49,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CLASE PDF (ACTUALIZADA CON NUEVAS COLUMNAS) ---
+# --- CLASE PDF ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
@@ -101,12 +101,11 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(150, 6, vin if vin else "N/A", 0, 1)
     pdf.ln(10)
 
-    # --- ENCABEZADOS DE TABLA (REORDENADOS) ---
+    # --- ENCABEZADOS DE TABLA PDF ---
     pdf.set_fill_color(235, 10, 30)
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 8)
     
-    # Anchos de columna (Total = 190)
     w_sku = 30
     w_desc = 60
     w_cant = 10
@@ -128,7 +127,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.set_font('Arial', '', 7)
     
     for item in carrito:
-        desc = item['Descripción'][:40] # Truncar descripción larga
+        desc = item['Descripción'][:40]
         
         pdf.cell(w_sku, 8, item['SKU'], 1, 0, 'C')
         pdf.cell(w_desc, 8, desc, 1, 0, 'L')
@@ -137,7 +136,6 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
         pdf.cell(w_iva, 8, f"${item['IVA']:,.2f}", 1, 0, 'R')
         pdf.cell(w_total, 8, f"${item['Importe Total']:,.2f}", 1, 0, 'R')
         
-        # Color para el estatus
         st_txt = item['Estatus']
         pdf.set_font('Arial', 'B', 7)
         if "Back Order" in st_txt: pdf.set_text_color(200, 0, 0)
@@ -146,8 +144,8 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
         
         pdf.cell(w_estatus, 8, st_txt, 1, 1, 'C')
         
-        pdf.set_text_color(0) # Reset color
-        pdf.set_font('Arial', '', 7) # Reset font
+        pdf.set_text_color(0)
+        pdf.set_font('Arial', '', 7)
 
     pdf.ln(5)
     
@@ -194,11 +192,7 @@ def cargar_catalogo():
         df.columns = [c.strip().upper() for c in df.columns]
         
         c_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c][0]
-        
-        # Eliminar duplicados (Mantiene el primero)
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
-        
-        # Columna limpia para búsqueda sin guiones
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
         return df
@@ -279,13 +273,8 @@ if df is not None:
 
             st.success(f"Resultados encontrados:")
             
-            # Encabezados de resultados visuales
-            cols_h = st.columns([3, 1, 1, 1])
-            cols_h[0].markdown("**Descripción / SKU**")
-            cols_h[1].markdown("**Cant.**")
-            cols_h[2].markdown("**Estatus**") # Nueva columna visual
-            cols_h[3].markdown("**Acción**")
-            st.divider()
+            # --- MODIFICACIÓN: SE ELIMINARON LOS ENCABEZADOS AQUÍ ---
+            # Ahora los resultados empiezan directamente
 
             for i, row in resultados.iterrows():
                 desc_es = traducir_profe(row[c_desc])
@@ -303,12 +292,10 @@ if df is not None:
                     with c2:
                         cantidad = st.number_input("Cant", min_value=1, value=1, key=f"cant_{i}", label_visibility="collapsed")
                     with c3:
-                        # ---> SELECCIÓN DE ESTATUS MANUAL
                         estatus = st.selectbox("Disp.", ["Disponible", "No Disponible", "Back Order"], key=f"st_{i}", label_visibility="collapsed")
                     with c4:
                         if st.button("Añadir ➕", key=f"add_{i}"):
-                            # CÁLCULOS
-                            monto_base = precio_val # Precio unitario base
+                            monto_base = precio_val 
                             monto_iva = (monto_base * cantidad) * 0.16
                             monto_total = (monto_base * cantidad) + monto_iva
                             
@@ -316,7 +303,7 @@ if df is not None:
                                 "SKU": sku_val,
                                 "Descripción": desc_es,
                                 "Cantidad": cantidad,
-                                "Precio Base": precio_val, # Unitario
+                                "Precio Base": precio_val,
                                 "IVA": monto_iva,
                                 "Importe Total": monto_total,
                                 "Estatus": estatus
@@ -366,11 +353,9 @@ if st.session_state.carrito:
     
     df_carro = pd.DataFrame(st.session_state.carrito)
     
-    # ---> ORDEN DE COLUMNAS PARA VISUALIZACIÓN
     columnas_orden = ["SKU", "Descripción", "Cantidad", "Precio Base", "IVA", "Importe Total", "Estatus"]
     st.dataframe(df_carro[columnas_orden], hide_index=True, use_container_width=True)
     
-    # Totales globales
     subtotal_g = df_carro['Precio Base'].values * df_carro['Cantidad'].values
     subtotal_sum = subtotal_g.sum()
     iva_sum = df_carro['IVA'].sum()
@@ -410,7 +395,6 @@ if st.session_state.carrito:
         if orden_input: msg += f"📄 Orden: {orden_input}\n"
         msg += "\n*DETALLE DE PIEZAS:*\n"
         
-        # ---> WHATSAPP CON FORMATO SOLICITADO E INDICADOR DE ESTATUS
         for _, row in df_carro.iterrows():
             estatus_icon = "✅" if row['Estatus'] == "Disponible" else ("⏳" if "Back" in row['Estatus'] else "❌")
             msg += f"{estatus_icon} *{row['SKU']}* | {row['Descripción']}\n"
