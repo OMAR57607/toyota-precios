@@ -3,7 +3,7 @@ pandas
 deep-translator
 fpdf
 pyzbar
-pillow
+Pillow
 pytz
 easyocr
 numpy
