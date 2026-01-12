@@ -6,7 +6,9 @@ from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
 from pyzbar.pyzbar import decode
-import pytz  # Librería necesaria para la zona horaria
+import pytz
+import easyocr # Librería para leer texto (OCR)
+import numpy as np
 
 # 1. CONFIGURACIÓN DE PÁGINA Y ZONA HORARIA
 st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wide")
@@ -15,7 +17,6 @@ st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wi
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
-    # Fallback si pytz falla
     tz_cdmx = None 
 
 def obtener_hora_mx():
@@ -23,9 +24,15 @@ def obtener_hora_mx():
         return datetime.now(tz_cdmx)
     return datetime.now()
 
-# Inicializar variables
+# Inicializar variables de sesión
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
+
+# Cargar el modelo OCR solo una vez (Cache Resource para no recargar)
+@st.cache_resource
+def cargar_lector_ocr():
+    # 'en' suele funcionar bien para números y letras estándar
+    return easyocr.Reader(['en'], gpu=False) 
 
 # 2. ESTILOS CSS
 st.markdown("""
@@ -33,29 +40,22 @@ st.markdown("""
     h1 { color: #eb0a1e !important; text-align: center; }
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
     .legal-footer {
-        text-align: center;
-        font-size: 11px;
-        opacity: 0.7;
-        margin-top: 50px;
-        padding-top: 20px;
+        text-align: center; font-size: 11px; opacity: 0.7;
+        margin-top: 50px; padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
     }
-    /* Estilo para los inputs de datos del cliente */
     .datos-cliente {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CLASE PDF (GENERADOR DE DOCUMENTO) ---
+# --- CLASE PDF ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
-        self.set_text_color(235, 10, 30) # Rojo Toyota
+        self.set_text_color(235, 10, 30)
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
         self.set_font('Arial', '', 10)
         self.set_text_color(0)
@@ -73,15 +73,10 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=30)
     
-    # --- DATOS DE FECHA Y CLIENTE ---
-    pdf.set_font('Arial', '', 10)
-    pdf.set_text_color(0)
-    
     fecha_mx = obtener_hora_mx().strftime("%d/%m/%Y %H:%M")
     
-    # Bloque de información del cliente
     pdf.set_fill_color(245, 245, 245)
-    pdf.rect(10, 35, 190, 25, 'F') # Caja gris de fondo
+    pdf.rect(10, 35, 190, 25, 'F')
     pdf.set_xy(12, 38)
     
     pdf.set_font('Arial', 'B', 10)
@@ -105,10 +100,8 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(30, 6, 'VIN:', 0, 0)
     pdf.set_font('Arial', '', 10)
     pdf.cell(150, 6, vin if vin else "N/A", 0, 1)
-    
     pdf.ln(10)
 
-    # Encabezados de Tabla
     pdf.set_fill_color(235, 10, 30)
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 9)
@@ -118,7 +111,6 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(25, 8, 'P. Base', 1, 0, 'C', True)
     pdf.cell(30, 8, 'Importe', 1, 1, 'C', True)
 
-    # Contenido
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 8)
     for item in carrito:
@@ -130,24 +122,19 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
         pdf.cell(30, 8, f"${item['Importe']:,.2f}", 1, 1, 'R')
 
     pdf.ln(5)
-    
-    # Totales
     pdf.set_font('Arial', '', 10)
     pdf.cell(135)
     pdf.cell(25, 6, 'Subtotal:', 0, 0, 'R')
     pdf.cell(30, 6, f"${subtotal:,.2f}", 0, 1, 'R')
-    
     pdf.cell(135)
     pdf.cell(25, 6, 'IVA (16%):', 0, 0, 'R')
     pdf.cell(30, 6, f"${iva:,.2f}", 0, 1, 'R')
-    
     pdf.set_font('Arial', 'B', 12)
     pdf.set_text_color(235, 10, 30)
     pdf.cell(135)
     pdf.cell(25, 8, 'TOTAL:', 0, 0, 'R')
     pdf.cell(30, 8, f"${total:,.2f}", 0, 1, 'R')
 
-    # Firma
     pdf.ln(25)
     pdf.set_draw_color(0)
     pdf.line(60, pdf.get_y(), 150, pdf.get_y())
@@ -165,20 +152,29 @@ def traducir_profe(texto):
         return GoogleTranslator(source='en', target='es').translate(str(texto))
     except: return texto
 
-# Carga de datos
+# --- CARGA DE DATOS (MODIFICADA: DEDUPLICACIÓN) ---
 @st.cache_data
 def cargar_catalogo():
     try:
         df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
+        
+        # Identificar columna SKU
+        c_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c][0]
+        
+        # ---> MEJORA 1: Eliminar duplicados (Mantiene el primero que encuentra)
+        df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
+        
+        # ---> Preparar columna oculta para búsqueda sin guiones
+        df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
+        
         return df
     except Exception as e:
         st.error(f"Error cargando datos: {e}")
         return None
 
 df = cargar_catalogo()
-# Obtener fecha hora CDMX
 fecha_actual_mx = obtener_hora_mx()
 fecha_hoy_str = fecha_actual_mx.strftime("%d/%m/%Y")
 hora_hoy_str = fecha_actual_mx.strftime("%H:%M")
@@ -189,11 +185,10 @@ st.title("TOYOTA LOS FUERTES")
 st.markdown("<h4 style='text-align: center; opacity: 0.6;'>Sistema de Cotización y Consulta de Precios</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# 0. DATOS DEL CLIENTE Y VEHÍCULO (NUEVA SECCIÓN)
+# 0. DATOS DEL CLIENTE
 with st.container():
     st.markdown("### 📝 Datos de la Cotización")
     col_d1, col_d2, col_d3 = st.columns(3)
-    
     with col_d1:
         cliente_input = st.text_input("👤 Nombre del Cliente", placeholder="Ej. Juan Pérez")
     with col_d2:
@@ -206,43 +201,76 @@ st.write("---")
 # 1. SECCIÓN DE ESCÁNER Y BÚSQUEDA
 sku_detectado = ""
 
-# Checkbox para activar cámara
-if st.checkbox("📸 Activar Escáner de Código de Barras"):
-    st.info("Apunta la cámara al código de barras de la caja.")
-    img_file = st.camera_input("Toma una foto clara del código", label_visibility="collapsed")
+if st.checkbox("📸 Activar Escáner (Barras / Texto Caja)"):
+    st.info("El sistema buscará código de barras. Si no encuentra, intentará leer el texto de la caja.")
+    img_file = st.camera_input("Toma una foto clara", label_visibility="collapsed")
+    
     if img_file is not None:
         try:
-            imagen = Image.open(img_file)
-            codigos = decode(imagen)
+            imagen_pil = Image.open(img_file)
+            
+            # A) Intentar leer Código de Barras
+            codigos = decode(imagen_pil)
             if codigos:
                 sku_detectado = codigos[0].data.decode("utf-8")
-                st.success(f"✅ Código detectado: **{sku_detectado}**")
+                st.success(f"✅ Código de Barras detectado: **{sku_detectado}**")
+            
+            # B) ---> MEJORA 2: Intentar OCR (Texto) si falla el código de barras
             else:
-                st.warning("⚠️ No se detectó código. Intenta mejorar la luz.")
+                with st.spinner("Escaneando texto en la imagen..."):
+                    reader = cargar_lector_ocr()
+                    # Convertir a array para easyocr
+                    imagen_np = np.array(imagen_pil)
+                    result = reader.readtext(imagen_np)
+                    
+                    possibles = []
+                    # Filtramos textos que parezcan números de parte (mínimo 5 caracteres, números/letras)
+                    for (bbox, text, prob) in result:
+                        if len(text) > 4 and prob > 0.4:
+                            possibles.append(text)
+                    
+                    if possibles:
+                        # Tomamos el texto más largo o el primero que parezca SKU
+                        sku_detectado = possibles[0] 
+                        st.success(f"👁️ Texto detectado (OCR): **{sku_detectado}**")
+                    else:
+                        st.warning("⚠️ No se detectó código ni texto legible. Intenta mejorar la luz.")
+
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error en escáner: {e}")
 
 if df is not None:
     valor_inicial = sku_detectado if sku_detectado else ""
     
     col_search, col_date = st.columns([4, 1])
     with col_search:
-        busqueda = st.text_input("🔍 Buscar Refacción (SKU o Nombre):", value=valor_inicial, placeholder="Ej. Filtro, 90430...")
+        st.markdown("Busca por SKU (con o sin guiones) o Nombre:")
+        busqueda = st.text_input("Input Búsqueda", value=valor_inicial, label_visibility="collapsed", placeholder="Ej. 90915YZZD1 ó Filtro")
     with col_date:
-        # Mostramos la hora de CDMX
         st.markdown(f"**CDMX:**\n{fecha_hoy_str}\n{hora_hoy_str}")
 
     if busqueda:
-        busqueda = busqueda.upper().strip()
-        mask = df.apply(lambda x: x.astype(str).str.contains(busqueda, case=False)).any(axis=1)
-        resultados = df[mask].head(10).copy() 
+        # ---> MEJORA 3: Lógica de búsqueda flexible (ignora guiones)
+        busqueda_raw = busqueda.upper().strip()
+        busqueda_clean = busqueda_raw.replace('-', '') # Versión sin guiones
+        
+        # 1. Buscar en descripciones (Texto normal)
+        mask_desc = df.apply(lambda x: x.astype(str).str.contains(busqueda_raw, case=False)).any(axis=1)
+        
+        # 2. Buscar en SKU limpio (comparando input sin guiones vs SKU base de datos sin guiones)
+        # Nota: 'SKU_CLEAN' fue creada en cargar_catalogo
+        mask_sku = df['SKU_CLEAN'].str.contains(busqueda_clean, na=False)
+        
+        # Unir resultados
+        mask_final = mask_desc | mask_sku
+        resultados = df[mask_final].head(10).copy() 
 
         if not resultados.empty:
             c_sku = [c for c in resultados.columns if 'PART' in c or 'NUM' in c][0]
             c_desc = [c for c in resultados.columns if 'DESC' in c][0]
             c_precio = [c for c in resultados.columns if 'PRICE' in c or 'PRECIO' in c][0]
 
-            st.success("Resultados encontrados:")
+            st.success(f"Resultados encontrados para: '{busqueda}'")
             for i, row in resultados.iterrows():
                 desc_es = traducir_profe(row[c_desc])
                 sku_val = row[c_sku]
@@ -312,7 +340,6 @@ if st.session_state.carrito:
     
     with col_pdf:
         try:
-            # Enviamos también los datos del cliente al generador PDF
             pdf_bytes = generar_pdf_bytes(
                 st.session_state.carrito, subtotal, iva, gran_total,
                 cliente_input, vin_input, orden_input
@@ -332,7 +359,6 @@ if st.session_state.carrito:
             st.rerun()
             
     with col_wa:
-        # Mensaje WhatsApp mejorado con datos del cliente
         msg = f"*COTIZACIÓN TOYOTA LOS FUERTES*\n📅 {fecha_hoy_str} {hora_hoy_str}\n"
         if cliente_input: msg += f"👤 Cliente: {cliente_input}\n"
         if vin_input: msg += f"🚗 VIN: {vin_input}\n"
@@ -346,7 +372,6 @@ if st.session_state.carrito:
         link = f"https://wa.me/?text={urllib.parse.quote(msg)}"
         st.link_button("📲 Enviar WhatsApp", link)
 
-# FOOTER LEGAL
 st.markdown(f"""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br>
