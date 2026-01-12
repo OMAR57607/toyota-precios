@@ -147,24 +147,19 @@ if df is not None:
                     precio_val = float(precio_texto)
                 except: precio_val = 0.0
 
-                # ... código anterior ...
-with c1:
-    # --- MODIFICACIÓN PARA CUMPLIR PROFECO (Art 7 Bis) ---
-    st.markdown(f"**SKU:** `{sku_val}`")
-    st.markdown(f"{desc_es}")
-    
-    # CALCULAMOS EL TOTAL UNITARIO AQUÍ PARA MOSTRARLO
-    precio_con_iva = precio_val * 1.16
-    
-    # Mostramos el precio FINAL en grande y negritas (Lo que paga el cliente)
-    st.markdown(f"#### **Precio: ${precio_con_iva:,.2f} MXN**")
-    st.caption(f"(Precio de Lista: ${precio_val:,.2f} + IVA)") # Opcional: mostrar desglose pequeño
-# ... código siguiente ...
-
-                        # --- MODIFICACIÓN: SKU PRIMERO, LUEGO DESCRIPCIÓN ---
+                with st.container():
+                    c1, c2, c3 = st.columns([3, 1, 1])
+                    with c1:
+                        # --- CORRECCIÓN PROFECO: Mostrar Total con IVA en Grande ---
                         st.markdown(f"**SKU:** `{sku_val}`")
                         st.markdown(f"{desc_es}")
-                        st.markdown(f"**Unitario (Base): ${precio_val:,.2f}**") 
+                        
+                        precio_con_iva = precio_val * 1.16
+                        # Precio grande = Total a pagar
+                        st.markdown(f"#### **Precio: ${precio_con_iva:,.2f} MXN**")
+                        # Desglose pequeño
+                        st.caption(f"(Base: ${precio_val:,.2f} + IVA)") 
+                        
                     with c2:
                         cantidad = st.number_input("Cant.", min_value=1, value=1, key=f"cant_{i}")
                     with c3:
@@ -178,9 +173,9 @@ with c1:
                                 "SKU": sku_val,
                                 "Descripción": desc_es,
                                 "Cantidad": cantidad,
-                                "Precio Base": precio_val, # Importe antes de IVA
-                                "IVA": monto_iva,
-                                "Importe Total": monto_total
+                                "Precio Base": precio_val, # Unitario sin IVA
+                                "IVA": monto_iva,           # IVA Total
+                                "Importe Total": monto_total # Total con IVA
                             })
                             st.toast("✅ Agregado")
                     st.divider() 
@@ -193,13 +188,7 @@ if st.session_state.carrito:
     
     df_carro = pd.DataFrame(st.session_state.carrito)
     
-    # --- ORDEN EXACTO SOLICITADO ---
-    # 1. SKU (Número de parte)
-    # 2. Descripción
-    # 3. Cantidad
-    # 4. Precio Base (Importe antes de IVA)
-    # 5. IVA
-    # 6. Importe Total
+    # --- ORDEN DE COLUMNAS SOLICITADO ---
     columnas_vista = ["SKU", "Descripción", "Cantidad", "Precio Base", "IVA", "Importe Total"]
     
     st.dataframe(df_carro[columnas_vista], hide_index=True, use_container_width=True)
@@ -207,7 +196,7 @@ if st.session_state.carrito:
     gran_total = df_carro['Importe Total'].sum()
 
     st.markdown(f"<h3 style='text-align: right; color: #eb0a1e;'>Total A Pagar: ${gran_total:,.2f}</h3>", unsafe_allow_html=True)
-    st.caption("Nota: El total incluye IVA (16%).")
+    st.caption(f"<div style='text-align: right;'>Incluye IVA (16%)</div>", unsafe_allow_html=True)
 
     col_vaciar, col_wa = st.columns([1, 2])
     
@@ -220,7 +209,7 @@ if st.session_state.carrito:
         msg = f"*CONSULTA CLIENTE - TOYOTA LOS FUERTES*\n📅 {fecha_hoy_str} {hora_hoy_str}\n\n"
         
         for _, row in df_carro.iterrows():
-            # En WhatsApp también priorizamos SKU
+            # WhatsApp: SKU primero
             msg += f"▪ {row['SKU']} | {row['Descripción']}\n"
             msg += f"   Cant: {row['Cantidad']} | Total: ${row['Importe Total']:,.2f}\n"
         
