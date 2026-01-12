@@ -4,3 +4,4 @@ deep-translator
 fpdf
 pyzbar
 pillow
+pytz
