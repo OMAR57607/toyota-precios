@@ -31,20 +31,22 @@ if 'carrito' not in st.session_state:
 def cargar_lector_ocr():
     return easyocr.Reader(['en'], gpu=False) 
 
-# 2. ESTILOS CSS
+# 2. ESTILOS CSS (CORREGIDO PARA MODO OSCURO/CLARO)
 st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; text-align: center; }
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
+    
+    /* Footer Legal Adaptativo */
     .legal-footer {
         text-align: center;
         font-size: 11px;
-        opacity: 0.7;
+        opacity: 0.7; /* Se ve bien en blanco y en negro */
         margin-top: 50px;
         padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
-        color: #333;
+        /* Se eliminó 'color: #333' para que Streamlit decida el color (blanco/negro) según el tema */
     }
     </style>
     """, unsafe_allow_html=True)
@@ -85,9 +87,8 @@ st.title("TOYOTA LOS FUERTES")
 st.markdown("<h5 style='text-align: center; opacity: 0.8;'>Consulta de Precios y Refacciones Originales</h5>", unsafe_allow_html=True)
 st.write("---")
 
-# 0. INFORMACIÓN DE FECHA (Sin nombre de cliente)
+# 0. INFORMACIÓN DE FECHA
 with st.container():
-    # Alineamos la fecha a la derecha para que se vea formal
     st.markdown(f"<div style='text-align: right;'><strong>Fecha consulta:</strong> {fecha_hoy_str} <span style='opacity:0.6'>({hora_hoy_str})</span></div>", unsafe_allow_html=True)
 
 st.write("---")
