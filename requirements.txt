@@ -5,3 +5,6 @@ fpdf
 pyzbar
 pillow
 pytz
+easyocr
+numpy
+opencv-python-headless
