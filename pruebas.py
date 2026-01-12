@@ -9,7 +9,7 @@ from pyzbar.pyzbar import decode
 import pytz
 import easyocr
 import numpy as np
-import re # Para expresiones regulares en detección de SKUs
+import re
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Toyota Asesores", page_icon="🔧", layout="wide")
@@ -28,6 +28,8 @@ def obtener_hora_mx():
 # Inicializar variables de sesión
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
+if 'errores_carga' not in st.session_state:
+    st.session_state.errores_carga = [] # Lista para guardar SKUs fallidos
 
 @st.cache_resource
 def cargar_lector_ocr():
@@ -38,13 +40,20 @@ st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; text-align: center; }
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
+    .error-box {
+        background-color: #ffcccc;
+        padding: 10px;
+        border-radius: 5px;
+        border-left: 5px solid #ff0000;
+        margin-bottom: 10px;
+        color: #333;
+    }
     .legal-footer {
         text-align: center; font-size: 11px; opacity: 0.7;
         margin-top: 50px; padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
     }
-    .big-font { font-size:20px !important; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -100,7 +109,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(150, 6, vin if vin else "N/A", 0, 1)
     pdf.ln(10)
 
-    # --- ENCABEZADOS DE TABLA (REORDENADOS) ---
+    # --- ENCABEZADOS DE TABLA ---
     pdf.set_fill_color(235, 10, 30)
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 8)
@@ -192,7 +201,7 @@ def cargar_catalogo():
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
-        # Limpiar precio desde la carga para optimizar
+        # Limpiar precio
         df['PRECIO_NUM'] = df[c_precio].astype(str).str.replace('$', '').str.replace(',', '').apply(lambda x: float(x) if x.replace('.', '', 1).isdigit() else 0.0)
         
         return df, c_sku, c_desc
@@ -205,18 +214,16 @@ fecha_actual_mx = obtener_hora_mx()
 fecha_hoy_str = fecha_actual_mx.strftime("%d/%m/%Y")
 hora_hoy_str = fecha_actual_mx.strftime("%H:%M")
 
-# --- FUNCIÓN AUXILIAR: BUSCAR Y AGREGAR MASIVO ---
+# --- FUNCIÓN AUXILIAR MODIFICADA: PROCESAR + DETECTAR ERRORES ---
 def procesar_lista_sku(lista_skus):
-    # lista_skus es una lista de diccionarios o tuplas: [{'sku': '...', 'cant': 1}, ...]
     encontrados = 0
-    no_encontrados = []
+    errores = []
     
     for item in lista_skus:
         sku_raw = str(item['sku']).upper().strip()
         sku_clean = sku_raw.replace('-', '')
         cant = int(item['cant'])
         
-        # Buscar exacto en columna limpia
         match = df[df['SKU_CLEAN'] == sku_clean]
         
         if not match.empty:
@@ -224,24 +231,24 @@ def procesar_lista_sku(lista_skus):
             desc = traducir_profe(row[col_desc_db])
             precio = row['PRECIO_NUM']
             
-            # Agregar al carrito
             monto_iva = (precio * cant) * 0.16
             monto_total = (precio * cant) + monto_iva
             
             st.session_state.carrito.append({
-                "SKU": row[col_sku_db], # Usamos el SKU original con guiones si existe
+                "SKU": row[col_sku_db],
                 "Descripción": desc,
                 "Cantidad": cant,
                 "Precio Base": precio,
                 "IVA": monto_iva,
                 "Importe Total": monto_total,
-                "Estatus": "Disponible" # Por defecto en carga masiva
+                "Estatus": "Disponible"
             })
             encontrados += 1
         else:
-            no_encontrados.append(sku_raw)
+            # Guardamos el error para que el usuario lo vea
+            errores.append(sku_raw)
             
-    return encontrados, no_encontrados
+    return encontrados, errores
 
 # --- INTERFAZ PRINCIPAL ---
 
@@ -253,7 +260,7 @@ st.title("TOYOTA LOS FUERTES")
 st.markdown(f"<div style='text-align: right; opacity: 0.6;'>{fecha_hoy_str} {hora_hoy_str}</div>", unsafe_allow_html=True)
 
 # ==========================================
-# MODO 1: COTIZADOR MANUAL (Tu código original)
+# MODO 1: COTIZADOR MANUAL
 # ==========================================
 if modo == "🔍 Cotizador Manual":
     st.markdown("### 📝 Datos de la Cotización")
@@ -326,42 +333,88 @@ if modo == "🔍 Cotizador Manual":
                     st.divider()
 
 # ==========================================
-# MODO 2: IMPORTADOR MASIVO
+# MODO 2: IMPORTADOR MASIVO (CON CORRECCIÓN DE ERRORES)
 # ==========================================
 elif modo == "📂 Importador Masivo":
     st.markdown("### ⚡ Carga Rápida de Órdenes")
-    st.info("Sube un archivo o pega una lista para generar la cotización automáticamente.")
+    st.info("Sube un archivo o pega una lista. Si un código no existe, el sistema te avisará para agregarlo manualmente.")
     
-    # Variables de cliente también aquí para que salgan en el PDF
     col_m1, col_m2 = st.columns(2)
     with col_m1: cliente_input = st.text_input("👤 Cliente")
     with col_m2: orden_input = st.text_input("📄 Orden")
-    vin_input = "" # Opcional en masivo
+    vin_input = ""
     
+    # ---------------------------------------------
+    # SECCIÓN: MOSTRAR ERRORES Y PERMITIR CARGA MANUAL
+    # ---------------------------------------------
+    if st.session_state.errores_carga:
+        st.markdown(f"""
+        <div class="error-box">
+            <strong>⚠️ Atención:</strong> Se encontraron <strong>{len(st.session_state.errores_carga)}</strong> códigos que no existen en el catálogo.<br>
+            Códigos: {', '.join(st.session_state.errores_carga)}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        with st.expander("🛠️ Cargar Manualmente (SKUs Faltantes)", expanded=True):
+            st.write("Agrega los datos para las piezas que faltaron:")
+            
+            with st.form("form_manual"):
+                col_man1, col_man2, col_man3, col_man4 = st.columns([2, 3, 2, 1])
+                # Sugerimos el primer error de la lista como valor por defecto
+                sugerencia_sku = st.session_state.errores_carga[0] if st.session_state.errores_carga else ""
+                
+                m_sku = col_man1.text_input("SKU / Parte", value=sugerencia_sku)
+                m_desc = col_man2.text_input("Descripción", value="Refacción Especial")
+                m_precio = col_man3.number_input("Precio Unitario (Sin IVA)", min_value=0.0)
+                m_cant = col_man4.number_input("Cant.", min_value=1, value=1)
+                
+                if st.form_submit_button("Agregar al Carrito ✅"):
+                    iva_m = (m_precio * m_cant) * 0.16
+                    tot_m = (m_precio * m_cant) + iva_m
+                    
+                    st.session_state.carrito.append({
+                        "SKU": m_sku,
+                        "Descripción": m_desc,
+                        "Cantidad": m_cant,
+                        "Precio Base": m_precio,
+                        "IVA": iva_m,
+                        "Importe Total": tot_m,
+                        "Estatus": "Disponible" # Asumimos disponible si se agrega manual
+                    })
+                    
+                    # Eliminamos el SKU de la lista de errores si coincide
+                    if m_sku in st.session_state.errores_carga:
+                        st.session_state.errores_carga.remove(m_sku)
+                        
+                    st.rerun() # Recargamos para actualizar lista de errores y carrito
+            
+            if st.button("Omitir Errores Restantes (Limpiar lista)"):
+                st.session_state.errores_carga = []
+                st.rerun()
+
+    # ---------------------------------------------
+    # TABS DE CARGA
+    # ---------------------------------------------
     tab1, tab2, tab3 = st.tabs(["📋 Pegar Lista", "📊 Excel", "📷 Foto de Orden"])
     
-    # --- TAB 1: PEGAR LISTA ---
     with tab1:
-        st.write("Pega una lista de números de parte (uno por línea).")
-        texto_pegado = st.text_area("SKUs:", height=150, placeholder="90915-YZZD1\n04465-0K380\n...")
+        st.write("Pega números de parte (uno por línea).")
+        texto_pegado = st.text_area("SKUs:", height=150, placeholder="90915-YZZD1\n04465-0K380")
         if st.button("Procesar Lista"):
             lineas = texto_pegado.split('\n')
             lista_pro = [{'sku': l, 'cant': 1} for l in lineas if len(l.strip()) > 4]
             ok, fail = procesar_lista_sku(lista_pro)
-            if ok > 0: st.success(f"✅ Se agregaron {ok} partidas al carrito.")
-            if fail: st.warning(f"⚠️ No encontrados: {', '.join(fail)}")
+            st.session_state.errores_carga = fail # Guardamos errores
+            if ok > 0: st.success(f"✅ Se agregaron {ok} partidas.")
+            st.rerun()
 
-    # --- TAB 2: EXCEL ---
     with tab2:
-        st.write("Sube un Excel con columna 'SKU' y opcional 'CANTIDAD'.")
+        st.write("Sube Excel con columna 'SKU' y opcional 'CANTIDAD'.")
         uploaded_file = st.file_uploader("Archivo Excel (.xlsx)", type=['xlsx'])
         if uploaded_file and st.button("Cargar Excel"):
             try:
                 df_up = pd.read_excel(uploaded_file)
-                # Normalizar nombres de columnas
                 df_up.columns = [c.upper().strip() for c in df_up.columns]
-                
-                # Buscar columna SKU
                 col_sku_up = next((c for c in df_up.columns if 'SKU' in c or 'PART' in c or 'NUM' in c), None)
                 col_cant_up = next((c for c in df_up.columns if 'CANT' in c or 'QTY' in c), None)
                 
@@ -370,55 +423,44 @@ elif modo == "📂 Importador Masivo":
                     for _, row in df_up.iterrows():
                         s = row[col_sku_up]
                         q = row[col_cant_up] if col_cant_up else 1
-                        if pd.notna(s):
-                            lista_pro.append({'sku': s, 'cant': int(q) if pd.notna(q) else 1})
+                        if pd.notna(s): lista_pro.append({'sku': s, 'cant': int(q) if pd.notna(q) else 1})
                     
                     ok, fail = procesar_lista_sku(lista_pro)
+                    st.session_state.errores_carga = fail # Guardamos errores
                     st.success(f"✅ Importado: {ok} partidas.")
-                    if fail: st.warning(f"No encontrados: {len(fail)}")
-                else:
-                    st.error("No encontré una columna llamada SKU o Numero de Parte.")
-            except Exception as e:
-                st.error(f"Error leyendo Excel: {e}")
+                    st.rerun()
+                else: st.error("No encontré columna SKU.")
+            except Exception as e: st.error(f"Error: {e}")
 
-    # --- TAB 3: FOTO DE ORDEN (IA) ---
     with tab3:
-        st.write("Toma una foto a una hoja de pedido físico. La IA intentará leer los códigos.")
-        foto_orden = st.camera_input("Escanear Hoja", key="cam_masiva")
-        
+        st.write("Foto a hoja de pedido (Detecta SKUs Toyota).")
+        foto_orden = st.camera_input("Escanear", key="cam_masiva")
         if foto_orden:
-            with st.spinner("🤖 Analizando imagen con IA..."):
+            with st.spinner("🤖 Analizando..."):
                 reader = cargar_lector_ocr()
-                # Leer todo el texto
                 results = reader.readtext(np.array(Image.open(foto_orden)), detail=0)
-                
-                # Filtrar lo que parecen ser SKUs de Toyota (5 numeros - 5 numeros)
-                # Regex simple: busca patrones alfanuméricos largos
-                posibles_skus = []
+                posibles = []
                 for texto in results:
                     texto = texto.upper().replace(' ', '')
-                    # Busca patrón tipo XXXXX-XXXXX o 10 caracteres seguidos
                     if re.search(r'[A-Z0-9]{5}-?[A-Z0-9]{5}', texto):
-                        posibles_skus.append({'sku': texto, 'cant': 1})
+                        posibles.append({'sku': texto, 'cant': 1})
                 
-                if posibles_skus:
-                    st.write(f"🔎 Detecté {len(posibles_skus)} posibles códigos.")
-                    if st.button("Agregar Detectados al Carrito"):
-                        ok, fail = procesar_lista_sku(posibles_skus)
-                        st.success(f"✅ Se agregaron {ok} productos.")
-                else:
-                    st.warning("No detecté códigos de parte claros en la imagen.")
+                if posibles:
+                    if st.button("Agregar Detectados"):
+                        ok, fail = procesar_lista_sku(posibles)
+                        st.session_state.errores_carga = fail # Guardamos errores
+                        st.success(f"✅ Agregados {ok}.")
+                        st.rerun()
+                else: st.warning("No detecté códigos claros.")
 
 # ==========================================
-# CARRITO GLOBAL (Mismo formato bonito)
+# CARRITO GLOBAL
 # ==========================================
 if st.session_state.carrito:
     st.write("---")
     st.subheader(f"🛒 Cotización Generada")
     
     df_carro = pd.DataFrame(st.session_state.carrito)
-    
-    # Edición de cantidades en el carrito final
     col_orden = ["SKU", "Descripción", "Cantidad", "Precio Base", "IVA", "Importe Total", "Estatus"]
     st.dataframe(df_carro[col_orden], hide_index=True, use_container_width=True)
     
@@ -435,23 +477,22 @@ if st.session_state.carrito:
     col_pdf, col_del, col_wa = st.columns([1, 1, 2])
     
     with col_pdf:
-        # Si estamos en masivo, usamos los inputs de esa sección
         cli_final = cliente_input 
         ord_final = orden_input
         vin_final = vin_input if modo == "🔍 Cotizador Manual" else "N/A"
-        
         pdf_bytes = generar_pdf_bytes(st.session_state.carrito, sub_sum, iva_sum, tot_sum, cli_final, vin_final, ord_final)
-        st.download_button("📄 Descargar PDF Bonito", pdf_bytes, file_name="Cotizacion_Toyota.pdf", mime="application/pdf", type="primary")
+        st.download_button("📄 Descargar PDF", pdf_bytes, file_name="Cotizacion_Toyota.pdf", mime="application/pdf", type="primary")
 
     with col_del:
         if st.button("🗑️ Limpiar"):
             st.session_state.carrito = []
+            st.session_state.errores_carga = [] # Limpiar también errores
             st.rerun()
 
 # FOOTER
 st.markdown(f"""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - USO INTERNO ASESORES</strong><br>
-        Sistema de Cotización Avanzado v2.0
+        Sistema de Cotización Avanzado v2.1
     </div>
 """, unsafe_allow_html=True)
