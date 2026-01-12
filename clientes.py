@@ -31,16 +31,20 @@ if 'carrito' not in st.session_state:
 def cargar_lector_ocr():
     return easyocr.Reader(['en'], gpu=False) 
 
-# 2. ESTILOS CSS (Simplificados para cliente)
+# 2. ESTILOS CSS
 st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; text-align: center; }
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
     .legal-footer {
-        text-align: center; font-size: 11px; opacity: 0.7;
-        margin-top: 50px; padding-top: 20px;
+        text-align: center;
+        font-size: 11px;
+        opacity: 0.7;
+        margin-top: 50px;
+        padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
+        color: #333;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -73,20 +77,18 @@ def cargar_catalogo():
 df = cargar_catalogo()
 fecha_actual_mx = obtener_hora_mx()
 fecha_hoy_str = fecha_actual_mx.strftime("%d/%m/%Y")
+hora_hoy_str = fecha_actual_mx.strftime("%H:%M")
 
 # --- INTERFAZ CLIENTE ---
 
-st.title("CONSULTA DE PRECIOS TOYOTA")
-st.markdown("<h5 style='text-align: center; opacity: 0.6;'>Refacciones Originales</h5>", unsafe_allow_html=True)
+st.title("TOYOTA LOS FUERTES")
+st.markdown("<h5 style='text-align: center; opacity: 0.8;'>Consulta de Precios y Refacciones Originales</h5>", unsafe_allow_html=True)
 st.write("---")
 
-# 0. DATOS SIMPLES
+# 0. INFORMACIÓN DE FECHA (Sin nombre de cliente)
 with st.container():
-    col_name, col_date = st.columns([3, 1])
-    with col_name:
-        cliente_input = st.text_input("👤 Tu Nombre (Opcional):", placeholder="Para personalizar tu pedido")
-    with col_date:
-        st.markdown(f"**Fecha:** {fecha_hoy_str}")
+    # Alineamos la fecha a la derecha para que se vea formal
+    st.markdown(f"<div style='text-align: right;'><strong>Fecha consulta:</strong> {fecha_hoy_str} <span style='opacity:0.6'>({hora_hoy_str})</span></div>", unsafe_allow_html=True)
 
 st.write("---")
 
@@ -118,7 +120,7 @@ if st.checkbox("📸 Escanear Código de Caja"):
 if df is not None:
     valor_inicial = sku_detectado if sku_detectado else ""
     
-    st.markdown("🔍 **Buscar Refacción:**")
+    st.markdown("🔍 **Buscar Refacción (Número de parte o nombre):**")
     busqueda = st.text_input("Búsqueda", value=valor_inicial, label_visibility="collapsed", placeholder="Ej. Filtro, Balatas, 90915...")
 
     if busqueda:
@@ -134,7 +136,7 @@ if df is not None:
             c_desc = [c for c in resultados.columns if 'DESC' in c][0]
             c_precio = [c for c in resultados.columns if 'PRICE' in c or 'PRECIO' in c][0]
 
-            st.success("Resultados:")
+            st.success("Resultados disponibles:")
             st.divider()
 
             for i, row in resultados.iterrows():
@@ -146,17 +148,15 @@ if df is not None:
                 except: precio_val = 0.0
 
                 with st.container():
-                    # Estructura simplificada: Descripción/Precio -> Cantidad -> Botón
                     c1, c2, c3 = st.columns([3, 1, 1])
                     with c1:
                         st.markdown(f"**{desc_es}**")
                         st.markdown(f"SKU: `{sku_val}`")
                         st.markdown(f"**Precio: ${precio_val:,.2f}** (IVA Inc.)") 
-                        # Nota: Mostramos precio base, el cálculo total se hace al final
                     with c2:
                         cantidad = st.number_input("Cant.", min_value=1, value=1, key=f"cant_{i}")
                     with c3:
-                        st.write("") # Espacio para alinear botón
+                        st.write("")
                         if st.button("Agregar 🛒", key=f"add_{i}"):
                             monto_base = precio_val 
                             monto_iva = (monto_base * cantidad) * 0.16
@@ -170,25 +170,24 @@ if df is not None:
                                 "IVA": monto_iva,
                                 "Importe Total": monto_total
                             })
-                            st.toast("✅ Agregado a tu lista")
+                            st.toast("✅ Agregado")
                     st.divider() 
         else:
-            st.warning("No encontramos esa pieza. Intenta con el nombre o número.")
+            st.warning("No encontramos esa pieza. Intenta verificar el número de parte.")
 
-# 3. LISTA DE DESEOS (CARRITO)
+# 3. LISTA DE PEDIDO (CARRITO)
 if st.session_state.carrito:
-    st.subheader(f"🛒 Tu Lista de Pedido")
+    st.subheader(f"🛒 Tu Pedido Preliminar")
     
     df_carro = pd.DataFrame(st.session_state.carrito)
     
-    # Vista simplificada para cliente
     columnas_vista = ["SKU", "Descripción", "Cantidad", "Importe Total"]
     st.dataframe(df_carro[columnas_vista], hide_index=True, use_container_width=True)
     
     gran_total = df_carro['Importe Total'].sum()
 
-    # Solo mostramos el gran total grande
     st.markdown(f"<h3 style='text-align: right; color: #eb0a1e;'>Total Estimado: ${gran_total:,.2f}</h3>", unsafe_allow_html=True)
+    st.caption("Nota: El total incluye IVA (16%).")
 
     col_vaciar, col_wa = st.columns([1, 2])
     
@@ -198,22 +197,25 @@ if st.session_state.carrito:
             st.rerun()
             
     with col_wa:
-        # Mensaje formato cliente -> vendedor
-        msg = f"*HOLA TOYOTA, QUIERO COTIZAR ESTO:*\n📅 {fecha_hoy_str}\n"
-        if cliente_input: msg += f"👤 Soy: {cliente_input}\n"
-        msg += "\n"
+        msg = f"*CONSULTA CLIENTE - TOYOTA LOS FUERTES*\n📅 {fecha_hoy_str} {hora_hoy_str}\n\n"
         
         for _, row in df_carro.iterrows():
             msg += f"▪ {row['Cantidad']}x {row['Descripción']}\n   ({row['SKU']})\n"
         
-        msg += f"\n*Valor Aprox: ${gran_total:,.2f}*"
+        msg += f"\n*Valor Total Aprox: ${gran_total:,.2f}*"
+        msg += "\n\n_Solicito confirmación de existencia._"
         link = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-        st.link_button("📲 Enviar Pedido por WhatsApp", link, use_container_width=True)
+        st.link_button("📲 Enviar Consulta por WhatsApp", link, use_container_width=True)
 
-# FOOTER SIMPLE
+# --- FOOTER LEGAL Y NORMATIVO ---
 st.markdown(f"""
     <div class="legal-footer">
-        Precios informativos sujetos a cambio sin previo aviso.<br>
-        Vigencia de consulta: 24 horas. Incluye IVA.
+        <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br><br>
+        1. <strong>Precios:</strong> Vigentes al <strong>{fecha_hoy_str} {hora_hoy_str}</strong> (Hora CDMX).<br>
+        2. <strong>Impuestos:</strong> Todos los montos mostrados incluyen IVA (16%).<br>
+        3. <strong>Marco Legal:</strong> Esta consulta cumple con la obligación de exhibición de precios conforme al <strong>Art. 7 de la Ley Federal de Protección al Consumidor (LFPC)</strong>.<br>
+        4. <strong>Información Comercial:</strong> Las descripciones de productos se apegan a la <strong>NOM-050-SCFI-2004</strong>.<br>
+        5. <strong>Vigencia:</strong> Los precios mostrados tienen una vigencia de 24 horas a partir de esta consulta.<br>
+        6. <strong>Disponibilidad:</strong> La existencia de las refacciones está sujeta a validación final en mostrador.
     </div>
 """, unsafe_allow_html=True)
