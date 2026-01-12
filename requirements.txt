@@ -8,3 +8,4 @@ pytz
 easyocr
 numpy
 opencv-python-headless
+openpyxl
