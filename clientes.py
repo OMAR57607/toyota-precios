@@ -147,9 +147,20 @@ if df is not None:
                     precio_val = float(precio_texto)
                 except: precio_val = 0.0
 
-                with st.container():
-                    c1, c2, c3 = st.columns([3, 1, 1])
-                    with c1:
+                # ... código anterior ...
+with c1:
+    # --- MODIFICACIÓN PARA CUMPLIR PROFECO (Art 7 Bis) ---
+    st.markdown(f"**SKU:** `{sku_val}`")
+    st.markdown(f"{desc_es}")
+    
+    # CALCULAMOS EL TOTAL UNITARIO AQUÍ PARA MOSTRARLO
+    precio_con_iva = precio_val * 1.16
+    
+    # Mostramos el precio FINAL en grande y negritas (Lo que paga el cliente)
+    st.markdown(f"#### **Precio: ${precio_con_iva:,.2f} MXN**")
+    st.caption(f"(Precio de Lista: ${precio_val:,.2f} + IVA)") # Opcional: mostrar desglose pequeño
+# ... código siguiente ...
+
                         # --- MODIFICACIÓN: SKU PRIMERO, LUEGO DESCRIPCIÓN ---
                         st.markdown(f"**SKU:** `{sku_val}`")
                         st.markdown(f"{desc_es}")
