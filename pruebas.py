@@ -54,6 +54,11 @@ st.markdown("""
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
     }
+    /* Estilo para la tabla interactiva */
+    .row-item {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -258,7 +263,7 @@ st.title("TOYOTA LOS FUERTES")
 st.markdown(f"<div style='text-align: right; opacity: 0.6;'>{fecha_hoy_str} {hora_hoy_str}</div>", unsafe_allow_html=True)
 
 # ==========================================
-# MODO 1: COTIZADOR MANUAL (MEJORADO CON ALTA MANUAL)
+# MODO 1: COTIZADOR MANUAL
 # ==========================================
 if modo == "🔍 Cotizador Manual":
     st.markdown("### 📝 Datos de la Cotización")
@@ -299,7 +304,7 @@ if modo == "🔍 Cotizador Manual":
         res = df[mask].head(10)
         
         if not res.empty:
-            # ---> CASO A: ENCONTRADO (Muestra Resultados)
+            # CASO A: ENCONTRADO
             cols_h = st.columns([3, 1, 1, 1])
             cols_h[0].markdown("**Descripción / SKU**")
             cols_h[1].markdown("**Cant.**")
@@ -332,9 +337,8 @@ if modo == "🔍 Cotizador Manual":
                             st.toast("Agregado")
                     st.divider()
         else:
-            # ---> CASO B: NO ENCONTRADO (Muestra Formulario Manual)
+            # CASO B: NO ENCONTRADO
             st.warning(f"⚠️ El producto **'{busqueda}'** no existe en el catálogo.")
-            
             with st.expander("🛠️ ¿Deseas agregarlo manualmente?", expanded=True):
                 with st.form(key="form_manual_single"):
                     c_m1, c_m2, c_m3 = st.columns([2, 2, 1])
@@ -346,13 +350,8 @@ if modo == "🔍 Cotizador Manual":
                         iva_m = m_precio * 0.16
                         tot_m = m_precio + iva_m
                         st.session_state.carrito.append({
-                            "SKU": m_sku,
-                            "Descripción": m_desc,
-                            "Cantidad": 1,
-                            "Precio Base": m_precio,
-                            "IVA": iva_m,
-                            "Importe Total": tot_m,
-                            "Estatus": "Disponible"
+                            "SKU": m_sku, "Descripción": m_desc, "Cantidad": 1,
+                            "Precio Base": m_precio, "IVA": iva_m, "Importe Total": tot_m, "Estatus": "Disponible"
                         })
                         st.toast("✅ Agregado Manualmente")
                         st.rerun()
@@ -364,10 +363,11 @@ elif modo == "📂 Importador Masivo":
     st.markdown("### ⚡ Carga Rápida de Órdenes")
     st.info("Sube un archivo o pega una lista. Si un código no existe, podrás agregarlo manualmente.")
     
-    col_m1, col_m2 = st.columns(2)
+    # --- MODIFICACIÓN: AGREGADO CAMPO VIN AQUÍ ---
+    col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1: cliente_input = st.text_input("👤 Cliente")
-    with col_m2: orden_input = st.text_input("📄 Orden")
-    vin_input = ""
+    with col_m2: vin_input = st.text_input("🚗 VIN (17 Dígitos)", max_chars=17)
+    with col_m3: orden_input = st.text_input("📄 Orden")
     
     # MANEJO DE ERRORES MASIVOS
     if st.session_state.errores_carga:
@@ -457,25 +457,64 @@ if st.session_state.carrito:
     st.write("---")
     st.subheader(f"🛒 Cotización Generada")
     
-    df_c = pd.DataFrame(st.session_state.carrito)
-    cols = ["SKU", "Descripción", "Cantidad", "Precio Base", "IVA", "Importe Total", "Estatus"]
-    st.dataframe(df_c[cols], hide_index=True, use_container_width=True)
+    # Encabezados de la tabla Interactiva
+    h1, h2, h3, h4, h5, h6 = st.columns([1.5, 3, 1, 1.5, 1.5, 0.5])
+    h1.markdown("**SKU**")
+    h2.markdown("**Descripción**")
+    h3.markdown("**Cant.**")
+    h4.markdown("**P. Unit**")
+    h5.markdown("**Total**")
+    h6.markdown("**X**")
     
-    sub = (df_c['Precio Base']*df_c['Cantidad']).sum()
-    iva = df_c['IVA'].sum()
-    tot = df_c['Importe Total'].sum()
+    idx_borrar = None
+    
+    for i, item in enumerate(st.session_state.carrito):
+        with st.container():
+            c1, c2, c3, c4, c5, c6 = st.columns([1.5, 3, 1, 1.5, 1.5, 0.5])
+            
+            c1.write(item['SKU'])
+            c2.write(item['Descripción'])
+            
+            # Editar Cantidad
+            nueva_cant = c3.number_input("C", min_value=1, value=int(item['Cantidad']), key=f"ec_{i}", label_visibility="collapsed")
+            if nueva_cant != item['Cantidad']:
+                item['Cantidad'] = nueva_cant
+                item['IVA'] = (item['Precio Base'] * nueva_cant) * 0.16
+                item['Importe Total'] = (item['Precio Base'] * nueva_cant) + item['IVA']
+                st.rerun()
+            
+            c4.write(f"${item['Precio Base']:,.2f}")
+            c5.write(f"${item['Importe Total']:,.2f}")
+            
+            # Botón Borrar
+            if c6.button("🗑️", key=f"del_{i}"):
+                idx_borrar = i
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Subtotal", f"${sub:,.2f}")
-    c2.metric("IVA", f"${iva:,.2f}")
-    c3.metric("TOTAL", f"${tot:,.2f}")
+    if idx_borrar is not None:
+        st.session_state.carrito.pop(idx_borrar)
+        st.rerun()
+
+    st.divider()
+
+    # Totales
+    df_c = pd.DataFrame(st.session_state.carrito)
+    sub = df_c['Precio Base'] * df_c['Cantidad']
+    sub_sum = sub.sum()
+    iva_sum = df_c['IVA'].sum()
+    tot_sum = df_c['Importe Total'].sum()
+
+    c_tot1, c_tot2, c_tot3 = st.columns(3)
+    c_tot1.metric("Subtotal", f"${sub_sum:,.2f}")
+    c_tot2.metric("IVA", f"${iva_sum:,.2f}")
+    c_tot3.metric("TOTAL", f"${tot_sum:,.2f}")
     
     c_pdf, c_del = st.columns([1, 1])
     with c_pdf:
+        # Recuperar variables independientemente del modo
         cli = cliente_input
         ord_n = orden_input
-        vin_n = vin_input if modo == "🔍 Cotizador Manual" else "N/A"
-        pdf = generar_pdf_bytes(st.session_state.carrito, sub, iva, tot, cli, vin_n, ord_n)
+        # Ahora vin_input está definido en ambos modos
+        pdf = generar_pdf_bytes(st.session_state.carrito, sub_sum, iva_sum, tot_sum, cli, vin_input, ord_n)
         st.download_button("Descargar PDF", pdf, "Cotizacion.pdf", "application/pdf", type="primary")
     with c_del:
         if st.button("Limpiar Todo"):
@@ -487,6 +526,6 @@ if st.session_state.carrito:
 st.markdown(f"""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - USO INTERNO ASESORES</strong><br>
-        Sistema de Cotización Avanzado v2.2
+        Sistema de Cotización Avanzado v2.4
     </div>
 """, unsafe_allow_html=True)
