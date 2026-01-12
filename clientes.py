@@ -31,7 +31,7 @@ if 'carrito' not in st.session_state:
 def cargar_lector_ocr():
     return easyocr.Reader(['en'], gpu=False) 
 
-# 2. ESTILOS CSS (CORREGIDO PARA MODO OSCURO/CLARO)
+# 2. ESTILOS CSS
 st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; text-align: center; }
@@ -41,12 +41,11 @@ st.markdown("""
     .legal-footer {
         text-align: center;
         font-size: 11px;
-        opacity: 0.7; /* Se ve bien en blanco y en negro */
+        opacity: 0.7;
         margin-top: 50px;
         padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
-        /* Se eliminó 'color: #333' para que Streamlit decida el color (blanco/negro) según el tema */
     }
     </style>
     """, unsafe_allow_html=True)
@@ -151,9 +150,10 @@ if df is not None:
                 with st.container():
                     c1, c2, c3 = st.columns([3, 1, 1])
                     with c1:
-                        st.markdown(f"**{desc_es}**")
-                        st.markdown(f"SKU: `{sku_val}`")
-                        st.markdown(f"**Precio: ${precio_val:,.2f}** (IVA Inc.)") 
+                        # --- MODIFICACIÓN: SKU PRIMERO, LUEGO DESCRIPCIÓN ---
+                        st.markdown(f"**SKU:** `{sku_val}`")
+                        st.markdown(f"{desc_es}")
+                        st.markdown(f"**Unitario (Base): ${precio_val:,.2f}**") 
                     with c2:
                         cantidad = st.number_input("Cant.", min_value=1, value=1, key=f"cant_{i}")
                     with c3:
@@ -167,7 +167,7 @@ if df is not None:
                                 "SKU": sku_val,
                                 "Descripción": desc_es,
                                 "Cantidad": cantidad,
-                                "Precio Base": precio_val,
+                                "Precio Base": precio_val, # Importe antes de IVA
                                 "IVA": monto_iva,
                                 "Importe Total": monto_total
                             })
@@ -182,7 +182,15 @@ if st.session_state.carrito:
     
     df_carro = pd.DataFrame(st.session_state.carrito)
     
-    columnas_vista = ["SKU", "Descripción", "Cantidad", "Importe Total"]
+    # --- ORDEN EXACTO SOLICITADO ---
+    # 1. SKU (Número de parte)
+    # 2. Descripción
+    # 3. Cantidad
+    # 4. Precio Base (Importe antes de IVA)
+    # 5. IVA
+    # 6. Importe Total
+    columnas_vista = ["SKU", "Descripción", "Cantidad", "Precio Base", "IVA", "Importe Total"]
+    
     st.dataframe(df_carro[columnas_vista], hide_index=True, use_container_width=True)
     
     gran_total = df_carro['Importe Total'].sum()
@@ -201,7 +209,9 @@ if st.session_state.carrito:
         msg = f"*CONSULTA CLIENTE - TOYOTA LOS FUERTES*\n📅 {fecha_hoy_str} {hora_hoy_str}\n\n"
         
         for _, row in df_carro.iterrows():
-            msg += f"▪ {row['Cantidad']}x {row['Descripción']}\n   ({row['SKU']})\n"
+            # En WhatsApp también priorizamos SKU
+            msg += f"▪ {row['SKU']} | {row['Descripción']}\n"
+            msg += f"   Cant: {row['Cantidad']} | Total: ${row['Importe Total']:,.2f}\n"
         
         msg += f"\n*Valor Total Aprox: ${gran_total:,.2f}*"
         msg += "\n\n_Solicito confirmación de existencia._"
