@@ -195,7 +195,7 @@ if st.session_state.carrito:
     
     gran_total = df_carro['Importe Total'].sum()
 
-    st.markdown(f"<h3 style='text-align: right; color: #eb0a1e;'>Total Estimado: ${gran_total:,.2f}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: right; color: #eb0a1e;'>Total A Pagar: ${gran_total:,.2f}</h3>", unsafe_allow_html=True)
     st.caption("Nota: El total incluye IVA (16%).")
 
     col_vaciar, col_wa = st.columns([1, 2])
