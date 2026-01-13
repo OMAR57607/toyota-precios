@@ -9,11 +9,11 @@ import pytz
 import easyocr
 import numpy as np
 import re
-import requests
+import os
 
-# --- URL DEL LOGO OFICIAL (Alta disponibilidad) ---
-# Usamos el logo oficial de Wikimedia.
-LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Toyota_EU_2020_Logo.svg/1024px-Toyota_EU_2020_Logo.svg.png"
+# --- CONFIGURACIÓN DE ARCHIVO LOCAL ---
+# Asegúrate de que tu imagen se llame 'logo.png' y esté junto a este script
+LOGO_FILE = "logo.png"
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Toyota Asesores", page_icon="🔧", layout="wide")
@@ -41,6 +41,7 @@ def cargar_lector_ocr():
     return easyocr.Reader(['en'], gpu=False) 
 
 # 2. ESTILOS CSS INTELIGENTES (ADAPTATIVOS)
+# Adaptamos el filtro para que funcione con el nombre del archivo local
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;500;700&display=swap');
@@ -49,32 +50,10 @@ st.markdown(f"""
         font-family: 'Roboto', sans-serif;
     }}
     
-    /* LOGO ADAPTATIVO: Truco CSS */
-    /* En modo claro se ve normal (Rojo/Negro) */
-    img[src="{LOGO_URL}"] {{
-        transition: filter 0.3s ease;
-    }}
-
-    /* En modo oscuro (Dark Mode), invertimos los colores para que se vea BLANCO */
-    @media (prefers-color-scheme: dark) {{
-        img[src="{LOGO_URL}"] {{
-            filter: brightness(0) invert(1);
-        }}
-    }}
-    
-    /* Forzar inversión si el tema de Streamlit es oscuro */
-    [data-theme="dark"] img[src="{LOGO_URL}"] {{
-        filter: brightness(0) invert(1);
-    }}
-
     /* Títulos y textos adaptativos */
     h1, h2, h3 {{ color: var(--text-color) !important; font-weight: 700; }}
     .stMarkdown div {{ color: var(--text-color); }}
     .stButton button {{ width: 100%; border-radius: 4px; font-weight: bold; text-transform: uppercase; }}
-    
-    /* Cajas de estado */
-    .error-box {{ background-color: #ffcccc; padding: 15px; border-radius: 4px; border-left: 5px solid #eb0a1e; color: #333; }}
-    .success-box {{ background-color: #d4edda; padding: 15px; border-radius: 4px; border-left: 5px solid #28a745; color: #155724; }}
     
     /* Footer */
     .legal-footer {{ 
@@ -87,19 +66,15 @@ st.markdown(f"""
 # --- CLASE PDF ---
 class PDF(FPDF):
     def header(self):
-        try:
-            # Descargamos el logo temporalmente para incrustarlo en el PDF
-            # Usamos headers para simular un navegador y evitar bloqueos
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            response = requests.get(LOGO_URL, headers=headers)
-            if response.status_code == 200:
-                with open("logo_temp.png", "wb") as f:
-                    f.write(response.content)
-                self.image("logo_temp.png", 10, 8, 25)
-            offset_x_title = 40
-        except:
+        # LÓGICA PARA LOGO LOCAL
+        if os.path.exists(LOGO_FILE):
+            try:
+                self.image(LOGO_FILE, 10, 8, 25)
+                offset_x_title = 40
+            except:
+                offset_x_title = 10
+        else:
             offset_x_title = 10
-            pass
 
         self.set_font('Arial', 'B', 16)
         self.set_text_color(0) # Siempre negro en PDF
@@ -276,21 +251,21 @@ def procesar_lista_sku(lista_skus):
 
 # Sidebar
 with st.sidebar:
-    try:
-        st.image(LOGO_URL, use_column_width=True)
-    except:
+    if os.path.exists(LOGO_FILE):
+        st.image(LOGO_FILE, use_column_width=True)
+    else:
         st.write("🔧 Toyota Asesores")
     st.markdown("<br>", unsafe_allow_html=True)
     st.title("Menú Asesor")
     modo = st.radio("Opción:", ["🔍 Cotizador Manual", "📂 Importador Masivo"])
 
-# Encabezado (Logo + Título con manejo de error)
+# Encabezado (Logo + Título con manejo de error local)
 col_header_1, col_header_2 = st.columns([1, 6])
 with col_header_1:
-    try:
-        st.image(LOGO_URL, width=80)
-    except:
-        st.error("Logo no cargado")
+    if os.path.exists(LOGO_FILE):
+        st.image(LOGO_FILE, width=80)
+    else:
+        st.write("🔧")
 with col_header_2:
     st.title("TOYOTA LOS FUERTES")
     st.markdown(f"<div style='opacity: 0.6; font-size: 14px; color: var(--text-color);'>Sistema Integral de Refacciones | {fecha_hoy_str} {hora_hoy_str}</div>", unsafe_allow_html=True)
@@ -401,14 +376,13 @@ if st.session_state.carrito:
     st.write("---")
     st.subheader(f"🛒 Detalle")
     
-    # --- AQUÍ ESTÁ EL CAMBIO SOLICITADO: COLUMNA IVA AGREGADA ---
-    # Ajustamos las columnas para que quepa el IVA
+    # Columnas con IVA incluido
     cols = st.columns([1.5, 3, 0.8, 1.2, 1.2, 1.2, 0.5])
     cols[0].markdown("**SKU**")
     cols[1].markdown("**Descripción**")
     cols[2].markdown("**Cant.**")
     cols[3].markdown("**P. Unit**")
-    cols[4].markdown("**IVA**")  # Nueva columna
+    cols[4].markdown("**IVA**")
     cols[5].markdown("**Total**")
     
     idx_borrar = None
@@ -425,7 +399,7 @@ if st.session_state.carrito:
                 st.rerun()
             
             c4.write(f"${item['Precio Base']:,.2f}")
-            c5.write(f"${item['IVA']:,.2f}") # Mostramos IVA
+            c5.write(f"${item['IVA']:,.2f}")
             c6.write(f"**${item['Importe Total']:,.2f}**")
             if c7.button("🗑️", key=f"del_{i}"): idx_borrar = i
 
@@ -442,19 +416,14 @@ if st.session_state.carrito:
     col_tot2.metric("IVA (16%)", f"${iva:,.2f}")
     col_tot3.metric("TOTAL", f"${tot:,.2f}")
     
-    # --- SOLUCIÓN AL "NONE" ---
-    # Usamos un solo botón de descarga directo, sin anidar lógica.
     c_pdf, c_del = st.columns([3, 1])
     with c_pdf:
-        # Preparamos los datos
         cli = st.session_state.auto_cliente if modo == "📂 Importador Masivo" else cliente_input
         vin = st.session_state.auto_vin if modo == "📂 Importador Masivo" else vin_input
         ord_n = st.session_state.auto_orden if modo == "📂 Importador Masivo" else orden_input
         
-        # Generamos el PDF en memoria al momento de renderizar el botón
         pdf_bytes = generar_pdf_bytes(st.session_state.carrito, sub, iva, tot, cli, vin, ord_n)
         
-        # Botón único y directo
         st.download_button(
             label="📄 Descargar Cotización PDF",
             data=pdf_bytes,
@@ -472,7 +441,6 @@ if st.session_state.carrito:
 # FOOTER
 st.markdown(f"""
     <div class="legal-footer">
-        <img src="{LOGO_URL}" width="30" style="vertical-align: middle; margin-right: 10px;">
-        <strong>TOYOTA LOS FUERTES</strong> | Sistema de Cotización v4.0 (Fix Logo & UX)
+        <strong>TOYOTA LOS FUERTES</strong> | Sistema de Cotización Local v5.0
     </div>
 """, unsafe_allow_html=True)
