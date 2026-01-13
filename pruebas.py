@@ -91,7 +91,7 @@ st.markdown("""
     .badge-med { background-color: #fbc02d; color: black; padding: 2px 5px; border-radius: 3px; }
     .badge-baj { background-color: #388e3c; color: white; padding: 2px 5px; border-radius: 3px; }
     
-    /* Badges Abasto */
+    /* Badges Existencia */
     .status-disp { color: #2e7d32; font-weight: bold; border: 1px solid #2e7d32; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
     .status-ped { color: white; background-color: #ef6c00; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; }
     .status-rev { color: white; background-color: #d32f2f; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; animation: blink 2s infinite; }
@@ -193,12 +193,12 @@ def analizador_inteligente_archivos(df_raw):
             if 'ORDEN' in metadata: break
     return hallazgos, metadata
 
-def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
+def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", existencia="⚠️ REVISAR"):
     try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
     except: desc = str(desc_raw)
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
-        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto,
+        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Existencia": existencia,
         "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
         "Importe Total": (precio * cant) + iva, "Estatus": "Disponible", "Tipo": tipo
     })
@@ -270,8 +270,8 @@ def generar_pdf():
     hay_pedido = False
     for item in st.session_state.carrito:
         prio = item.get('Prioridad', 'Medio')
-        abasto = item.get('Abasto', '⚠️ REVISAR')
-        if abasto == "Por Pedido": hay_pedido = True
+        existencia = item.get('Existencia', '⚠️ REVISAR')
+        if existencia == "Por Pedido": hay_pedido = True
         
         pdf.set_text_color(0)
         pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
@@ -281,9 +281,9 @@ def generar_pdf():
         pdf.cell(cols[2], 6, prio.upper(), 'B', 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
-        elif abasto == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
-        st_txt = abasto.replace("⚠️ ", "").upper()
+        if existencia == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
+        elif existencia == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
+        st_txt = existencia.replace("⚠️ ", "").upper()
         pdf.cell(cols[3], 6, st_txt, 'B', 0, 'C')
         
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
@@ -406,7 +406,7 @@ with col_right:
             df_c,
             column_config={
                 "Prioridad": st.column_config.SelectboxColumn("Prioridad", options=["Urgente", "Medio", "Bajo"], required=True, width="small"),
-                "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "⚠️ REVISAR"], required=True, width="small"),
+                "Existencia": st.column_config.SelectboxColumn("Existencia", options=["Disponible", "Por Pedido", "⚠️ REVISAR"], required=True, width="small"),
                 "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "IVA": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
@@ -446,7 +446,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
     hay_pedido_prev = False
     for item in st.session_state.carrito:
         p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
-        s_val = item.get('Abasto', '⚠️ REVISAR')
+        s_val = item.get('Existencia', '⚠️ REVISAR')
         if s_val == "Disponible": s_cl = "status-disp"
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
         else: s_cl = "status-rev"
