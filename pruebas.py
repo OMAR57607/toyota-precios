@@ -4,7 +4,7 @@ from deep_translator import GoogleTranslator
 from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
-from pyzbar.pyzbar import decode
+# from pyzbar.pyzbar import decode # (Comentado si no usas códigos de barras, descomentar si es necesario)
 import pytz
 import easyocr
 import numpy as np
@@ -12,7 +12,7 @@ import re
 import os
 
 # --- CONFIGURACIÓN INICIAL ---
-LOGO_FILE = "logo.png"  # Asegúrate de que este archivo esté en la misma carpeta
+LOGO_FILE = "logo.png" 
 
 st.set_page_config(page_title="Toyota Asesores", page_icon="🔧", layout="wide")
 
@@ -42,48 +42,25 @@ if 'auto_cliente' not in st.session_state: st.session_state.auto_cliente = ""
 if 'auto_vin' not in st.session_state: st.session_state.auto_vin = ""
 if 'auto_orden' not in st.session_state: st.session_state.auto_orden = ""
 
-# --- ESTILOS CSS CORREGIDOS (VISIBILIDAD GARANTIZADA) ---
+# --- ESTILOS CSS ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;500;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Roboto', sans-serif;
-    }
-    
-    /* TÍTULO PRINCIPAL: Forzamos color para que se vea en fondo oscuro */
-    h1 {
-        color: #eb0a1e !important; /* Rojo Toyota siempre visible */
-        font-weight: 800 !important;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
-    }
-    
-    /* Subtítulos y textos */
+    html, body, [class*="css"] { font-family: 'Roboto', sans-serif; }
+    h1 { color: #eb0a1e !important; font-weight: 800 !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
     h2, h3 { color: var(--text-color) !important; }
-    .stMarkdown div { color: var(--text-color); }
-    
-    /* Botones */
-    .stButton button { 
-        width: 100%; 
-        border-radius: 4px; 
-        font-weight: bold; 
-        text-transform: uppercase; 
-    }
-    
-    /* Footer */
-    .legal-footer { 
-        text-align: center; font-size: 11px; color: var(--text-color); opacity: 0.6;
-        margin-top: 50px; padding-top: 20px; border-top: 1px solid rgba(128, 128, 128, 0.2); 
-    }
+    .stButton button { width: 100%; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+    .legal-footer { text-align: center; font-size: 11px; color: var(--text-color); opacity: 0.6; margin-top: 50px; padding-top: 20px; border-top: 1px solid rgba(128, 128, 128, 0.2); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CLASE PDF ---
+# --- CLASE PDF (MODIFICADA PARA LOGO) ---
 class PDF(FPDF):
     def header(self):
-        # Logo local en el PDF
+        # Lógica robusta para el logo
         if os.path.exists(LOGO_FILE):
             try:
+                # Ajustamos coordenadas y tamaño del logo
                 self.image(LOGO_FILE, 10, 8, 25)
                 offset_x_title = 40
             except:
@@ -92,7 +69,7 @@ class PDF(FPDF):
             offset_x_title = 10
 
         self.set_font('Arial', 'B', 16)
-        self.set_text_color(0) # Negro
+        self.set_text_color(0) 
         self.set_xy(offset_x_title, 10) 
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'L')
         
@@ -127,13 +104,13 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(25, 6, 'CLIENTE:', 0, 0)
     pdf.set_font('Arial', '', 9)
-    pdf.cell(80, 6, cliente if cliente else "Mostrador", 0, 1)
+    pdf.cell(80, 6, str(cliente) if cliente else "Mostrador", 0, 1)
     
     pdf.set_x(15)
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(25, 6, 'VIN:', 0, 0)
     pdf.set_font('Arial', '', 9)
-    pdf.cell(80, 6, vin if vin else "N/A", 0, 0)
+    pdf.cell(80, 6, str(vin) if vin else "N/A", 0, 0)
 
     pdf.set_xy(120, 38)
     pdf.set_font('Arial', 'B', 9)
@@ -145,7 +122,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(25, 6, 'ORDEN:', 0, 0)
     pdf.set_font('Arial', '', 9)
-    pdf.cell(40, 6, orden if orden else "S/N", 0, 1)
+    pdf.cell(40, 6, str(orden) if orden else "S/N", 0, 1)
 
     pdf.ln(15)
 
@@ -161,13 +138,13 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     for i, item in enumerate(carrito):
         fill = (i % 2 == 0)
         pdf.set_fill_color(248, 248, 248) if fill else pdf.set_fill_color(255, 255, 255)
-        desc = item['Descripción'][:40]
-        pdf.cell(w_sku, 7, item['SKU'], 0, 0, 'C', fill); pdf.cell(w_desc, 7, desc, 0, 0, 'L', fill)
+        desc = str(item['Descripción'])[:40]
+        pdf.cell(w_sku, 7, str(item['SKU']), 0, 0, 'C', fill); pdf.cell(w_desc, 7, desc, 0, 0, 'L', fill)
         pdf.cell(w_cant, 7, str(int(item['Cantidad'])), 0, 0, 'C', fill)
         pdf.cell(w_base, 7, f"${item['Precio Base']:,.2f}", 0, 0, 'R', fill)
         pdf.cell(w_iva, 7, f"${item['IVA']:,.2f}", 0, 0, 'R', fill)
         pdf.cell(w_total, 7, f"${item['Importe Total']:,.2f}", 0, 0, 'R', fill)
-        st_txt = item['Estatus']
+        st_txt = str(item['Estatus'])
         if "Back Order" in st_txt: pdf.set_text_color(200, 0, 0)
         else: pdf.set_text_color(0, 100, 0)
         pdf.cell(w_estatus, 7, st_txt, 0, 1, 'C', fill)
@@ -189,6 +166,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
 @st.cache_data
 def cargar_catalogo():
     try:
+        # Asegúrate de que lista_precios.zip exista
         df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
@@ -197,7 +175,7 @@ def cargar_catalogo():
         c_precio = [c for c in df.columns if 'PRICE' in c or 'PRECIO' in c][0]
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
-        df['PRECIO_NUM'] = df[c_precio].astype(str).str.replace('$', '').str.replace(',', '').apply(lambda x: float(x) if x.replace('.', '', 1).isdigit() else 0.0)
+        df['PRECIO_NUM'] = df[c_precio].astype(str).str.replace('$', '').str.replace(',', '').apply(lambda x: float(x) if str(x).replace('.', '', 1).isdigit() else 0.0)
         return df, c_sku, c_desc
     except: return None, None, None
 
@@ -224,9 +202,9 @@ st.divider()
 # --- LÓGICA DE APLICACIÓN ---
 def agregar_item(sku, desc, precio, cant, estatus="Disponible"):
     st.session_state.carrito.append({
-        "SKU": sku, "Descripción": desc, "Cantidad": cant,
-        "Precio Base": precio, "IVA": (precio * cant) * 0.16,
-        "Importe Total": (precio * cant) * 1.16, "Estatus": estatus
+        "SKU": sku, "Descripción": desc, "Cantidad": float(cant),
+        "Precio Base": float(precio), "IVA": (float(precio) * float(cant)) * 0.16,
+        "Importe Total": (float(precio) * float(cant)) * 1.16, "Estatus": estatus
     })
 
 if modo == "🔍 Cotizador Manual":
@@ -257,14 +235,31 @@ if modo == "🔍 Cotizador Manual":
                         st.rerun()
                     st.divider()
         else:
-            st.warning("No encontrado.")
-            with st.expander("Crear Manualmente"):
-                m_sku = st.text_input("SKU Manual")
-                m_desc = st.text_input("Descripción")
-                m_price = st.number_input("Precio", 0.0)
-                if st.button("Agregar Manual"):
-                    agregar_item(m_sku, m_desc, m_price, 1)
-                    st.rerun()
+            st.warning("No encontrado en catálogo.")
+    
+    # --- MODIFICACIÓN: AGREGAR MANO DE OBRA Y MANUAL ---
+    with st.expander("🛠️ Crear Manualmente / Mano de Obra", expanded=False):
+        tipo_manual = st.radio("Tipo de Ítem:", ["Refacción Manual", "Mano de Obra"], horizontal=True)
+        
+        col_m1, col_m2 = st.columns(2)
+        if tipo_manual == "Mano de Obra":
+            m_sku = col_m1.text_input("SKU / Código", value="MO-SERV")
+            m_desc = col_m2.text_input("Descripción", placeholder="Ej. Servicio de Cambio de Balatas")
+        else:
+            m_sku = col_m1.text_input("SKU Manual")
+            m_desc = col_m2.text_input("Descripción")
+            
+        col_m3, col_m4 = st.columns(2)
+        m_price = col_m3.number_input("Precio Unitario", 0.0, step=100.0)
+        m_cant = col_m4.number_input("Cantidad / Horas", 1.0, step=0.5)
+        
+        if st.button("Agregar Ítem Manual"):
+            if m_desc and m_price > 0:
+                agregar_item(m_sku, m_desc, m_price, m_cant, estatus="Mano de Obra" if tipo_manual == "Mano de Obra" else "Manual")
+                st.toast("✅ Agregado correctamente")
+                st.rerun()
+            else:
+                st.error("Falta descripción o precio.")
 
 elif modo == "📂 Importador Masivo":
     c1, c2, c3 = st.columns(3)
@@ -274,16 +269,17 @@ elif modo == "📂 Importador Masivo":
     
     txt_blob = st.text_area("Pega lista de SKUs:")
     if st.button("Procesar Lista"):
-        lines = [l.strip() for l in txt_blob.split('\n') if len(l.strip()) > 3]
-        for l in lines:
-            clean = l.upper().replace('-', '')
-            match = df[df['SKU_CLEAN'] == clean]
-            if not match.empty:
-                r = match.iloc[0]
-                agregar_item(r[col_sku_db], traducir_profe(r[col_desc_db]), r['PRECIO_NUM'], 1)
-            else:
-                st.session_state.errores_carga.append(l)
-        st.rerun()
+        if df is not None:
+            lines = [l.strip() for l in txt_blob.split('\n') if len(l.strip()) > 3]
+            for l in lines:
+                clean = l.upper().replace('-', '')
+                match = df[df['SKU_CLEAN'] == clean]
+                if not match.empty:
+                    r = match.iloc[0]
+                    agregar_item(r[col_sku_db], traducir_profe(r[col_desc_db]), r['PRECIO_NUM'], 1)
+                else:
+                    st.session_state.errores_carga.append(l)
+            st.rerun()
         
     if st.session_state.errores_carga:
         st.error(f"No encontrados: {st.session_state.errores_carga}")
@@ -291,7 +287,7 @@ elif modo == "📂 Importador Masivo":
             st.session_state.errores_carga = []
             st.rerun()
 
-# --- CARRITO Y TOTALES (SECCIÓN LIMPIA) ---
+# --- CARRITO Y TOTALES (CORRECCIÓN DE 'NONE') ---
 if st.session_state.carrito:
     st.write("---")
     st.subheader("🛒 Detalle de Cotización")
@@ -304,12 +300,12 @@ if st.session_state.carrito:
     idx_del = None
     for i, item in enumerate(st.session_state.carrito):
         c1, c2, c3, c4, c5, c6, c7 = st.columns([1.5, 3, 0.8, 1.2, 1.2, 1.2, 0.5])
-        c1.write(item['SKU'])
-        c2.write(item['Descripción'])
+        c1.write(str(item['SKU']))
+        c2.write(str(item['Descripción']))
         
         # Lógica de actualización de cantidad
-        new_q = c3.number_input("##", 1, value=int(item['Cantidad']), key=f"c_edit_{i}", label_visibility="collapsed")
-        if new_q != item['Cantidad']:
+        new_q = c3.number_input("##", 0.0, value=float(item['Cantidad']), step=0.5, key=f"c_edit_{i}", label_visibility="collapsed")
+        if new_q != float(item['Cantidad']):
             item['Cantidad'] = new_q
             item['IVA'] = (item['Precio Base'] * new_q) * 0.16
             item['Importe Total'] = (item['Precio Base'] * new_q) * 1.16
@@ -328,46 +324,49 @@ if st.session_state.carrito:
 
     # Totales
     df_c = pd.DataFrame(st.session_state.carrito)
-    t_sub = (df_c['Precio Base'] * df_c['Cantidad']).sum()
-    t_iva = df_c['IVA'].sum()
-    t_tot = df_c['Importe Total'].sum()
+    if not df_c.empty:
+        t_sub = (df_c['Precio Base'] * df_c['Cantidad']).sum()
+        t_iva = df_c['IVA'].sum()
+        t_tot = df_c['Importe Total'].sum()
 
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Subtotal", f"${t_sub:,.2f}")
-    k2.metric("IVA (16%)", f"${t_iva:,.2f}")
-    k3.metric("TOTAL NETO", f"${t_tot:,.2f}")
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Subtotal", f"${t_sub:,.2f}")
+        k2.metric("IVA (16%)", f"${t_iva:,.2f}")
+        k3.metric("TOTAL NETO", f"${t_tot:,.2f}")
 
-    # --- ZONA DE DESCARGA (SIN NONE) ---
-    st.markdown("---")
-    col_d_1, col_d_2 = st.columns([3, 1])
-    
-    with col_d_1:
-        # Variables finales
-        cli_f = st.session_state.auto_cliente if modo == "📂 Importador Masivo" else cliente_input
-        vin_f = st.session_state.auto_vin if modo == "📂 Importador Masivo" else vin_input
-        ord_f = st.session_state.auto_orden if modo == "📂 Importador Masivo" else orden_input
+        # --- ZONA DE DESCARGA (LIMPIEZA DE ARTEFACTOS NONE) ---
+        st.markdown("---")
+        col_d_1, col_d_2 = st.columns([3, 1])
         
-        # Generar PDF
-        pdf_data = generar_pdf_bytes(st.session_state.carrito, t_sub, t_iva, t_tot, cli_f, vin_f, ord_f)
-        
-        # BOTÓN ÚNICO
-        st.download_button(
-            label="📄 DESCARGAR PDF OFICIAL",
-            data=pdf_data,
-            file_name=f"Cotizacion_{ord_f if ord_f else 'Toyota'}.pdf",
-            mime="application/pdf",
-            type="primary"
-        )
+        with col_d_1:
+            # Variables finales
+            cli_f = st.session_state.auto_cliente if modo == "📂 Importador Masivo" else cliente_input if 'cliente_input' in locals() else ""
+            vin_f = st.session_state.auto_vin if modo == "📂 Importador Masivo" else vin_input if 'vin_input' in locals() else ""
+            ord_f = st.session_state.auto_orden if modo == "📂 Importador Masivo" else orden_input if 'orden_input' in locals() else ""
+            
+            # Generar PDF (Asignado a variable para no imprimir nada por error)
+            try:
+                pdf_data = generar_pdf_bytes(st.session_state.carrito, t_sub, t_iva, t_tot, cli_f, vin_f, ord_f)
+                
+                st.download_button(
+                    label="📄 DESCARGAR PDF OFICIAL",
+                    data=pdf_data,
+                    file_name=f"Cotizacion_{ord_f if ord_f else 'Toyota'}.pdf",
+                    mime="application/pdf",
+                    type="primary"
+                )
+            except Exception as e:
+                st.error(f"Error generando PDF: {e}")
 
-    with col_d_2:
-        if st.button("🗑️ Limpiar Todo"):
-            st.session_state.carrito = []
-            st.session_state.errores_carga = []
-            st.rerun()
+        with col_d_2:
+            if st.button("🗑️ Limpiar Todo"):
+                st.session_state.carrito = []
+                st.session_state.errores_carga = []
+                st.rerun()
 
 # --- FOOTER ---
 st.markdown("""
     <div class="legal-footer">
-        <strong>TOYOTA LOS FUERTES</strong> | Sistema de Cotización v6.0 (Stable)
+        <strong>TOYOTA LOS FUERTES</strong> | Sistema de Cotización v6.1
     </div>
 """, unsafe_allow_html=True)
