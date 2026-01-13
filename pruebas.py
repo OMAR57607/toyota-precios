@@ -21,12 +21,12 @@ def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now
 defaults = {
     'carrito': [], 'errores_carga': [], 'cliente': "", 'vin': "", 'orden': "", 'asesor': "",
     'temp_sku': "", 'temp_desc': "", 'temp_precio': 0.0, 
-    'ver_preview': False  # Variable para controlar la vista previa
+    'ver_preview': False
 }
 for k, v in defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
-# Estilos CSS Minimalistas
+# Estilos CSS
 st.markdown("""
     <style>
     .block-container { padding-top: 2rem; padding-bottom: 2rem; }
@@ -34,6 +34,29 @@ st.markdown("""
     .stButton button { width: 100%; border-radius: 6px; font-weight: 600; }
     .stButton button:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     [data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #e9ecef; }
+    
+    /* Estilos de la Vista Previa (Hoja de Papel) */
+    .preview-paper {
+        background-color: white;
+        padding: 40px;
+        border: 1px solid #ddd;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border-radius: 4px;
+        color: #333;
+        font-family: 'Arial', sans-serif;
+        margin-top: 20px;
+    }
+    .preview-header { border-bottom: 2px solid #eb0a1e; padding-bottom: 10px; margin-bottom: 20px; }
+    .preview-title { color: #eb0a1e; font-size: 24px; font-weight: bold; text-align: center; }
+    .preview-subtitle { text-align: center; font-size: 14px; color: #666; }
+    .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; font-size: 12px; }
+    .preview-label { font-weight: bold; color: #555; }
+    .preview-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px; }
+    .preview-table th { background-color: #eb0a1e; color: white; padding: 8px; text-align: left; }
+    .preview-table td { border-bottom: 1px solid #eee; padding: 8px; }
+    .preview-total { text-align: right; font-size: 14px; margin-top: 10px; }
+    .preview-total-final { font-size: 18px; font-weight: bold; color: #eb0a1e; }
+    .prio-urgente { color: #d32f2f; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -360,30 +383,70 @@ with col_right:
             
             c_p, c_d, c_l = st.columns([1, 1, 0.5])
             
-            # Botón de Toggle para Preview
             with c_p:
                 if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, use_container_width=True):
                     pass
-            
             with c_d:
-                st.download_button("📄 Descargar PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
-            
+                st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
             with c_l:
                 if st.button("🗑️", help="Limpiar carrito"):
                     st.session_state.carrito = []
                     st.rerun()
 
-            # SECCIÓN DE VISTA PREVIA CONDICIONAL
+            # --- VISTA PREVIA HTML (NO PDF EMBEBIDO) ---
             if st.session_state.ver_preview:
-                st.markdown("---")
-                try:
-                    b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                    # Usamos EMBED para mejor compatibilidad con navegadores modernos
-                    pdf_display = f'<embed src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600px" type="application/pdf">'
-                    st.markdown(pdf_display, unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"Error al generar vista previa: {e}")
+                
+                rows_html = ""
+                for item in st.session_state.carrito:
+                    p_class = "prio-urgente" if item['Prioridad'] == "Urgente" else ""
+                    rows_html += f"""
+                    <tr>
+                        <td>{item['SKU']}</td>
+                        <td>{item['Descripción']}</td>
+                        <td class="{p_class}">{item['Prioridad'].upper()}</td>
+                        <td style="text-align:center">{item['Cantidad']}</td>
+                        <td style="text-align:right">${item['Precio Base']:,.2f}</td>
+                        <td style="text-align:right">${item['Importe Total']:,.2f}</td>
+                    </tr>
+                    """
 
+                st.markdown(f"""
+                <div class="preview-paper">
+                    <div class="preview-header">
+                        <div class="preview-title">TOYOTA LOS FUERTES</div>
+                        <div class="preview-subtitle">PRESUPUESTO DE SERVICIOS Y REFACCIONES</div>
+                    </div>
+                    <div class="preview-grid">
+                        <div>
+                            <div><span class="preview-label">CLIENTE:</span> {st.session_state.cliente}</div>
+                            <div><span class="preview-label">VIN:</span> {st.session_state.vin}</div>
+                        </div>
+                        <div>
+                            <div><span class="preview-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div>
+                            <div><span class="preview-label">ORDEN:</span> {st.session_state.orden}</div>
+                            <div><span class="preview-label">ASESOR:</span> {st.session_state.asesor}</div>
+                        </div>
+                    </div>
+                    <table class="preview-table">
+                        <thead>
+                            <tr>
+                                <th>CÓDIGO</th>
+                                <th>DESCRIPCIÓN</th>
+                                <th>PRIORIDAD</th>
+                                <th>CANT</th>
+                                <th style="text-align:right">UNITARIO</th>
+                                <th style="text-align:right">TOTAL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                    </table>
+                    <div class="preview-total">Subtotal: ${sub:,.2f}</div>
+                    <div class="preview-total">IVA (16%): ${sub*0.16:,.2f}</div>
+                    <div class="preview-total preview-total-final">TOTAL: ${tot:,.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
     else:
         st.info("Carrito vacío.")
 
