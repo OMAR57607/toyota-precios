@@ -20,7 +20,8 @@ def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now
 # Inicializar Sesión
 defaults = {
     'carrito': [], 'errores_carga': [], 'cliente': "", 'vin': "", 'orden': "", 'asesor': "",
-    'temp_sku': "", 'temp_desc': "", 'temp_precio': 0.0, 'show_preview': False
+    'temp_sku': "", 'temp_desc': "", 'temp_precio': 0.0, 
+    'ver_preview': False  # Variable para controlar la vista previa
 }
 for k, v in defaults.items():
     if k not in st.session_state: st.session_state[k] = v
@@ -33,7 +34,6 @@ st.markdown("""
     .stButton button { width: 100%; border-radius: 6px; font-weight: 600; }
     .stButton button:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     [data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #e9ecef; }
-    iframe { border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -146,6 +146,9 @@ def cargar_en_manual(sku, desc, precio):
     try: st.session_state.temp_desc = GoogleTranslator(source='en', target='es').translate(str(desc))
     except: st.session_state.temp_desc = str(desc)
     st.session_state.temp_precio = precio
+
+def toggle_preview():
+    st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
 # 3. GENERADOR PDF
@@ -353,25 +356,34 @@ with col_right:
             st.caption(f"Subtotal: ${sub:,.2f} + IVA")
         
         with c_act:
-            # Generar PDF en memoria para tener bytes frescos
             pdf_bytes = generar_pdf()
             
-            c_prev, c_down, c_clear = st.columns([1, 1, 0.5])
+            c_p, c_d, c_l = st.columns([1, 1, 0.5])
             
-            with c_prev:
-                if st.button("👁️ Vista Previa", use_container_width=True):
-                    # Mostrar PDF embebido
-                    b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                    pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
-                    st.markdown(pdf_display, unsafe_allow_html=True)
+            # Botón de Toggle para Preview
+            with c_p:
+                if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, use_container_width=True):
+                    pass
             
-            with c_down:
+            with c_d:
                 st.download_button("📄 Descargar PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
             
-            with c_clear:
+            with c_l:
                 if st.button("🗑️", help="Limpiar carrito"):
                     st.session_state.carrito = []
                     st.rerun()
+
+            # SECCIÓN DE VISTA PREVIA CONDICIONAL
+            if st.session_state.ver_preview:
+                st.markdown("---")
+                try:
+                    b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+                    # Usamos EMBED para mejor compatibilidad con navegadores modernos
+                    pdf_display = f'<embed src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600px" type="application/pdf">'
+                    st.markdown(pdf_display, unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"Error al generar vista previa: {e}")
+
     else:
         st.info("Carrito vacío.")
 
