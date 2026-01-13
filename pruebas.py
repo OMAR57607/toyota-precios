@@ -67,10 +67,7 @@ st.markdown("""
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
     }
-    .row-item {
-        padding: 10px 0;
-        border-bottom: 1px solid #eee;
-    }
+    .row-item { padding: 10px 0; border-bottom: 1px solid #eee; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -98,6 +95,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     
     fecha_mx = obtener_hora_mx().strftime("%d/%m/%Y %H:%M")
     
+    # Datos Cliente
     pdf.set_fill_color(245, 245, 245)
     pdf.rect(10, 35, 190, 25, 'F')
     pdf.set_xy(12, 38)
@@ -125,6 +123,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(150, 6, vin if vin else "N/A", 0, 1)
     pdf.ln(10)
 
+    # --- ENCABEZADOS DE TABLA ---
     pdf.set_fill_color(235, 10, 30)
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 8)
@@ -145,6 +144,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(w_total, 8, 'Total', 1, 0, 'C', True)
     pdf.cell(w_estatus, 8, 'Estatus', 1, 1, 'C', True)
 
+    # --- CONTENIDO DE TABLA ---
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 7)
     
@@ -168,6 +168,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
 
     pdf.ln(5)
     
+    # --- TOTALES ---
     pdf.set_font('Arial', '', 10)
     offset_x = 135
     pdf.cell(offset_x)
@@ -225,28 +226,36 @@ fecha_actual_mx = obtener_hora_mx()
 fecha_hoy_str = fecha_actual_mx.strftime("%d/%m/%Y")
 hora_hoy_str = fecha_actual_mx.strftime("%H:%M")
 
-# --- FUNCIÓN: DETECTAR DATOS INTELIGENTES (VIN, ORDEN, CLIENTE) ---
-def detectar_metadatos_texto(texto_completo):
-    """ Busca VIN, Orden y Cliente en un bloque de texto grande """
+# --- FUNCIÓN: DETECTAR METADATOS (Scanner Profundo) ---
+def escanear_texto_profundo(texto_completo):
+    """ Busca VIN, Orden y Cliente en cualquier bloque de texto desordenado """
     datos = {}
+    texto_upper = texto_completo.upper()
     
-    # 1. VIN (17 caracteres, letras y numeros, evita I,O,Q comúnmente)
-    # Patrón robusto para VIN
-    match_vin = re.search(r'\b[A-HJ-NPR-Z0-9]{17}\b', texto_completo.upper())
+    # 1. VIN (17 caracteres, letras y numeros, excluyendo I,O,Q tipico, pero broad match mejor)
+    # Buscamos patron de 17 caracteres alfanuméricos aislados
+    match_vin = re.search(r'\b[A-HJ-NPR-Z0-9]{17}\b', texto_upper)
     if match_vin:
         datos['VIN'] = match_vin.group(0)
 
-    # 2. ORDEN (Patrones comunes: Orden: 123, Folio: 123, OR-123)
-    match_orden = re.search(r'(?:ORDEN|FOLIO|PEDIDO)[:\s#]*([A-Z0-9-]{4,10})', texto_completo.upper())
-    if match_orden:
-        datos['ORDEN'] = match_orden.group(1)
-
-    # 3. CLIENTE (Patrones: Cliente: Juan, Atn: Juan)
-    # Esto es más heurístico
-    match_cliente = re.search(r'(?:CLIENTE|ATN|NOMBRE)[:\s]*([A-Z\s\.]{5,30})', texto_completo.upper())
+    # 2. CLIENTE (Busca keywords primero)
+    # Patrones: "CLIENTE: JUAN", "ATN: PEDRO", "ASESOR: LUIS"
+    match_cliente = re.search(r'(?:CLIENTE|ATN|ATENCIÓN|ASESOR|NOMBRE)[:\.\-\s]+([A-Z\s\.]{4,40})', texto_upper)
     if match_cliente:
         datos['CLIENTE'] = match_cliente.group(1).strip()
-        
+    
+    # 3. ORDEN (Busca keywords O numeros aislados que parezcan ordenes)
+    match_orden = re.search(r'(?:ORDEN|FOLIO|PEDIDO|COTIZACION)[:\.\-\s#]*([A-Z0-9\-]{4,12})', texto_upper)
+    if match_orden:
+        datos['ORDEN'] = match_orden.group(1).strip()
+    else:
+        # Intento secundario: buscar un numero de 5-10 digitos que NO sea fecha ni precio
+        # Evitamos numeros con $ o con / o -
+        posibles_nums = re.findall(r'\b\d{5,10}\b', texto_upper)
+        if posibles_nums:
+            # Tomamos el primero que encontremos como posible orden si no hay nada mas
+            datos['ORDEN'] = posibles_nums[0]
+
     return datos
 
 # --- FUNCIÓN: PROCESAR LISTA ---
@@ -386,17 +395,13 @@ if modo == "🔍 Cotizador Manual":
 # ==========================================
 elif modo == "📂 Importador Masivo":
     st.markdown("### ⚡ Carga Rápida de Órdenes")
-    st.info("Sube un archivo o pega una lista. El sistema intentará detectar Cliente, VIN y Orden automáticamente.")
+    st.info("El sistema buscará automáticamente VIN, Cliente y Orden dentro de tu archivo.")
     
-    # --- FORMULARIO DE DATOS CON AUTO-COMPLETADO ---
     col_m1, col_m2, col_m3 = st.columns(3)
     
-    # Usamos session_state para que se puedan rellenar solos
     with col_m1: 
-        # Si hay valor autodetectado, úsalo, si no, el input manual
         val_cli = st.session_state.auto_cliente
         cliente_input = st.text_input("👤 Cliente", value=val_cli, key="in_cli_mas")
-        # Actualizamos session state si el usuario escribe
         st.session_state.auto_cliente = cliente_input
 
     with col_m2: 
@@ -420,6 +425,7 @@ elif modo == "📂 Importador Masivo":
                 m_desc = col_man2.text_input("Descripción", value="Refacción Especial")
                 m_precio = col_man3.number_input("Precio Base", min_value=0.0)
                 m_cant = col_man4.number_input("Cant.", min_value=1, value=1)
+                
                 if st.form_submit_button("Agregar ✅"):
                     iva_m = (m_precio * m_cant) * 0.16
                     tot_m = (m_precio * m_cant) + iva_m
@@ -451,68 +457,64 @@ elif modo == "📂 Importador Masivo":
         if upl and st.button("Cargar Excel"):
             try:
                 d = pd.read_excel(upl)
+                
+                # 1. ESCANEO PROFUNDO DE METADATOS (VIN, CLIENTE, ORDEN) EN TODO EL EXCEL
+                # Convertimos todo el dataframe a un solo string gigante para buscar patrones
+                texto_todo_excel = d.to_string()
+                datos_intel = escanear_texto_profundo(texto_todo_excel)
+                
+                # Actualizamos inputs si encontramos algo
+                if 'VIN' in datos_intel: st.session_state.auto_vin = datos_intel['VIN']
+                if 'CLIENTE' in datos_intel: st.session_state.auto_cliente = datos_intel['CLIENTE']
+                if 'ORDEN' in datos_intel: st.session_state.auto_orden = datos_intel['ORDEN']
+                
+                # 2. BUSQUEDA DE PARTES
                 d.columns = [c.upper().strip() for c in d.columns]
-                
-                # --- DETECCIÓN INTELIGENTE EN EXCEL ---
-                # Buscamos columnas que se llamen "VIN", "CLIENTE", "ORDEN"
-                # O si no son columnas, buscamos en las primeras filas del dataframe como texto
-                
-                # 1. Busqueda en Nombres de Columna
-                col_sku = next((c for c in d.columns if 'SKU' in c or 'PART' in c), None)
+                col_sku = next((c for c in d.columns if 'SKU' in c or 'PART' in c or 'NUM' in c), None)
                 col_cant = next((c for c in d.columns if 'CANT' in c or 'QTY' in c), None)
-                
-                # Intentar detectar metadatos en columnas
-                col_vin = next((c for c in d.columns if 'VIN' in c or 'SERIE' in c), None)
-                col_cli = next((c for c in d.columns if 'CLIENTE' in c or 'NOMBRE' in c), None)
-                col_ord = next((c for c in d.columns if 'ORDEN' in c or 'FOLIO' in c), None)
-                
-                if col_vin and not d[col_vin].isnull().all(): st.session_state.auto_vin = str(d[col_vin].iloc[0])
-                if col_cli and not d[col_cli].isnull().all(): st.session_state.auto_cliente = str(d[col_cli].iloc[0])
-                if col_ord and not d[col_ord].isnull().all(): st.session_state.auto_orden = str(d[col_ord].iloc[0])
                 
                 if col_sku:
                     lst = [{'sku': r[col_sku], 'cant': int(r[col_cant]) if col_cant and pd.notna(r[col_cant]) else 1} for _, r in d.iterrows() if pd.notna(r[col_sku])]
                     ok, fail = procesar_lista_sku(lst)
                     st.session_state.errores_carga = fail
-                    st.success(f"✅ Agregados {ok}.")
+                    
+                    msg_extra = ""
+                    if datos_intel: msg_extra = f" | Detectado: {', '.join(datos_intel.keys())}"
+                    st.success(f"✅ Agregados {ok}.{msg_extra}")
                     st.rerun()
-            except: st.error("Error leyendo Excel.")
+                else:
+                    st.error("No encontré columna de SKU, pero busqué datos generales.")
+            except Exception as e: st.error(f"Error leyendo Excel: {e}")
 
     with tab3:
         cam = st.camera_input("Foto", key="cam_m")
         if cam:
             with st.spinner("Analizando Imagen y Buscando Datos..."):
                 r = cargar_lector_ocr()
-                # Leemos texto plano completo para buscar metadatos
                 raw_text_list = r.readtext(np.array(Image.open(cam)), detail=0)
                 full_text = " ".join(raw_text_list)
                 
-                # --- DETECCIÓN INTELIGENTE EN FOTO ---
-                datos_detectados = detectar_metadatos_texto(full_text)
+                # ESCANEO PROFUNDO EN FOTO
+                datos_intel = escanear_texto_profundo(full_text)
                 
-                msg_extra = ""
-                if 'VIN' in datos_detectados: 
-                    st.session_state.auto_vin = datos_detectados['VIN']
-                    msg_extra += f" | VIN: {datos_detectados['VIN']}"
-                if 'ORDEN' in datos_detectados: 
-                    st.session_state.auto_orden = datos_detectados['ORDEN']
-                    msg_extra += f" | Orden: {datos_detectados['ORDEN']}"
-                if 'CLIENTE' in datos_detectados: 
-                    st.session_state.auto_cliente = datos_detectados['CLIENTE']
-                    msg_extra += f" | Cliente: {datos_detectados['CLIENTE']}"
+                if 'VIN' in datos_intel: st.session_state.auto_vin = datos_intel['VIN']
+                if 'CLIENTE' in datos_intel: st.session_state.auto_cliente = datos_intel['CLIENTE']
+                if 'ORDEN' in datos_intel: st.session_state.auto_orden = datos_intel['ORDEN']
                 
-                # Detección de SKUs
                 lst = []
                 for t in raw_text_list:
                     t = t.upper().replace(' ', '')
                     if re.search(r'[A-Z0-9]{5}-?[A-Z0-9]{5}', t): lst.append({'sku': t, 'cant': 1})
                 
                 if lst:
-                    if st.button("Agregar SKUs Detectados"):
+                    if st.button("Agregar Detectados"):
                         ok, fail = procesar_lista_sku(lst)
                         st.session_state.errores_carga = fail
-                        st.success(f"✅ Agregados {ok}. {msg_extra}")
+                        st.success(f"✅ Agregados {ok}.")
                         st.rerun()
+                else:
+                    if datos_intel: st.info(f"Solo encontré datos: {datos_intel}")
+                    else: st.warning("No detecté información útil.")
 
 # ==========================================
 # CARRITO GLOBAL
@@ -563,7 +565,6 @@ if st.session_state.carrito:
     
     c_pdf, c_del = st.columns([1, 1])
     with c_pdf:
-        # Usamos los valores de sesión (que pueden haber sido autodetectados)
         cli = st.session_state.auto_cliente if modo == "📂 Importador Masivo" else cliente_input
         vin = st.session_state.auto_vin if modo == "📂 Importador Masivo" else vin_input
         ord_n = st.session_state.auto_orden if modo == "📂 Importador Masivo" else orden_input
@@ -583,6 +584,6 @@ if st.session_state.carrito:
 st.markdown(f"""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - USO INTERNO ASESORES</strong><br>
-        Sistema de Cotización Avanzado v2.5
+        Sistema de Cotización Avanzado v2.6
     </div>
 """, unsafe_allow_html=True)
