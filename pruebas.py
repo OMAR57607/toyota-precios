@@ -33,10 +33,10 @@ st.markdown("""
     h1, h2, h3 { font-family: 'Helvetica', sans-serif; font-weight: 700; color: #333; }
     .stButton button { width: 100%; border-radius: 6px; font-weight: 600; }
     
-    /* ESTILOS DE VISTA PREVIA (MODO PAPEL) */
+    /* VISTA PREVIA */
     .preview-container {
         font-family: Arial, sans-serif;
-        background-color: #525659; /* Fondo gris visor */
+        background-color: #525659;
         padding: 20px;
         border-radius: 8px;
         display: flex;
@@ -62,7 +62,6 @@ st.markdown("""
     .preview-title { font-size: 24px; font-weight: 900; color: #eb0a1e; margin: 0; }
     .preview-subtitle { font-size: 12px; color: #666; text-transform: uppercase; margin: 0; }
     
-    /* GRID DE DATOS */
     .info-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -76,7 +75,6 @@ st.markdown("""
     .info-item { font-size: 12px; margin-bottom: 4px; color: #333; }
     .info-label { font-weight: bold; color: #555; width: 70px; display: inline-block; }
 
-    /* TABLA LIMPIA */
     table.custom-table {
         width: 100%;
         border-collapse: collapse;
@@ -95,27 +93,21 @@ st.markdown("""
         color: #333 !important;
     }
     
-    .total-box {
-        margin-left: auto;
-        width: 250px;
-        text-align: right;
-    }
-    .total-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 12px;
-        margin-bottom: 5px;
-        color: #333;
-    }
-    .total-final {
-        font-size: 18px;
-        font-weight: bold;
-        color: #eb0a1e;
-        border-top: 2px solid #ddd;
-        padding-top: 5px;
-        margin-top: 5px;
-    }
+    .total-box { margin-left: auto; width: 250px; text-align: right; }
+    .total-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #333; }
+    .total-final { font-size: 18px; font-weight: bold; color: #eb0a1e; border-top: 2px solid #ddd; padding-top: 5px; margin-top: 5px; }
     
+    .legal-footer {
+        margin-top: 40px;
+        padding-top: 15px;
+        border-top: 1px solid #ccc;
+        font-size: 9px;
+        color: #555;
+        text-align: justify;
+        line-height: 1.4;
+    }
+    .legal-title { font-weight: bold; margin-bottom: 5px; color: #333; }
+
     /* Badges */
     .badge-urg { background-color: #d32f2f; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold; font-size: 10px; }
     .badge-med { background-color: #fbc02d; color: black; padding: 2px 5px; border-radius: 3px; font-size: 10px; }
@@ -236,12 +228,30 @@ class PDF(FPDF):
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
 
     def footer(self):
-        self.set_y(-35); self.set_font('Arial', '', 6); self.set_text_color(100)
-        self.multi_cell(0, 3, "VIGENCIA: 24h. Precios incluyen IVA. Partes eléctricas sin garantía. 50% anticipo en pedidos especiales. Mano de Obra garantizada.", 0, 'C')
-        self.set_y(-15); self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
+        self.set_y(-55)
+        self.set_font('Arial', 'B', 7)
+        self.set_text_color(0)
+        self.cell(0, 4, 'TÉRMINOS Y CONDICIONES (PROFECO)', 0, 1, 'L')
+        self.set_font('Arial', '', 6)
+        self.set_text_color(60)
+        
+        # TEXTO LEGAL CORREGIDO PARA CUMPLIR CON PROFECO
+        legales = (
+            "1. PEDIDOS ESPECIALES: Requieren el 100% DE PAGO ANTICIPADO. No se aceptan cancelaciones ni devoluciones salvo defecto de fábrica.\n"
+            "2. PARTES ELÉCTRICAS: No se aceptan CAMBIOS ni DEVOLUCIONES una vez instaladas o si el empaque ha sido abierto. "
+            "La garantía aplica exclusivamente por defecto de fabricación y está sujeta a dictamen técnico del fabricante.\n"
+            "3. PROFECO: Servicio conforme a la NOM-029-SCFI-2010. Contrato de Adhesión vigente.\n"
+            "4. GARANTÍA MO: 30 días o 1,000 km en mano de obra. Refacciones originales: 12 meses o 20,000 km (sujeto a póliza).\n"
+            "5. VIGENCIA: 24 horas. Precios con IVA (16%)."
+        )
+        self.multi_cell(0, 3, legales, 0, 'J')
+        
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
 def generar_pdf():
-    pdf = PDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=40)
+    pdf = PDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=60)
     pdf.set_fill_color(245); pdf.rect(10, 35, 190, 22, 'F')
     pdf.set_xy(12, 38); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.cliente.upper(), 0, 0)
@@ -411,12 +421,10 @@ with col_right:
 
     else: st.info("Carrito vacío.")
 
-# --- VISTA PREVIA LIMPIA ---
+# --- VISTA PREVIA ---
 if st.session_state.ver_preview and st.session_state.carrito:
     sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
     tot = sub * 1.16
-    
-    # CONSTRUCCIÓN DE HTML SIN INDENTACIÓN (PARA EVITAR BUG)
     rows = ""
     for item in st.session_state.carrito:
         p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
@@ -441,6 +449,13 @@ if st.session_state.ver_preview and st.session_state.carrito:
                 <div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div>
                 <div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div>
                 <div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>
+            </div>
+            <div class="legal-footer">
+                <div class="legal-title">TÉRMINOS Y CONDICIONES (PROFECO)</div>
+                <div>1. <b>PEDIDOS ESPECIALES:</b> Requieren 100% PAGO ANTICIPADO. No cancelaciones ni devoluciones.</div>
+                <div>2. <b>PARTES ELÉCTRICAS:</b> NO CAMBIOS/DEVOLUCIONES al estar instaladas. Garantía sujeta a dictamen técnico por defecto de fábrica.</div>
+                <div>3. <b>PROFECO:</b> Conforme a NOM-029-SCFI-2010.</div>
+                <div>4. <b>GARANTÍA:</b> 30 días MO / 12 meses Refacciones Originales (defecto fábrica).</div>
             </div>
         </div>
     </div>
