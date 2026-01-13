@@ -486,4 +486,3 @@ if st.session_state.ver_preview and st.session_state.carrito:
     </div>
     """
     st.markdown(html_preview, unsafe_allow_html=True)
-
