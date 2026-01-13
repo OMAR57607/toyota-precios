@@ -30,6 +30,11 @@ if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 if 'errores_carga' not in st.session_state:
     st.session_state.errores_carga = [] 
+    
+# Variables para autocompletado inteligente
+if 'auto_cliente' not in st.session_state: st.session_state.auto_cliente = ""
+if 'auto_vin' not in st.session_state: st.session_state.auto_vin = ""
+if 'auto_orden' not in st.session_state: st.session_state.auto_orden = ""
 
 @st.cache_resource
 def cargar_lector_ocr():
@@ -48,13 +53,20 @@ st.markdown("""
         margin-bottom: 10px;
         color: #333;
     }
+    .success-box {
+        background-color: #d4edda;
+        padding: 10px;
+        border-radius: 5px;
+        border-left: 5px solid #28a745;
+        margin-bottom: 10px;
+        color: #155724;
+    }
     .legal-footer {
         text-align: center; font-size: 11px; opacity: 0.7;
         margin-top: 50px; padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
     }
-    /* Estilo para la tabla interactiva */
     .row-item {
         padding: 10px 0;
         border-bottom: 1px solid #eee;
@@ -86,7 +98,6 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     
     fecha_mx = obtener_hora_mx().strftime("%d/%m/%Y %H:%M")
     
-    # Datos Cliente
     pdf.set_fill_color(245, 245, 245)
     pdf.rect(10, 35, 190, 25, 'F')
     pdf.set_xy(12, 38)
@@ -114,7 +125,6 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(150, 6, vin if vin else "N/A", 0, 1)
     pdf.ln(10)
 
-    # --- ENCABEZADOS DE TABLA ---
     pdf.set_fill_color(235, 10, 30)
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 8)
@@ -135,7 +145,6 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(w_total, 8, 'Total', 1, 0, 'C', True)
     pdf.cell(w_estatus, 8, 'Estatus', 1, 1, 'C', True)
 
-    # --- CONTENIDO DE TABLA ---
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 7)
     
@@ -159,7 +168,6 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
 
     pdf.ln(5)
     
-    # --- TOTALES ---
     pdf.set_font('Arial', '', 10)
     offset_x = 135
     pdf.cell(offset_x)
@@ -205,8 +213,6 @@ def cargar_catalogo():
         
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
-        
-        # Limpiar precio
         df['PRECIO_NUM'] = df[c_precio].astype(str).str.replace('$', '').str.replace(',', '').apply(lambda x: float(x) if x.replace('.', '', 1).isdigit() else 0.0)
         
         return df, c_sku, c_desc
@@ -219,7 +225,31 @@ fecha_actual_mx = obtener_hora_mx()
 fecha_hoy_str = fecha_actual_mx.strftime("%d/%m/%Y")
 hora_hoy_str = fecha_actual_mx.strftime("%H:%M")
 
-# --- FUNCIÓN AUXILIAR: PROCESAR MASIVO ---
+# --- FUNCIÓN: DETECTAR DATOS INTELIGENTES (VIN, ORDEN, CLIENTE) ---
+def detectar_metadatos_texto(texto_completo):
+    """ Busca VIN, Orden y Cliente en un bloque de texto grande """
+    datos = {}
+    
+    # 1. VIN (17 caracteres, letras y numeros, evita I,O,Q comúnmente)
+    # Patrón robusto para VIN
+    match_vin = re.search(r'\b[A-HJ-NPR-Z0-9]{17}\b', texto_completo.upper())
+    if match_vin:
+        datos['VIN'] = match_vin.group(0)
+
+    # 2. ORDEN (Patrones comunes: Orden: 123, Folio: 123, OR-123)
+    match_orden = re.search(r'(?:ORDEN|FOLIO|PEDIDO)[:\s#]*([A-Z0-9-]{4,10})', texto_completo.upper())
+    if match_orden:
+        datos['ORDEN'] = match_orden.group(1)
+
+    # 3. CLIENTE (Patrones: Cliente: Juan, Atn: Juan)
+    # Esto es más heurístico
+    match_cliente = re.search(r'(?:CLIENTE|ATN|NOMBRE)[:\s]*([A-Z\s\.]{5,30})', texto_completo.upper())
+    if match_cliente:
+        datos['CLIENTE'] = match_cliente.group(1).strip()
+        
+    return datos
+
+# --- FUNCIÓN: PROCESAR LISTA ---
 def procesar_lista_sku(lista_skus):
     encontrados = 0
     errores = []
@@ -235,7 +265,6 @@ def procesar_lista_sku(lista_skus):
             row = match.iloc[0]
             desc = traducir_profe(row[col_desc_db])
             precio = row['PRECIO_NUM']
-            
             monto_iva = (precio * cant) * 0.16
             monto_total = (precio * cant) + monto_iva
             
@@ -277,7 +306,6 @@ if modo == "🔍 Cotizador Manual":
     
     st.write("---")
     
-    # Escáner
     sku_detectado = ""
     if st.checkbox("📸 Activar Escáner"):
         img_file = st.camera_input("Foto", label_visibility="collapsed")
@@ -294,7 +322,6 @@ if modo == "🔍 Cotizador Manual":
             except: pass
     
     val_ini = sku_detectado if sku_detectado else ""
-    # Buscador Manual
     busqueda = st.text_input("🔍 Buscar SKU o Nombre:", value=val_ini)
     
     if busqueda and df is not None:
@@ -304,7 +331,6 @@ if modo == "🔍 Cotizador Manual":
         res = df[mask].head(10)
         
         if not res.empty:
-            # CASO A: ENCONTRADO
             cols_h = st.columns([3, 1, 1, 1])
             cols_h[0].markdown("**Descripción / SKU**")
             cols_h[1].markdown("**Cant.**")
@@ -337,7 +363,6 @@ if modo == "🔍 Cotizador Manual":
                             st.toast("Agregado")
                     st.divider()
         else:
-            # CASO B: NO ENCONTRADO
             st.warning(f"⚠️ El producto **'{busqueda}'** no existe en el catálogo.")
             with st.expander("🛠️ ¿Deseas agregarlo manualmente?", expanded=True):
                 with st.form(key="form_manual_single"):
@@ -361,45 +386,49 @@ if modo == "🔍 Cotizador Manual":
 # ==========================================
 elif modo == "📂 Importador Masivo":
     st.markdown("### ⚡ Carga Rápida de Órdenes")
-    st.info("Sube un archivo o pega una lista. Si un código no existe, podrás agregarlo manualmente.")
+    st.info("Sube un archivo o pega una lista. El sistema intentará detectar Cliente, VIN y Orden automáticamente.")
     
-    # --- MODIFICACIÓN: AGREGADO CAMPO VIN AQUÍ ---
+    # --- FORMULARIO DE DATOS CON AUTO-COMPLETADO ---
     col_m1, col_m2, col_m3 = st.columns(3)
-    with col_m1: cliente_input = st.text_input("👤 Cliente")
-    with col_m2: vin_input = st.text_input("🚗 VIN (17 Dígitos)", max_chars=17)
-    with col_m3: orden_input = st.text_input("📄 Orden")
     
+    # Usamos session_state para que se puedan rellenar solos
+    with col_m1: 
+        # Si hay valor autodetectado, úsalo, si no, el input manual
+        val_cli = st.session_state.auto_cliente
+        cliente_input = st.text_input("👤 Cliente", value=val_cli, key="in_cli_mas")
+        # Actualizamos session state si el usuario escribe
+        st.session_state.auto_cliente = cliente_input
+
+    with col_m2: 
+        val_vin = st.session_state.auto_vin
+        vin_input = st.text_input("🚗 VIN (17 Dígitos)", value=val_vin, max_chars=17, key="in_vin_mas")
+        st.session_state.auto_vin = vin_input
+        
+    with col_m3: 
+        val_ord = st.session_state.auto_orden
+        orden_input = st.text_input("📄 Orden", value=val_ord, key="in_ord_mas")
+        st.session_state.auto_orden = orden_input
+
     # MANEJO DE ERRORES MASIVOS
     if st.session_state.errores_carga:
-        st.markdown(f"""
-        <div class="error-box">
-            <strong>⚠️ Faltantes:</strong> {', '.join(st.session_state.errores_carga)}
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown(f"""<div class="error-box"><strong>⚠️ Faltantes:</strong> {', '.join(st.session_state.errores_carga)}</div>""", unsafe_allow_html=True)
         with st.expander("🛠️ Cargar Faltantes Manualmente", expanded=True):
             with st.form("form_manual_masivo"):
                 col_man1, col_man2, col_man3, col_man4 = st.columns([2, 3, 2, 1])
                 sugerencia_sku = st.session_state.errores_carga[0] if st.session_state.errores_carga else ""
-                
                 m_sku = col_man1.text_input("SKU", value=sugerencia_sku)
                 m_desc = col_man2.text_input("Descripción", value="Refacción Especial")
                 m_precio = col_man3.number_input("Precio Base", min_value=0.0)
                 m_cant = col_man4.number_input("Cant.", min_value=1, value=1)
-                
                 if st.form_submit_button("Agregar ✅"):
                     iva_m = (m_precio * m_cant) * 0.16
                     tot_m = (m_precio * m_cant) + iva_m
-                    
                     st.session_state.carrito.append({
                         "SKU": m_sku, "Descripción": m_desc, "Cantidad": m_cant,
                         "Precio Base": m_precio, "IVA": iva_m, "Importe Total": tot_m, "Estatus": "Disponible"
                     })
-                    
-                    if m_sku in st.session_state.errores_carga:
-                        st.session_state.errores_carga.remove(m_sku)
+                    if m_sku in st.session_state.errores_carga: st.session_state.errores_carga.remove(m_sku)
                     st.rerun()
-            
             if st.button("Ignorar Restantes"):
                 st.session_state.errores_carga = []
                 st.rerun()
@@ -423,10 +452,26 @@ elif modo == "📂 Importador Masivo":
             try:
                 d = pd.read_excel(upl)
                 d.columns = [c.upper().strip() for c in d.columns]
-                c_s = next((c for c in d.columns if 'SKU' in c or 'PART' in c), None)
-                c_q = next((c for c in d.columns if 'CANT' in c or 'QTY' in c), None)
-                if c_s:
-                    lst = [{'sku': r[c_s], 'cant': int(r[c_q]) if c_q and pd.notna(r[c_q]) else 1} for _, r in d.iterrows() if pd.notna(r[c_s])]
+                
+                # --- DETECCIÓN INTELIGENTE EN EXCEL ---
+                # Buscamos columnas que se llamen "VIN", "CLIENTE", "ORDEN"
+                # O si no son columnas, buscamos en las primeras filas del dataframe como texto
+                
+                # 1. Busqueda en Nombres de Columna
+                col_sku = next((c for c in d.columns if 'SKU' in c or 'PART' in c), None)
+                col_cant = next((c for c in d.columns if 'CANT' in c or 'QTY' in c), None)
+                
+                # Intentar detectar metadatos en columnas
+                col_vin = next((c for c in d.columns if 'VIN' in c or 'SERIE' in c), None)
+                col_cli = next((c for c in d.columns if 'CLIENTE' in c or 'NOMBRE' in c), None)
+                col_ord = next((c for c in d.columns if 'ORDEN' in c or 'FOLIO' in c), None)
+                
+                if col_vin and not d[col_vin].isnull().all(): st.session_state.auto_vin = str(d[col_vin].iloc[0])
+                if col_cli and not d[col_cli].isnull().all(): st.session_state.auto_cliente = str(d[col_cli].iloc[0])
+                if col_ord and not d[col_ord].isnull().all(): st.session_state.auto_orden = str(d[col_ord].iloc[0])
+                
+                if col_sku:
+                    lst = [{'sku': r[col_sku], 'cant': int(r[col_cant]) if col_cant and pd.notna(r[col_cant]) else 1} for _, r in d.iterrows() if pd.notna(r[col_sku])]
                     ok, fail = procesar_lista_sku(lst)
                     st.session_state.errores_carga = fail
                     st.success(f"✅ Agregados {ok}.")
@@ -436,18 +481,37 @@ elif modo == "📂 Importador Masivo":
     with tab3:
         cam = st.camera_input("Foto", key="cam_m")
         if cam:
-            with st.spinner("Analizando..."):
+            with st.spinner("Analizando Imagen y Buscando Datos..."):
                 r = cargar_lector_ocr()
-                res = r.readtext(np.array(Image.open(cam)), detail=0)
+                # Leemos texto plano completo para buscar metadatos
+                raw_text_list = r.readtext(np.array(Image.open(cam)), detail=0)
+                full_text = " ".join(raw_text_list)
+                
+                # --- DETECCIÓN INTELIGENTE EN FOTO ---
+                datos_detectados = detectar_metadatos_texto(full_text)
+                
+                msg_extra = ""
+                if 'VIN' in datos_detectados: 
+                    st.session_state.auto_vin = datos_detectados['VIN']
+                    msg_extra += f" | VIN: {datos_detectados['VIN']}"
+                if 'ORDEN' in datos_detectados: 
+                    st.session_state.auto_orden = datos_detectados['ORDEN']
+                    msg_extra += f" | Orden: {datos_detectados['ORDEN']}"
+                if 'CLIENTE' in datos_detectados: 
+                    st.session_state.auto_cliente = datos_detectados['CLIENTE']
+                    msg_extra += f" | Cliente: {datos_detectados['CLIENTE']}"
+                
+                # Detección de SKUs
                 lst = []
-                for t in res:
+                for t in raw_text_list:
                     t = t.upper().replace(' ', '')
                     if re.search(r'[A-Z0-9]{5}-?[A-Z0-9]{5}', t): lst.append({'sku': t, 'cant': 1})
+                
                 if lst:
-                    if st.button("Agregar"):
+                    if st.button("Agregar SKUs Detectados"):
                         ok, fail = procesar_lista_sku(lst)
                         st.session_state.errores_carga = fail
-                        st.success(f"✅ Agregados {ok}.")
+                        st.success(f"✅ Agregados {ok}. {msg_extra}")
                         st.rerun()
 
 # ==========================================
@@ -457,7 +521,6 @@ if st.session_state.carrito:
     st.write("---")
     st.subheader(f"🛒 Cotización Generada")
     
-    # Encabezados de la tabla Interactiva
     h1, h2, h3, h4, h5, h6 = st.columns([1.5, 3, 1, 1.5, 1.5, 0.5])
     h1.markdown("**SKU**")
     h2.markdown("**Descripción**")
@@ -467,28 +530,20 @@ if st.session_state.carrito:
     h6.markdown("**X**")
     
     idx_borrar = None
-    
     for i, item in enumerate(st.session_state.carrito):
         with st.container():
             c1, c2, c3, c4, c5, c6 = st.columns([1.5, 3, 1, 1.5, 1.5, 0.5])
-            
             c1.write(item['SKU'])
             c2.write(item['Descripción'])
-            
-            # Editar Cantidad
             nueva_cant = c3.number_input("C", min_value=1, value=int(item['Cantidad']), key=f"ec_{i}", label_visibility="collapsed")
             if nueva_cant != item['Cantidad']:
                 item['Cantidad'] = nueva_cant
                 item['IVA'] = (item['Precio Base'] * nueva_cant) * 0.16
                 item['Importe Total'] = (item['Precio Base'] * nueva_cant) + item['IVA']
                 st.rerun()
-            
             c4.write(f"${item['Precio Base']:,.2f}")
             c5.write(f"${item['Importe Total']:,.2f}")
-            
-            # Botón Borrar
-            if c6.button("🗑️", key=f"del_{i}"):
-                idx_borrar = i
+            if c6.button("🗑️", key=f"del_{i}"): idx_borrar = i
 
     if idx_borrar is not None:
         st.session_state.carrito.pop(idx_borrar)
@@ -496,36 +551,38 @@ if st.session_state.carrito:
 
     st.divider()
 
-    # Totales
     df_c = pd.DataFrame(st.session_state.carrito)
-    sub = df_c['Precio Base'] * df_c['Cantidad']
-    sub_sum = sub.sum()
-    iva_sum = df_c['IVA'].sum()
-    tot_sum = df_c['Importe Total'].sum()
+    sub = (df_c['Precio Base']*df_c['Cantidad']).sum()
+    iva = df_c['IVA'].sum()
+    tot = df_c['Importe Total'].sum()
 
     c_tot1, c_tot2, c_tot3 = st.columns(3)
-    c_tot1.metric("Subtotal", f"${sub_sum:,.2f}")
-    c_tot2.metric("IVA", f"${iva_sum:,.2f}")
-    c_tot3.metric("TOTAL", f"${tot_sum:,.2f}")
+    c_tot1.metric("Subtotal", f"${sub:,.2f}")
+    c_tot2.metric("IVA", f"${iva:,.2f}")
+    c_tot3.metric("TOTAL", f"${tot:,.2f}")
     
     c_pdf, c_del = st.columns([1, 1])
     with c_pdf:
-        # Recuperar variables independientemente del modo
-        cli = cliente_input
-        ord_n = orden_input
-        # Ahora vin_input está definido en ambos modos
-        pdf = generar_pdf_bytes(st.session_state.carrito, sub_sum, iva_sum, tot_sum, cli, vin_input, ord_n)
+        # Usamos los valores de sesión (que pueden haber sido autodetectados)
+        cli = st.session_state.auto_cliente if modo == "📂 Importador Masivo" else cliente_input
+        vin = st.session_state.auto_vin if modo == "📂 Importador Masivo" else vin_input
+        ord_n = st.session_state.auto_orden if modo == "📂 Importador Masivo" else orden_input
+        
+        pdf = generar_pdf_bytes(st.session_state.carrito, sub, iva, tot, cli, vin, ord_n)
         st.download_button("Descargar PDF", pdf, "Cotizacion.pdf", "application/pdf", type="primary")
     with c_del:
         if st.button("Limpiar Todo"):
             st.session_state.carrito = []
             st.session_state.errores_carga = []
+            st.session_state.auto_cliente = ""
+            st.session_state.auto_vin = ""
+            st.session_state.auto_orden = ""
             st.rerun()
 
 # FOOTER
 st.markdown(f"""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - USO INTERNO ASESORES</strong><br>
-        Sistema de Cotización Avanzado v2.4
+        Sistema de Cotización Avanzado v2.5
     </div>
 """, unsafe_allow_html=True)
