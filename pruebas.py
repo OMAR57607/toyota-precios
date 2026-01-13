@@ -23,7 +23,7 @@ defaults = {
     'temp_sku': "", 'temp_desc': "", 'temp_precio': 0.0, 
     'ver_preview': False
 }
-for k, v in defaults.skus():
+for k, v in defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
 # Estilos CSS
@@ -57,7 +57,7 @@ st.markdown("""
         margin-bottom: 25px; 
         display: flex; 
         justify-content: space-between; 
-        align-skus: center; 
+        align-items: center; 
     }
     .preview-title { font-size: 24px; font-weight: 900; color: #eb0a1e; margin: 0; }
     .preview-subtitle { font-size: 12px; color: #666; text-transform: uppercase; margin: 0; }
@@ -72,7 +72,7 @@ st.markdown("""
         border-radius: 4px;
         margin-bottom: 30px;
     }
-    .info-sku { font-size: 12px; margin-bottom: 4px; color: #333; }
+    .info-item { font-size: 12px; margin-bottom: 4px; color: #333; }
     .info-label { font-weight: bold; color: #555; width: 70px; display: inline-block; }
 
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; }
@@ -91,7 +91,7 @@ st.markdown("""
     .badge-med { background-color: #fbc02d; color: black; padding: 2px 5px; border-radius: 3px; }
     .badge-baj { background-color: #388e3c; color: white; padding: 2px 5px; border-radius: 3px; }
     
-    /* Badges Existencia */
+    /* Badges Abasto */
     .status-disp { color: #2e7d32; font-weight: bold; border: 1px solid #2e7d32; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
     .status-ped { color: white; background-color: #ef6c00; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; }
     .status-rev { color: white; background-color: #d32f2f; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; animation: blink 2s infinite; }
@@ -145,7 +145,7 @@ def analizador_inteligente_archivos(df_raw):
     keywords = {'ORDEN': ['ORDEN', 'FOLIO', 'OT', 'OS'], 'ASESOR': ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR'], 'CLIENTE': ['CLIENTE', 'ATTN', 'NOMBRE']}
 
     for r_idx, row in df.iterrows():
-        for c_idx, val in row.skus():
+        for c_idx, val in row.items():
             if 'VIN' not in metadata:
                 m = re.search(patron_vin, val)
                 if m: metadata['VIN'] = m.group(0)
@@ -193,12 +193,12 @@ def analizador_inteligente_archivos(df_raw):
             if 'ORDEN' in metadata: break
     return hallazgos, metadata
 
-def agregar_sku_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", existencia="⚠️ REVISAR"):
+def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
     try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
     except: desc = str(desc_raw)
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
-        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Existencia": existencia,
+        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto,
         "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
         "Importe Total": (precio * cant) + iva, "Estatus": "Disponible", "Tipo": tipo
     })
@@ -268,29 +268,29 @@ def generar_pdf():
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     
     hay_pedido = False
-    for sku in st.session_state.carrito:
-        prio = sku.get('Prioridad', 'Medio')
-        existencia = sku.get('Existencia', '⚠️ REVISAR')
-        if existencia == "Por Pedido": hay_pedido = True
+    for item in st.session_state.carrito:
+        prio = item.get('Prioridad', 'Medio')
+        abasto = item.get('Abasto', '⚠️ REVISAR')
+        if abasto == "Por Pedido": hay_pedido = True
         
         pdf.set_text_color(0)
-        pdf.cell(cols[0], 6, sku['SKU'][:15], 'B', 0, 'C')
-        pdf.cell(cols[1], 6, sku['Descripción'][:45], 'B', 0, 'L')
+        pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
+        pdf.cell(cols[1], 6, item['Descripción'][:45], 'B', 0, 'L')
         
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[2], 6, prio.upper(), 'B', 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        if existencia == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
-        elif existencia == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
-        st_txt = existencia.replace("⚠️ ", "").upper()
+        if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
+        elif abasto == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
+        st_txt = abasto.replace("⚠️ ", "").upper()
         pdf.cell(cols[3], 6, st_txt, 'B', 0, 'C')
         
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
-        pdf.cell(cols[4], 6, str(sku['Cantidad']), 'B', 0, 'C')
-        pdf.cell(cols[5], 6, f"${sku['Precio Base']:,.2f}", 'B', 0, 'R')
-        pdf.cell(cols[6], 6, f"${sku['Importe Total']:,.2f}", 'B', 0, 'R')
-        pdf.cell(cols[7], 6, "MO" if "MO" in sku['SKU'] else "REF", 'B', 1, 'C')
+        pdf.cell(cols[4], 6, str(item['Cantidad']), 'B', 0, 'C')
+        pdf.cell(cols[5], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
+        pdf.cell(cols[6], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
+        pdf.cell(cols[7], 6, "MO" if "MO" in item['SKU'] else "REF", 'B', 1, 'C')
 
     pdf.ln(5)
     sub = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
@@ -329,19 +329,19 @@ with st.sidebar:
         with st.status("Procesando...", expanded=False) as status:
             try:
                 df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-                skus, meta = analizador_inteligente_archivos(df_up)
+                items, meta = analizador_inteligente_archivos(df_up)
                 if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
                 if 'VIN' in meta: st.session_state.vin = meta['VIN']
                 if 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
                 if 'ASESOR' in meta: st.session_state.asesor = meta['ASESOR']
                 
                 exitos, fallos = 0, []
-                for it in skus:
+                for it in items:
                     clean = str(it['sku']).upper().replace('-', '').strip()
                     match = df_db[df_db['SKU_CLEAN'] == clean]
                     if not match.empty:
                         row = match.iloc[0]
-                        agregar_sku_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR")
+                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR")
                         exitos += 1
                     else: fallos.append(it['sku'])
                 st.session_state.errores_carga = fallos
@@ -372,7 +372,7 @@ with col_left:
                         if c2.button("✏️", key=f"edit_{sku_db}", help="Editar en manual"):
                             cargar_en_manual(sku_db, desc_ori, pr_db)
                             st.rerun()
-                        c3.button("➕", key=f"add_{sku_db}", on_click=agregar_sku_callback, args=(sku_db, desc_ori, pr_db, 1, "Refacción", "Medio", "⚠️ REVISAR"))
+                        c3.button("➕", key=f"add_{sku_db}", on_click=agregar_item_callback, args=(sku_db, desc_ori, pr_db, 1, "Refacción", "Medio", "⚠️ REVISAR"))
         with tab_man:
             val_sku = st.session_state.temp_sku if st.session_state.temp_sku else "GENERICO"
             val_desc = st.session_state.temp_desc if st.session_state.temp_desc else "Refacción General"
@@ -383,7 +383,7 @@ with col_left:
                 m_pr = c2.number_input("Precio", min_value=0.0, value=float(val_prec))
                 m_desc = st.text_input("Descripción", value=val_desc)
                 if st.form_submit_button("Agregar Manual"):
-                    agregar_sku_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR")
+                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR")
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.toast("Agregado", icon="✅")
                     st.rerun()
@@ -394,7 +394,7 @@ with col_left:
             s_hrs = c1.number_input("Horas", 1.0, step=0.5)
             s_mo = c2.number_input("Costo Hora", value=600.0)
             if st.button("Agregar Servicio", type="primary"):
-                agregar_sku_callback("MO-TALLER", f"{s_desc} ({s_hrs}hrs)", s_hrs * s_mo, 1, "Mano de Obra", "Medio", "Disponible")
+                agregar_item_callback("MO-TALLER", f"{s_desc} ({s_hrs}hrs)", s_hrs * s_mo, 1, "Mano de Obra", "Medio", "Disponible")
                 st.toast("Servicio Agregado", icon="🛠️")
 
 with col_right:
@@ -406,7 +406,7 @@ with col_right:
             df_c,
             column_config={
                 "Prioridad": st.column_config.SelectboxColumn("Prioridad", options=["Urgente", "Medio", "Bajo"], required=True, width="small"),
-                "Existencia": st.column_config.SelectboxColumn("Existencia", options=["Disponible", "Por Pedido", "⚠️ REVISAR"], required=True, width="small"),
+                "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "⚠️ REVISAR"], required=True, width="small"),
                 "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "IVA": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
@@ -444,13 +444,13 @@ if st.session_state.ver_preview and st.session_state.carrito:
     tot = sub * 1.16
     rows = ""
     hay_pedido_prev = False
-    for sku in st.session_state.carrito:
-        p_cl = "badge-urg" if sku['Prioridad'] == "Urgente" else ("badge-med" if sku['Prioridad'] == "Medio" else "badge-baj")
-        s_val = sku.get('Existencia', '⚠️ REVISAR')
+    for item in st.session_state.carrito:
+        p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
+        s_val = item.get('Abasto', '⚠️ REVISAR')
         if s_val == "Disponible": s_cl = "status-disp"
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
         else: s_cl = "status-rev"
-        rows += f"<tr><td>{sku['SKU']}</td><td>{sku['Descripción']}</td><td><span class='{p_cl}'>{sku['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{sku['Cantidad']}</td><td style='text-align:right'>${sku['Precio Base']:,.2f}</td><td style='text-align:right'>${sku['Importe Total']:,.2f}</td></tr>"
+        rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
 
     anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO. Se requiere el 100% de anticipo para procesar la orden.</div>' if hay_pedido_prev else ''
 
@@ -462,8 +462,8 @@ if st.session_state.ver_preview and st.session_state.carrito:
                 <div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div>
             </div>
             <div class="info-grid">
-                <div><div class="info-sku"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-sku"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div>
-                <div><div class="info-sku"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-sku"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-sku"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div>
+                <div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div>
+                <div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div>
             </div>
             <table class="custom-table">
                 <thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">TOTAL</th></tr></thead>
