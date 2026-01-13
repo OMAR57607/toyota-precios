@@ -46,7 +46,7 @@ st.markdown("""
     .preview-paper {
         background-color: white !important;
         width: 100%;
-        max-width: 900px; /* Un poco más ancho para la nueva columna */
+        max-width: 900px;
         padding: 40px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         color: #000 !important;
@@ -75,37 +75,15 @@ st.markdown("""
     .info-item { font-size: 12px; margin-bottom: 4px; color: #333; }
     .info-label { font-weight: bold; color: #555; width: 70px; display: inline-block; }
 
-    table.custom-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 10px; /* Ligera reducción para que quepa todo */
-        margin-bottom: 20px;
-    }
-    table.custom-table th {
-        background-color: #eb0a1e !important;
-        color: white !important;
-        padding: 8px;
-        text-align: left;
-    }
-    table.custom-table td {
-        border-bottom: 1px solid #ddd;
-        padding: 8px;
-        color: #333 !important;
-    }
+    table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; }
+    table.custom-table th { background-color: #eb0a1e !important; color: white !important; padding: 8px; text-align: left; }
+    table.custom-table td { border-bottom: 1px solid #ddd; padding: 8px; color: #333 !important; }
     
     .total-box { margin-left: auto; width: 250px; text-align: right; }
     .total-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #333; }
     .total-final { font-size: 18px; font-weight: bold; color: #eb0a1e; border-top: 2px solid #ddd; padding-top: 5px; margin-top: 5px; }
     
-    .legal-footer {
-        margin-top: 40px;
-        padding-top: 15px;
-        border-top: 1px solid #ccc;
-        font-size: 9px;
-        color: #555;
-        text-align: justify;
-        line-height: 1.4;
-    }
+    .legal-footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 9px; color: #555; text-align: justify; line-height: 1.4; }
     .legal-title { font-weight: bold; margin-bottom: 5px; color: #333; }
 
     /* Badges Prioridad */
@@ -113,9 +91,24 @@ st.markdown("""
     .badge-med { background-color: #fbc02d; color: black; padding: 2px 5px; border-radius: 3px; }
     .badge-baj { background-color: #388e3c; color: white; padding: 2px 5px; border-radius: 3px; }
     
-    /* Badges Abasto */
+    /* Badges Abasto (LÓGICA ACTUALIZADA) */
     .status-disp { color: #2e7d32; font-weight: bold; border: 1px solid #2e7d32; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
-    .status-ped { color: #ef6c00; font-weight: bold; border: 1px solid #ef6c00; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+    .status-ped { color: white; background-color: #ef6c00; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; }
+    .status-rev { color: white; background-color: #d32f2f; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; animation: blink 2s infinite; }
+    
+    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    
+    .anticipo-warning {
+        color: #ef6c00;
+        font-weight: bold;
+        font-size: 11px;
+        text-align: right;
+        margin-top: 5px;
+        border: 1px dashed #ef6c00;
+        padding: 5px;
+        border-radius: 4px;
+        background-color: #fff3e0;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -200,7 +193,8 @@ def analizador_inteligente_archivos(df_raw):
             if 'ORDEN' in metadata: break
     return hallazgos, metadata
 
-def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", abasto="Disponible"):
+# CAMBIO CLAVE: Default Abasto es "REVISAR" para obligar a seleccionar
+def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
     try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
     except: desc = str(desc_raw)
     iva = (precio * cant) * 0.16
@@ -264,31 +258,36 @@ def generar_pdf():
     pdf.ln(8)
     
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 8)
-    # Ajuste de columnas para incluir STATUS
-    cols = [25, 55, 18, 20, 12, 25, 25, 12] # [SKU, Desc, Prio, Status, Cant, Unit, Total, Tipo]
+    cols = [25, 55, 18, 20, 12, 25, 25, 12]
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'PRIORIDAD', 'STATUS', 'CT', 'UNITARIO', 'TOTAL', 'TP']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
     
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
+    
+    hay_pedido = False # Bandera para detectar si hay pedidos
+    
     for item in st.session_state.carrito:
         prio = item.get('Prioridad', 'Medio')
-        abasto = item.get('Abasto', 'Disponible')
-        # Colores
-        pdf.set_text_color(0) # Reset
+        abasto = item.get('Abasto', '⚠️ REVISAR')
+        if abasto == "Por Pedido": hay_pedido = True
         
+        pdf.set_text_color(0)
         pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
         pdf.cell(cols[1], 6, item['Descripción'][:45], 'B', 0, 'L')
         
-        # Prioridad (Color Rojo si Urgente)
+        # Color Prioridad
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[2], 6, prio.upper(), 'B', 0, 'C')
-        pdf.set_text_color(0); pdf.set_font('Arial', '', 7) # Reset
+        pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        # Status (Abreviado)
-        st_txt = "DISP" if abasto == "Disponible" else "PEDIDO"
+        # Color Abasto/Status (PDF)
+        if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
+        elif abasto == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
+        st_txt = abasto.replace("⚠️ ", "").upper()
         pdf.cell(cols[3], 6, st_txt, 'B', 0, 'C')
         
+        pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         pdf.cell(cols[4], 6, str(item['Cantidad']), 'B', 0, 'C')
         pdf.cell(cols[5], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
         pdf.cell(cols[6], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
@@ -298,7 +297,15 @@ def generar_pdf():
     sub = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
     iva = sum(i['IVA'] for i in st.session_state.carrito)
     total = sub + iva
-    pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, 'Subtotal:', 0, 0, 'R'); pdf.cell(30, 6, f"${sub:,.2f}", 0, 1, 'R')
+    
+    # ALERTA DE ANTICIPO EN PDF
+    if hay_pedido:
+        pdf.set_x(130)
+        pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
+        pdf.cell(60, 5, "** REQUIERE 100% ANTICIPO **", 0, 1, 'R')
+        
+    pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
+    pdf.cell(30, 6, 'Subtotal:', 0, 0, 'R'); pdf.cell(30, 6, f"${sub:,.2f}", 0, 1, 'R')
     pdf.set_x(130); pdf.cell(30, 6, 'IVA (16%):', 0, 0, 'R'); pdf.cell(30, 6, f"${iva:,.2f}", 0, 1, 'R')
     pdf.set_x(130); pdf.set_font('Arial', 'B', 11); pdf.set_text_color(235, 10, 30)
     pdf.cell(30, 8, 'TOTAL:', 0, 0, 'R'); pdf.cell(30, 8, f"${total:,.2f}", 0, 1, 'R')
@@ -336,7 +343,8 @@ with st.sidebar:
                     match = df_db[df_db['SKU_CLEAN'] == clean]
                     if not match.empty:
                         row = match.iloc[0]
-                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "Disponible")
+                        # AGREGAR CON DEFAULT "REVISAR"
+                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR")
                         exitos += 1
                     else: fallos.append(it['sku'])
                 st.session_state.errores_carga = fallos
@@ -367,7 +375,7 @@ with col_left:
                         if c2.button("✏️", key=f"edit_{sku_db}", help="Editar en manual"):
                             cargar_en_manual(sku_db, desc_ori, pr_db)
                             st.rerun()
-                        c3.button("➕", key=f"add_{sku_db}", on_click=agregar_item_callback, args=(sku_db, desc_ori, pr_db, 1, "Refacción", "Medio"))
+                        c3.button("➕", key=f"add_{sku_db}", on_click=agregar_item_callback, args=(sku_db, desc_ori, pr_db, 1, "Refacción", "Medio", "⚠️ REVISAR"))
         with tab_man:
             val_sku = st.session_state.temp_sku if st.session_state.temp_sku else "GENERICO"
             val_desc = st.session_state.temp_desc if st.session_state.temp_desc else "Refacción General"
@@ -378,7 +386,7 @@ with col_left:
                 m_pr = c2.number_input("Precio", min_value=0.0, value=float(val_prec))
                 m_desc = st.text_input("Descripción", value=val_desc)
                 if st.form_submit_button("Agregar Manual"):
-                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "Disponible")
+                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR")
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.toast("Agregado", icon="✅")
                     st.rerun()
@@ -389,6 +397,7 @@ with col_left:
             s_hrs = c1.number_input("Horas", 1.0, step=0.5)
             s_mo = c2.number_input("Costo Hora", value=600.0)
             if st.button("Agregar Servicio", type="primary"):
+                # MO SIEMPRE ESTÁ DISPONIBLE
                 agregar_item_callback("MO-TALLER", f"{s_desc} ({s_hrs}hrs)", s_hrs * s_mo, 1, "Mano de Obra", "Medio", "Disponible")
                 st.toast("Servicio Agregado", icon="🛠️")
 
@@ -397,12 +406,12 @@ with col_right:
     if st.session_state.carrito:
         df_c = pd.DataFrame(st.session_state.carrito)
         
-        # --- EDITOR DE TABLA CON NUEVA COLUMNA "ABASTO" ---
+        # EDITOR DE TABLA CON OPCIONES SEGURAS
         edited = st.data_editor(
             df_c,
             column_config={
                 "Prioridad": st.column_config.SelectboxColumn("Prioridad", options=["Urgente", "Medio", "Bajo"], required=True, width="small"),
-                "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido"], required=True, width="small"),
+                "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "⚠️ REVISAR"], required=True, width="small"),
                 "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "IVA": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
@@ -434,18 +443,25 @@ with col_right:
 
     else: st.info("Carrito vacío.")
 
-# --- VISTA PREVIA CON STATUS ---
+# --- VISTA PREVIA ---
 if st.session_state.ver_preview and st.session_state.carrito:
     sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
     tot = sub * 1.16
     rows = ""
+    hay_pedido_prev = False
+    
     for item in st.session_state.carrito:
         p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
-        # ESTILOS PARA LA ETIQUETA DE STATUS
-        s_val = item.get('Abasto', 'Disponible')
-        s_cl = "status-disp" if s_val == "Disponible" else "status-ped"
+        
+        # LOGICA VISUAL STATUS
+        s_val = item.get('Abasto', '⚠️ REVISAR')
+        if s_val == "Disponible": s_cl = "status-disp"
+        elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
+        else: s_cl = "status-rev" # ROJO PARPADEANTE
         
         rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+
+    anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO. Se requiere el 100% de anticipo para procesar la orden.</div>' if hay_pedido_prev else ''
 
     html_preview = f"""
     <div class="preview-container">
@@ -466,6 +482,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
                 <div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div>
                 <div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div>
                 <div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>
+                {anticipo_html}
             </div>
             <div class="legal-footer">
                 <div class="legal-title">TÉRMINOS Y CONDICIONES (PROFECO)</div>
