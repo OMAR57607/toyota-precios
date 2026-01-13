@@ -14,8 +14,9 @@ import requests
 import tempfile
 import os
 
-# --- URL DEL LOGO MODERNO (Alta Resolución) ---
-LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Toyota_EU_2020_Logo.svg/1024px-Toyota_EU_2020_Logo.svg.png"
+# --- URL DEL LOGO ---
+# Usamos una URL directa. Si falla, el código tiene un respaldo para no romperse.
+LOGO_URL = "https://www.carlogos.org/car-logos/toyota-logo-2020-europe-640.png"
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Toyota Asesores", page_icon="🔧", layout="wide")
@@ -42,7 +43,7 @@ if 'auto_orden' not in st.session_state: st.session_state.auto_orden = ""
 def cargar_lector_ocr():
     return easyocr.Reader(['en'], gpu=False) 
 
-# 2. ESTILOS CSS (Mejorados con tipografía corporativa)
+# 2. ESTILOS CSS (ADAPTATIVOS)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;500;700&display=swap');
@@ -50,44 +51,60 @@ st.markdown("""
     html, body, [class*="css"] {
         font-family: 'Roboto', sans-serif;
     }
-    h1 { color: #000000 !important; font-weight: 700; text-align: left; }
+    
+    /* Títulos adaptativos (blanco en dark mode, negro en light mode) */
+    h1, h2, h3 { 
+        color: var(--text-color) !important; 
+        font-weight: 700; 
+    }
+    
+    .stMarkdown div {
+        color: var(--text-color);
+    }
+
     .stButton button { width: 100%; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
     
     /* Cajas de estado */
-    .error-box { background-color: #fff0f0; padding: 15px; border-radius: 4px; border-left: 5px solid #eb0a1e; color: #333; }
-    .success-box { background-color: #f0fff4; padding: 15px; border-radius: 4px; border-left: 5px solid #28a745; color: #155724; }
+    .error-box { background-color: #ffcccc; padding: 15px; border-radius: 4px; border-left: 5px solid #eb0a1e; color: #333; }
+    .success-box { background-color: #d4edda; padding: 15px; border-radius: 4px; border-left: 5px solid #28a745; color: #155724; }
     
-    /* Footer */
-    .legal-footer { text-align: center; font-size: 10px; color: #666; margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd; }
+    /* Footer adaptable */
+    .legal-footer { 
+        text-align: center; 
+        font-size: 11px; 
+        color: var(--text-color); 
+        opacity: 0.6;
+        margin-top: 50px; 
+        padding-top: 20px; 
+        border-top: 1px solid rgba(128, 128, 128, 0.2); 
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # --- CLASE PDF ---
 class PDF(FPDF):
     def header(self):
-        # Intentar descargar el logo temporalmente para el PDF
+        # Intentar poner logo en el PDF (solo si la URL funciona)
         try:
-            # Posición del Logo (x, y, ancho)
+            # Truco: FPDF necesita descargar la imagen temporalmente
             self.image(LOGO_URL, 10, 8, 25) 
-            offset_y_titulo = 0
+            offset_x_title = 40
         except:
-            # Si falla la descarga, solo texto
-            offset_y_titulo = 0
+            offset_x_title = 10 # Si falla, empezamos desde la orilla
             pass
 
         self.set_font('Arial', 'B', 16)
-        self.set_text_color(0) # Negro Corporativo
-        # Ajustamos posición del titulo para que no choque con el logo
-        self.set_xy(40, 10) 
+        self.set_text_color(0) # Negro para PDF
+        self.set_xy(offset_x_title, 10) 
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'L')
         
-        self.set_xy(40, 18)
+        self.set_xy(offset_x_title, 18)
         self.set_font('Arial', '', 9)
         self.set_text_color(100)
         self.cell(0, 5, 'COTIZACION OFICIAL DE REFACCIONES', 0, 1, 'L')
         
         # Linea roja decorativa
-        self.set_draw_color(235, 10, 30) # Rojo Toyota
+        self.set_draw_color(235, 10, 30)
         self.set_line_width(0.5)
         self.line(10, 30, 200, 30)
         self.ln(15)
@@ -105,11 +122,10 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     
     fecha_mx = obtener_hora_mx().strftime("%d/%m/%Y %H:%M")
     
-    # Datos Cliente (Diseño limpio)
-    pdf.set_fill_color(250, 250, 250)
+    # Datos Cliente
+    pdf.set_fill_color(245, 245, 245)
     pdf.rect(10, 35, 190, 28, 'F')
     
-    # Columna Izquierda
     pdf.set_xy(15, 38)
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(25, 6, 'CLIENTE:', 0, 0)
@@ -122,7 +138,6 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.set_font('Arial', '', 9)
     pdf.cell(80, 6, vin if vin else "N/A", 0, 0)
 
-    # Columna Derecha (Datos de Control)
     pdf.set_xy(120, 38)
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(25, 6, 'FECHA:', 0, 0)
@@ -137,7 +152,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
 
     pdf.ln(15)
 
-    # --- ENCABEZADOS DE TABLA (Negro/Gris Oscuro en lugar de rojo chillón) ---
+    # Encabezados Tabla
     pdf.set_fill_color(50, 50, 50) 
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 8)
@@ -158,12 +173,12 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(w_total, 8, 'TOTAL', 0, 0, 'C', True)
     pdf.cell(w_estatus, 8, 'ESTATUS', 0, 1, 'C', True)
 
-    # --- CONTENIDO DE TABLA ---
+    # Contenido Tabla
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 7)
     
     for i, item in enumerate(carrito):
-        fill = (i % 2 == 0) # Alternar color de filas
+        fill = (i % 2 == 0)
         pdf.set_fill_color(248, 248, 248) if fill else pdf.set_fill_color(255, 255, 255)
         
         desc = item['Descripción'][:40]
@@ -185,7 +200,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
 
     pdf.ln(5)
     
-    # --- TOTALES ---
+    # Totales
     pdf.set_font('Arial', '', 10)
     offset_x = 135
     pdf.cell(offset_x)
@@ -196,7 +211,7 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.cell(30, 6, f"${iva:,.2f}", 0, 1, 'R')
     
     pdf.set_font('Arial', 'B', 12)
-    pdf.set_text_color(235, 10, 30) # Rojo Toyota
+    pdf.set_text_color(235, 10, 30)
     pdf.cell(offset_x)
     pdf.cell(25, 8, 'TOTAL:', 0, 0, 'R')
     pdf.cell(30, 8, f"${total:,.2f}", 0, 1, 'R')
@@ -222,6 +237,7 @@ def traducir_profe(texto):
 @st.cache_data
 def cargar_catalogo():
     try:
+        # Asegúrate de que el archivo ZIP esté en la misma carpeta
         df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
@@ -236,8 +252,7 @@ def cargar_catalogo():
         
         return df, c_sku, c_desc
     except Exception as e:
-        # st.error(f"Error cargando datos: {e}") 
-        # Comentado para que no ensucie la pantalla si no hay archivo, puedes descomentar
+        # Si no hay archivo, retornamos None
         return None, None, None
 
 df, col_sku_db, col_desc_db = cargar_catalogo()
@@ -245,9 +260,8 @@ fecha_actual_mx = obtener_hora_mx()
 fecha_hoy_str = fecha_actual_mx.strftime("%d/%m/%Y")
 hora_hoy_str = fecha_actual_mx.strftime("%H:%M")
 
-# --- FUNCIÓN: DETECTAR METADATOS (Scanner Profundo) ---
+# --- FUNCIÓN: DETECTAR METADATOS ---
 def escanear_texto_profundo(texto_completo):
-    """ Busca VIN, Orden y Cliente en cualquier bloque de texto desordenado """
     datos = {}
     texto_upper = texto_completo.upper()
     
@@ -305,20 +319,31 @@ def procesar_lista_sku(lista_skus):
 
 # --- INTERFAZ PRINCIPAL ---
 
-# Sidebar con Logo
+# Sidebar
 with st.sidebar:
-    st.image(LOGO_URL, use_column_width=True)
+    try:
+        st.image(LOGO_URL, use_column_width=True)
+    except:
+        st.write("🔧 Toyota Asesores")
+        
     st.markdown("<br>", unsafe_allow_html=True)
     st.title("Menú Asesor")
     modo = st.radio("Selecciona una opción:", ["🔍 Cotizador Manual", "📂 Importador Masivo"])
 
-# Encabezado Principal (Logo pequeño + Titulo)
+# Encabezado Principal (Con protección anti-error de imagen)
 col_header_1, col_header_2 = st.columns([1, 6])
 with col_header_1:
-    st.image(LOGO_URL, width=80)
+    try:
+        st.image(LOGO_URL, width=80)
+    except:
+        st.header("🔧")
 with col_header_2:
     st.title("TOYOTA LOS FUERTES")
-    st.markdown(f"<div style='opacity: 0.6; font-size: 14px;'>Sistema Integral de Refacciones | {fecha_hoy_str} {hora_hoy_str}</div>", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style='opacity: 0.6; font-size: 14px; color: var(--text-color);'>
+            Sistema Integral de Refacciones | {fecha_hoy_str} {hora_hoy_str}
+        </div>
+        """, unsafe_allow_html=True)
 
 st.divider()
 
@@ -405,6 +430,7 @@ if modo == "🔍 Cotizador Manual":
                     if st.form_submit_button("Agregar al Carrito ✅"):
                         iva_m = m_precio * 0.16
                         tot_m = m_precio + iva_m
+                        # --- CORRECCIÓN DE SINTAXIS AQUÍ ---
                         st.session_state.carrito.append({
                             "SKU": m_sku, "Descripción": m_desc, "Cantidad": 1,
                             "Precio Base": m_precio, "IVA": iva_m, "Importe Total": tot_m, "Estatus": "Disponible"
@@ -451,6 +477,7 @@ elif modo == "📂 Importador Masivo":
                 if st.form_submit_button("Agregar ✅"):
                     iva_m = (m_precio * m_cant) * 0.16
                     tot_m = (m_precio * m_cant) + iva_m
+                    # --- CORRECCIÓN DE SINTAXIS AQUÍ ---
                     st.session_state.carrito.append({
                         "SKU": m_sku, "Descripción": m_desc, "Cantidad": m_cant,
                         "Precio Base": m_precio, "IVA": iva_m, "Importe Total": tot_m, "Estatus": "Disponible"
@@ -607,10 +634,9 @@ if st.session_state.carrito:
             st.session_state.auto_orden = ""
             st.rerun()
 
-# FOOTER
+# FOOTER ADAPTATIVO
 st.markdown(f"""
     <div class="legal-footer">
-        <img src="{LOGO_URL}" width="30" style="vertical-align: middle; margin-right: 10px;">
         <strong>TOYOTA LOS FUERTES</strong> | Sistema de Cotización Inteligente v3.0<br>
         Desarrollado para uso interno.
     </div>
