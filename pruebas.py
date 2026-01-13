@@ -488,7 +488,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
                 <div class="legal-title">TÉRMINOS Y CONDICIONES (PROFECO)</div>
                 <div>1. <b>PEDIDOS ESPECIALES:</b> Requieren 100% PAGO ANTICIPADO. No cancelaciones ni devoluciones.</div>
                 <div>2. <b>PARTES ELÉCTRICAS:</b> NO CAMBIOS/DEVOLUCIONES. Garantía sujeta a dictamen técnico por defecto de fábrica.</div>
-                <div>3. <b>PROFECO:</b> Conforme a NOM-029-SCFI-2010.</div>
+                <div>3. <b>PROFECO:</b> Conforme a NOM-174-SCFI-2007.</div>
                 <div>4. <b>GARANTÍA:</b> 30 días MO / 12 meses Refacciones Originales (defecto fábrica).</div>
             </div>
         </div>
