@@ -20,7 +20,7 @@ def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now
 # Inicializar Sesión
 defaults = {
     'carrito': [], 'errores_carga': [], 'cliente': "", 'vin': "", 'orden': "", 'asesor': "",
-    'temp_sku': "", 'temp_desc': "", 'temp_precio': 0.0, 
+    'temp_item': "", 'temp_desc': "", 'temp_precio': 0.0, 
     'ver_preview': False
 }
 for k, v in defaults.items():
@@ -122,17 +122,17 @@ def cargar_catalogo():
         df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
-        c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
+        c_item = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
         c_desc = next((c for c in df.columns if 'DESC' in c), None)
         c_precio = next((c for c in df.columns if 'PRICE' in c or 'PRECIO' in c), None)
-        if not c_sku or not c_precio: return None, None, None
-        df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
-        df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
+        if not c_item or not c_precio: return None, None, None
+        df.drop_duplicates(subset=[c_item], keep='first', inplace=True)
+        df['ITEM_CLEAN'] = df[c_item].astype(str).str.replace('-', '').str.strip().str.upper()
         df['PRECIO_NUM'] = df[c_precio].apply(lambda x: float(str(x).replace('$','').replace(',','').strip()) if str(x).replace('$','').replace(',','').strip().replace('.','',1).isdigit() else 0.0)
-        return df, c_sku, c_desc
+        return df, c_item, c_desc
     except: return None, None, None
 
-df_db, col_sku_db, col_desc_db = cargar_catalogo()
+df_db, col_item_db, col_desc_db = cargar_catalogo()
 
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
@@ -140,8 +140,8 @@ def analizador_inteligente_archivos(df_raw):
     
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
     patron_orden_8 = r'\b\d{8}\b'
-    patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
-    patron_sku_pln = r'\b[A-Z0-9]{10,12}\b'
+    patron_item_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
+    patron_item_pln = r'\b[A-Z0-9]{10,12}\b'
     keywords = {'ORDEN': ['ORDEN', 'FOLIO', 'OT', 'OS'], 'ASESOR': ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR'], 'CLIENTE': ['CLIENTE', 'ATTN', 'NOMBRE']}
 
     for r_idx, row in df.iterrows():
@@ -175,16 +175,16 @@ def analizador_inteligente_archivos(df_raw):
                         vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
                         if len(vec)>4: metadata['CLIENTE'] = vec
                     except: pass
-            es_sku = False; sku_det = None
-            if re.match(patron_sku_fmt, val): sku_det = val; es_sku = True
-            elif re.match(patron_sku_pln, val) and not val.isdigit(): sku_det = val; es_sku = True
-            if es_sku:
+            es_item = False; item_det = None
+            if re.match(patron_item_fmt, val): item_det = val; es_item = True
+            elif re.match(patron_item_pln, val) and not val.isdigit(): item_det = val; es_item = True
+            if es_item:
                 cant = 1
                 try: 
                     vecino = df.iloc[r_idx, df.columns.get_loc(c_idx)+1].replace('.0', '')
                     if vecino.isdigit(): cant = int(vecino)
                 except: pass
-                hallazgos.append({'sku': sku_det, 'cant': cant})
+                hallazgos.append({'item': item_det, 'cant': cant})
     if 'ORDEN' not in metadata:
         for _, row in df.iterrows():
             for val in row:
@@ -193,18 +193,18 @@ def analizador_inteligente_archivos(df_raw):
             if 'ORDEN' in metadata: break
     return hallazgos, metadata
 
-def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", existencia="⚠️ REVISAR"):
+def agregar_item_callback(item, desc_raw, precio, cant, tipo, prioridad="Medio", existencia="⚠️ REVISAR"):
     try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
     except: desc = str(desc_raw)
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
-        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Existencia": existencia,
+        "ITEM": item, "Descripción": desc, "Prioridad": prioridad, "Existencia": existencia,
         "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
         "Importe Total": (precio * cant) + iva, "Estatus": "Disponible", "Tipo": tipo
     })
 
-def cargar_en_manual(sku, desc, precio):
-    st.session_state.temp_sku = sku
+def cargar_en_manual(item, desc, precio):
+    st.session_state.temp_item = item
     try: st.session_state.temp_desc = GoogleTranslator(source='en', target='es').translate(str(desc))
     except: st.session_state.temp_desc = str(desc)
     st.session_state.temp_precio = precio
@@ -274,7 +274,7 @@ def generar_pdf():
         if existencia == "Por Pedido": hay_pedido = True
         
         pdf.set_text_color(0)
-        pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
+        pdf.cell(cols[0], 6, item['ITEM'][:15], 'B', 0, 'C')
         pdf.cell(cols[1], 6, item['Descripción'][:45], 'B', 0, 'L')
         
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
@@ -290,7 +290,7 @@ def generar_pdf():
         pdf.cell(cols[4], 6, str(item['Cantidad']), 'B', 0, 'C')
         pdf.cell(cols[5], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
         pdf.cell(cols[6], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
-        pdf.cell(cols[7], 6, "MO" if "MO" in item['SKU'] else "REF", 'B', 1, 'C')
+        pdf.cell(cols[7], 6, "MO" if "MO" in item['ITEM'] else "REF", 'B', 1, 'C')
 
     pdf.ln(5)
     sub = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
@@ -337,13 +337,13 @@ with st.sidebar:
                 
                 exitos, fallos = 0, []
                 for it in items:
-                    clean = str(it['sku']).upper().replace('-', '').strip()
-                    match = df_db[df_db['SKU_CLEAN'] == clean]
+                    clean = str(it['item']).upper().replace('-', '').strip()
+                    match = df_db[df_db['ITEM_CLEAN'] == clean]
                     if not match.empty:
                         row = match.iloc[0]
-                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR")
+                        agregar_item_callback(row[col_item_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR")
                         exitos += 1
-                    else: fallos.append(it['sku'])
+                    else: fallos.append(it['item'])
                 st.session_state.errores_carga = fallos
                 status.update(label=f"✅ {exitos} piezas importadas", state="complete")
                 if fallos: st.warning(f"{len(fallos)} códigos no encontrados")
@@ -360,31 +360,31 @@ with col_left:
     if tipo_add == "Refacción":
         tab_bus, tab_man = st.tabs(["🔍 Búsqueda", "✍️ Manual"])
         with tab_bus:
-            q = st.text_input("Buscar SKU o Nombre", placeholder="Filtro de aire...")
+            q = st.text_input("Buscar ITEM o Nombre", placeholder="Filtro de aire...")
             if q:
                 b_raw = q.upper().strip().replace('-', '')
-                mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['SKU_CLEAN'].str.contains(b_raw, na=False)
+                mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['ITEM_CLEAN'].str.contains(b_raw, na=False)
                 for _, row in df_db[mask].head(3).iterrows():
                     with st.container(border=True):
                         c1, c2, c3 = st.columns([3, 0.7, 0.7])
-                        sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']; desc_ori = row[col_desc_db]
-                        c1.markdown(f"**{sku_db}**\n\n${pr_db:,.2f}")
-                        if c2.button("✏️", key=f"edit_{sku_db}", help="Editar en manual"):
-                            cargar_en_manual(sku_db, desc_ori, pr_db)
+                        item_db = row[col_item_db]; pr_db = row['PRECIO_NUM']; desc_ori = row[col_desc_db]
+                        c1.markdown(f"**{item_db}**\n\n${pr_db:,.2f}")
+                        if c2.button("✏️", key=f"edit_{item_db}", help="Editar en manual"):
+                            cargar_en_manual(item_db, desc_ori, pr_db)
                             st.rerun()
-                        c3.button("➕", key=f"add_{sku_db}", on_click=agregar_item_callback, args=(sku_db, desc_ori, pr_db, 1, "Refacción", "Medio", "⚠️ REVISAR"))
+                        c3.button("➕", key=f"add_{item_db}", on_click=agregar_item_callback, args=(item_db, desc_ori, pr_db, 1, "Refacción", "Medio", "⚠️ REVISAR"))
         with tab_man:
-            val_sku = st.session_state.temp_sku if st.session_state.temp_sku else "GENERICO"
+            val_item = st.session_state.temp_item if st.session_state.temp_item else "GENERICO"
             val_desc = st.session_state.temp_desc if st.session_state.temp_desc else "Refacción General"
             val_prec = st.session_state.temp_precio if st.session_state.temp_precio else 0.0
             with st.form("manual_part"):
                 c1, c2 = st.columns(2)
-                m_sku = c1.text_input("SKU", value=val_sku)
+                m_item = c1.text_input("ITEM", value=val_item)
                 m_pr = c2.number_input("Precio", min_value=0.0, value=float(val_prec))
                 m_desc = st.text_input("Descripción", value=val_desc)
                 if st.form_submit_button("Agregar Manual"):
-                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR")
-                    st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
+                    agregar_item_callback(m_item.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR")
+                    st.session_state.temp_item = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.toast("Agregado", icon="✅")
                     st.rerun()
     else: # Mano de Obra
@@ -413,7 +413,7 @@ with col_right:
                 "Estatus": None, "Tipo": None, 
                 "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
                 "Descripción": st.column_config.TextColumn(width="medium", disabled=True),
-                "SKU": st.column_config.TextColumn(width="small", disabled=True),
+                "ITEM": st.column_config.TextColumn(width="small", disabled=True),
             },
             use_container_width=True, num_rows="dynamic", key="editor_cart"
         )
@@ -450,7 +450,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
         if s_val == "Disponible": s_cl = "status-disp"
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
         else: s_cl = "status-rev"
-        rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+        rows += f"<tr><td>{item['ITEM']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
 
     anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO. Se requiere el 100% de anticipo para procesar la orden.</div>' if hay_pedido_prev else ''
 
