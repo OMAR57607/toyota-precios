@@ -32,31 +32,94 @@ st.markdown("""
     .block-container { padding-top: 2rem; padding-bottom: 2rem; }
     h1, h2, h3 { font-family: 'Helvetica', sans-serif; font-weight: 700; color: #333; }
     .stButton button { width: 100%; border-radius: 6px; font-weight: 600; }
-    .stButton button:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    [data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #e9ecef; }
     
-    /* Estilos de la Vista Previa (Hoja de Papel) */
-    .preview-paper {
-        background-color: white;
-        padding: 40px;
-        border: 1px solid #ddd;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        border-radius: 4px;
-        color: #333;
-        font-family: 'Arial', sans-serif;
+    /* ESTILOS DE VISTA PREVIA (MODO PAPEL) */
+    .preview-container {
+        font-family: Arial, sans-serif;
+        background-color: #525659; /* Fondo gris visor */
+        padding: 20px;
+        border-radius: 8px;
+        display: flex;
+        justify-content: center;
         margin-top: 20px;
     }
-    .preview-header { border-bottom: 2px solid #eb0a1e; padding-bottom: 10px; margin-bottom: 20px; }
-    .preview-title { color: #eb0a1e; font-size: 24px; font-weight: bold; text-align: center; }
-    .preview-subtitle { text-align: center; font-size: 14px; color: #666; }
-    .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; font-size: 12px; }
-    .preview-label { font-weight: bold; color: #555; }
-    .preview-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px; }
-    .preview-table th { background-color: #eb0a1e; color: white; padding: 8px; text-align: left; }
-    .preview-table td { border-bottom: 1px solid #eee; padding: 8px; }
-    .preview-total { text-align: right; font-size: 14px; margin-top: 10px; }
-    .preview-total-final { font-size: 18px; font-weight: bold; color: #eb0a1e; }
-    .prio-urgente { color: #d32f2f; font-weight: bold; }
+    .preview-paper {
+        background-color: white !important;
+        width: 100%;
+        max-width: 850px;
+        padding: 40px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        color: #000 !important;
+    }
+    .preview-header { 
+        border-bottom: 3px solid #eb0a1e; 
+        padding-bottom: 15px; 
+        margin-bottom: 25px; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+    }
+    .preview-title { font-size: 24px; font-weight: 900; color: #eb0a1e; margin: 0; }
+    .preview-subtitle { font-size: 12px; color: #666; text-transform: uppercase; margin: 0; }
+    
+    /* GRID DE DATOS */
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 30px;
+    }
+    .info-item { font-size: 12px; margin-bottom: 4px; color: #333; }
+    .info-label { font-weight: bold; color: #555; width: 70px; display: inline-block; }
+
+    /* TABLA LIMPIA */
+    table.custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        margin-bottom: 20px;
+    }
+    table.custom-table th {
+        background-color: #eb0a1e !important;
+        color: white !important;
+        padding: 8px;
+        text-align: left;
+    }
+    table.custom-table td {
+        border-bottom: 1px solid #ddd;
+        padding: 8px;
+        color: #333 !important;
+    }
+    
+    .total-box {
+        margin-left: auto;
+        width: 250px;
+        text-align: right;
+    }
+    .total-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    .total-final {
+        font-size: 18px;
+        font-weight: bold;
+        color: #eb0a1e;
+        border-top: 2px solid #ddd;
+        padding-top: 5px;
+        margin-top: 5px;
+    }
+    
+    /* Badges */
+    .badge-urg { background-color: #d32f2f; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold; font-size: 10px; }
+    .badge-med { background-color: #fbc02d; color: black; padding: 2px 5px; border-radius: 3px; font-size: 10px; }
+    .badge-baj { background-color: #388e3c; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -90,19 +153,13 @@ def analizador_inteligente_archivos(df_raw):
     patron_orden_8 = r'\b\d{8}\b'
     patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
     patron_sku_pln = r'\b[A-Z0-9]{10,12}\b'
-    
-    keywords = {
-        'ORDEN': ['ORDEN', 'FOLIO', 'OT', 'OS'],
-        'ASESOR': ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR'],
-        'CLIENTE': ['CLIENTE', 'ATTN', 'NOMBRE']
-    }
+    keywords = {'ORDEN': ['ORDEN', 'FOLIO', 'OT', 'OS'], 'ASESOR': ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR'], 'CLIENTE': ['CLIENTE', 'ATTN', 'NOMBRE']}
 
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
             if 'VIN' not in metadata:
                 m = re.search(patron_vin, val)
                 if m: metadata['VIN'] = m.group(0)
-
             if 'ORDEN' not in metadata:
                 if any(k in val for k in keywords['ORDEN']):
                     m = re.search(patron_orden_8, val)
@@ -113,7 +170,6 @@ def analizador_inteligente_archivos(df_raw):
                             m2 = re.search(patron_orden_8, vecino)
                             if m2: metadata['ORDEN'] = m2.group(0)
                         except: pass
-
             if 'ASESOR' not in metadata and any(k in val for k in keywords['ASESOR']):
                 cont = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR)[\:\.\-\s]*', '', val).strip()
                 if len(cont)>4 and not re.search(r'\d', cont): metadata['ASESOR'] = cont
@@ -122,7 +178,6 @@ def analizador_inteligente_archivos(df_raw):
                         vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
                         if len(vec)>4 and not re.search(r'\d', vec): metadata['ASESOR'] = vec
                     except: pass
-            
             if 'CLIENTE' not in metadata and any(k in val for k in keywords['CLIENTE']):
                 cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val).strip()
                 if len(cont)>4: metadata['CLIENTE'] = cont
@@ -131,11 +186,9 @@ def analizador_inteligente_archivos(df_raw):
                         vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
                         if len(vec)>4: metadata['CLIENTE'] = vec
                     except: pass
-
             es_sku = False; sku_det = None
             if re.match(patron_sku_fmt, val): sku_det = val; es_sku = True
             elif re.match(patron_sku_pln, val) and not val.isdigit(): sku_det = val; es_sku = True
-            
             if es_sku:
                 cant = 1
                 try: 
@@ -143,20 +196,17 @@ def analizador_inteligente_archivos(df_raw):
                     if vecino.isdigit(): cant = int(vecino)
                 except: pass
                 hallazgos.append({'sku': sku_det, 'cant': cant})
-    
     if 'ORDEN' not in metadata:
         for _, row in df.iterrows():
             for val in row:
                 m = re.search(patron_orden_8, str(val))
                 if m: metadata['ORDEN'] = m.group(0); break
             if 'ORDEN' in metadata: break
-
     return hallazgos, metadata
 
 def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio"):
     try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
     except: desc = str(desc_raw)
-        
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
         "SKU": sku, "Descripción": desc, "Prioridad": prioridad,
@@ -170,8 +220,7 @@ def cargar_en_manual(sku, desc, precio):
     except: st.session_state.temp_desc = str(desc)
     st.session_state.temp_precio = precio
 
-def toggle_preview():
-    st.session_state.ver_preview = not st.session_state.ver_preview
+def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
 # 3. GENERADOR PDF
@@ -193,51 +242,42 @@ class PDF(FPDF):
 
 def generar_pdf():
     pdf = PDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=40)
-    
-    # Header Datos
     pdf.set_fill_color(245); pdf.rect(10, 35, 190, 22, 'F')
     pdf.set_xy(12, 38); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.cliente.upper(), 0, 0)
     pdf.set_font('Arial', 'B', 9); pdf.cell(15, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
-    
     pdf.set_x(12); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'VIN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.vin.upper(), 0, 0)
     pdf.set_font('Arial', 'B', 9); pdf.cell(15, 5, 'ORDEN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, st.session_state.orden.upper(), 0, 1)
-    
     pdf.set_x(12); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'ASESOR:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.asesor.upper(), 0, 1)
     pdf.ln(8)
-
-    # Tabla
+    
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 8)
     cols = [25, 65, 20, 15, 25, 25, 15]
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'PRIORIDAD', 'CANT', 'UNIT', 'TOTAL', 'TIPO']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
-
+    
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     for item in st.session_state.carrito:
         prio = item.get('Prioridad', 'Medio')
         pdf.set_font('Arial', 'B' if prio == 'Urgente' else '', 7)
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0)
         else: pdf.set_text_color(0)
-        
         pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
         pdf.cell(cols[1], 6, item['Descripción'][:50], 'B', 0, 'L')
         pdf.cell(cols[2], 6, prio.upper(), 'B', 0, 'C')
-        
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         pdf.cell(cols[3], 6, str(item['Cantidad']), 'B', 0, 'C')
         pdf.cell(cols[4], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
         pdf.cell(cols[5], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
         pdf.cell(cols[6], 6, "MO" if "MO" in item['SKU'] else "REF", 'B', 1, 'C')
 
-    # Totales
     pdf.ln(5)
     sub = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
     iva = sum(i['IVA'] for i in st.session_state.carrito)
     total = sub + iva
-
     pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, 'Subtotal:', 0, 0, 'R'); pdf.cell(30, 6, f"${sub:,.2f}", 0, 1, 'R')
     pdf.set_x(130); pdf.cell(30, 6, 'IVA (16%):', 0, 0, 'R'); pdf.cell(30, 6, f"${iva:,.2f}", 0, 1, 'R')
     pdf.set_x(130); pdf.set_font('Arial', 'B', 11); pdf.set_text_color(235, 10, 30)
@@ -265,7 +305,6 @@ with st.sidebar:
             try:
                 df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
                 items, meta = analizador_inteligente_archivos(df_up)
-                
                 if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
                 if 'VIN' in meta: st.session_state.vin = meta['VIN']
                 if 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
@@ -280,7 +319,6 @@ with st.sidebar:
                         agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio")
                         exitos += 1
                     else: fallos.append(it['sku'])
-                
                 st.session_state.errores_carga = fallos
                 status.update(label=f"✅ {exitos} piezas importadas", state="complete")
                 if fallos: st.warning(f"{len(fallos)} códigos no encontrados")
@@ -294,7 +332,6 @@ col_left, col_right = st.columns([1.2, 2])
 with col_left:
     st.subheader("Agregar Ítems")
     tipo_add = st.radio("Tipo:", ["Refacción", "Mano de Obra"], horizontal=True, label_visibility="collapsed")
-    
     if tipo_add == "Refacción":
         tab_bus, tab_man = st.tabs(["🔍 Búsqueda", "✍️ Manual"])
         with tab_bus:
@@ -311,12 +348,10 @@ with col_left:
                             cargar_en_manual(sku_db, desc_ori, pr_db)
                             st.rerun()
                         c3.button("➕", key=f"add_{sku_db}", on_click=agregar_item_callback, args=(sku_db, desc_ori, pr_db, 1, "Refacción", "Medio"))
-        
         with tab_man:
             val_sku = st.session_state.temp_sku if st.session_state.temp_sku else "GENERICO"
             val_desc = st.session_state.temp_desc if st.session_state.temp_desc else "Refacción General"
             val_prec = st.session_state.temp_precio if st.session_state.temp_precio else 0.0
-            
             with st.form("manual_part"):
                 c1, c2 = st.columns(2)
                 m_sku = c1.text_input("SKU", value=val_sku)
@@ -327,7 +362,6 @@ with col_left:
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.toast("Agregado", icon="✅")
                     st.rerun()
-
     else: # Mano de Obra
         with st.container(border=True):
             s_desc = st.text_input("Servicio", placeholder="Ej. Afinación Mayor")
@@ -340,10 +374,8 @@ with col_left:
 
 with col_right:
     st.subheader(f"Presupuesto ({len(st.session_state.carrito)})")
-    
     if st.session_state.carrito:
         df_c = pd.DataFrame(st.session_state.carrito)
-        
         edited = st.data_editor(
             df_c,
             column_config={
@@ -358,95 +390,60 @@ with col_right:
             },
             use_container_width=True, num_rows="dynamic", key="editor_cart"
         )
-        
         if not edited.equals(df_c):
             new_cart = edited.to_dict('records')
             for r in new_cart:
                 r['IVA'] = (r['Precio Base'] * r['Cantidad']) * 0.16
                 r['Importe Total'] = (r['Precio Base'] * r['Cantidad']) + r['IVA']
-                r['Estatus'] = "Servicio" if "MO" in r['SKU'] else "Disponible"
-                r['Tipo'] = "Mano de Obra" if "MO" in r['SKU'] else "Refacción"
             st.session_state.carrito = new_cart
             st.rerun()
 
         sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
         tot = sub * 1.16
-        
-        st.divider()
-        c_tot, c_act = st.columns([1, 1])
-        with c_tot:
-            st.markdown(f"<div style='text-align:right; font-size:1.5em; font-weight:bold; color:#eb0a1e'>Total: ${tot:,.2f}</div>", unsafe_allow_html=True)
-            st.caption(f"Subtotal: ${sub:,.2f} + IVA")
-        
-        with c_act:
+        c_p, c_d, c_l = st.columns([1, 1, 0.5])
+        with c_p:
+            if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, use_container_width=True): pass
+        with c_d:
             pdf_bytes = generar_pdf()
-            
-            c_p, c_d, c_l = st.columns([1, 1, 0.5])
-            
-            with c_p:
-                if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, use_container_width=True):
-                    pass
-            with c_d:
-                st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
-            with c_l:
-                if st.button("🗑️", help="Limpiar carrito"):
-                    st.session_state.carrito = []
-                    st.rerun()
+            st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
+        with c_l:
+            if st.button("🗑️", help="Limpiar"): st.session_state.carrito = []; st.rerun()
 
-            # --- VISTA PREVIA HTML (NO PDF EMBEBIDO) ---
-            if st.session_state.ver_preview:
-                
-                rows_html = ""
-                for item in st.session_state.carrito:
-                    p_class = "prio-urgente" if item['Prioridad'] == "Urgente" else ""
-                    rows_html += f"""
-                    <tr>
-                        <td>{item['SKU']}</td>
-                        <td>{item['Descripción']}</td>
-                        <td class="{p_class}">{item['Prioridad'].upper()}</td>
-                        <td style="text-align:center">{item['Cantidad']}</td>
-                        <td style="text-align:right">${item['Precio Base']:,.2f}</td>
-                        <td style="text-align:right">${item['Importe Total']:,.2f}</td>
-                    </tr>
-                    """
+    else: st.info("Carrito vacío.")
 
-                st.markdown(f"""
-                <div class="preview-paper">
-                    <div class="preview-header">
-                        <div class="preview-title">TOYOTA LOS FUERTES</div>
-                        <div class="preview-subtitle">PRESUPUESTO DE SERVICIOS Y REFACCIONES</div>
-                    </div>
-                    <div class="preview-grid">
-                        <div>
-                            <div><span class="preview-label">CLIENTE:</span> {st.session_state.cliente}</div>
-                            <div><span class="preview-label">VIN:</span> {st.session_state.vin}</div>
-                        </div>
-                        <div>
-                            <div><span class="preview-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div>
-                            <div><span class="preview-label">ORDEN:</span> {st.session_state.orden}</div>
-                            <div><span class="preview-label">ASESOR:</span> {st.session_state.asesor}</div>
-                        </div>
-                    </div>
-                    <table class="preview-table">
-                        <thead>
-                            <tr>
-                                <th>CÓDIGO</th>
-                                <th>DESCRIPCIÓN</th>
-                                <th>PRIORIDAD</th>
-                                <th>CANT</th>
-                                <th style="text-align:right">UNITARIO</th>
-                                <th style="text-align:right">TOTAL</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows_html}
-                        </tbody>
-                    </table>
-                    <div class="preview-total">Subtotal: ${sub:,.2f}</div>
-                    <div class="preview-total">IVA (16%): ${sub*0.16:,.2f}</div>
-                    <div class="preview-total preview-total-final">TOTAL: ${tot:,.2f}</div>
-                </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.info("Carrito vacío.")
+# --- VISTA PREVIA LIMPIA ---
+if st.session_state.ver_preview and st.session_state.carrito:
+    sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
+    tot = sub * 1.16
+    
+    # CONSTRUCCIÓN DE HTML SIN INDENTACIÓN (PARA EVITAR BUG)
+    rows = ""
+    for item in st.session_state.carrito:
+        p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
+        rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+
+    html_preview = f"""
+    <div class="preview-container">
+        <div class="preview-paper">
+            <div class="preview-header">
+                <div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div>
+                <div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div>
+            </div>
+            <div class="info-grid">
+                <div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div>
+                <div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div>
+            </div>
+            <table class="custom-table">
+                <thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">TOTAL</th></tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+            <div class="total-box">
+                <div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div>
+                <div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div>
+                <div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(html_preview, unsafe_allow_html=True)
 
