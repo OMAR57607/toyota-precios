@@ -83,15 +83,15 @@ st.markdown("""
     .total-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #333; }
     .total-final { font-size: 18px; font-weight: bold; color: #eb0a1e; border-top: 2px solid #ddd; padding-top: 5px; margin-top: 5px; }
     
-    .legal-footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 9px; color: #555; text-align: justify; line-height: 1.4; }
-    .legal-title { font-weight: bold; margin-bottom: 5px; color: #333; }
+    .legal-footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 8px; color: #555; text-align: justify; line-height: 1.3; }
+    .legal-title { font-weight: bold; margin-bottom: 5px; color: #333; font-size: 9px; }
 
     /* Badges Prioridad */
     .badge-urg { background-color: #d32f2f; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
     .badge-med { background-color: #fbc02d; color: black; padding: 2px 5px; border-radius: 3px; }
     .badge-baj { background-color: #388e3c; color: white; padding: 2px 5px; border-radius: 3px; }
     
-    /* Badges Abasto (LÓGICA ACTUALIZADA) */
+    /* Badges Abasto */
     .status-disp { color: #2e7d32; font-weight: bold; border: 1px solid #2e7d32; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
     .status-ped { color: white; background-color: #ef6c00; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; }
     .status-rev { color: white; background-color: #d32f2f; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; animation: blink 2s infinite; }
@@ -193,7 +193,6 @@ def analizador_inteligente_archivos(df_raw):
             if 'ORDEN' in metadata: break
     return hallazgos, metadata
 
-# CAMBIO CLAVE: Default Abasto es "REVISAR" para obligar a seleccionar
 def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
     try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
     except: desc = str(desc_raw)
@@ -226,26 +225,29 @@ class PDF(FPDF):
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
 
     def footer(self):
-        self.set_y(-55)
+        self.set_y(-60) # Aumentamos espacio para textos legales
         self.set_font('Arial', 'B', 7)
         self.set_text_color(0)
-        self.cell(0, 4, 'TÉRMINOS Y CONDICIONES (PROFECO)', 0, 1, 'L')
-        self.set_font('Arial', '', 6)
+        self.cell(0, 4, 'TÉRMINOS Y CONDICIONES Y CONSENTIMIENTO DIGITAL', 0, 1, 'L')
+        self.set_font('Arial', '', 5) # Letra ligeramente más pequeña para que quepa todo
         self.set_text_color(60)
         
+        # TEXTO LEGAL BLINDADO
         legales = (
-            "1. PEDIDOS ESPECIALES: Requieren el 100% DE PAGO ANTICIPADO. No se aceptan cancelaciones ni devoluciones salvo defecto de fábrica.\n"
-            "2. PARTES ELÉCTRICAS: No se aceptan CAMBIOS ni DEVOLUCIONES una vez instaladas o si el empaque ha sido abierto. "
-            "La garantía aplica exclusivamente por defecto de fabricación y está sujeta a dictamen técnico del fabricante.\n"
-            "3. PROFECO: Servicio conforme a la NOM-029-SCFI-2010. Contrato de Adhesión vigente.\n"
-            "4. GARANTÍA MO: 30 días o 1,000 km en mano de obra. Refacciones originales: 12 meses o 20,000 km (sujeto a póliza).\n"
-            "5. VIGENCIA: 24 horas. Precios con IVA (16%)."
+            "1. PEDIDOS ESPECIALES: Requieren el 100% DE PAGO ANTICIPADO. No cancelaciones ni devoluciones.\n"
+            "2. PARTES ELÉCTRICAS: No se aceptan CAMBIOS ni DEVOLUCIONES. Garantía sujeta a dictamen técnico del fabricante.\n"
+            "3. PROFECO: Servicio conforme a la NOM-174-SCFI-2007 (Información en servicios). Contrato de Adhesión registrado.\n"
+            "4. ACEPTACIÓN DIGITAL: De conformidad con el Art. 89 y 93 del Código de Comercio, la aceptación de este presupuesto por medios "
+            "electrónicos, ópticos o de cualquier otra tecnología (ej. WhatsApp, Correo), produce los mismos efectos jurídicos que la firma autógrafa.\n"
+            "5. PRIVACIDAD: El tratamiento de sus datos personales se realiza conforme a la Ley Federal de Protección de Datos Personales en "
+            "Posesión de los Particulares (LFPDPPP). Aviso de Privacidad disponible en mostrador.\n"
+            "6. GARANTÍA: 30 días MO / 12 meses Refacciones. Vigencia: 24 horas."
         )
         self.multi_cell(0, 3, legales, 0, 'J')
         self.set_y(-15); self.set_font('Arial', 'I', 8); self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
 def generar_pdf():
-    pdf = PDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=60)
+    pdf = PDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=65)
     pdf.set_fill_color(245); pdf.rect(10, 35, 190, 22, 'F')
     pdf.set_xy(12, 38); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.cliente.upper(), 0, 0)
@@ -265,8 +267,7 @@ def generar_pdf():
     
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     
-    hay_pedido = False # Bandera para detectar si hay pedidos
-    
+    hay_pedido = False
     for item in st.session_state.carrito:
         prio = item.get('Prioridad', 'Medio')
         abasto = item.get('Abasto', '⚠️ REVISAR')
@@ -276,12 +277,10 @@ def generar_pdf():
         pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
         pdf.cell(cols[1], 6, item['Descripción'][:45], 'B', 0, 'L')
         
-        # Color Prioridad
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[2], 6, prio.upper(), 'B', 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        # Color Abasto/Status (PDF)
         if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         elif abasto == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
         st_txt = abasto.replace("⚠️ ", "").upper()
@@ -298,7 +297,6 @@ def generar_pdf():
     iva = sum(i['IVA'] for i in st.session_state.carrito)
     total = sub + iva
     
-    # ALERTA DE ANTICIPO EN PDF
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
@@ -343,7 +341,6 @@ with st.sidebar:
                     match = df_db[df_db['SKU_CLEAN'] == clean]
                     if not match.empty:
                         row = match.iloc[0]
-                        # AGREGAR CON DEFAULT "REVISAR"
                         agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR")
                         exitos += 1
                     else: fallos.append(it['sku'])
@@ -397,7 +394,6 @@ with col_left:
             s_hrs = c1.number_input("Horas", 1.0, step=0.5)
             s_mo = c2.number_input("Costo Hora", value=600.0)
             if st.button("Agregar Servicio", type="primary"):
-                # MO SIEMPRE ESTÁ DISPONIBLE
                 agregar_item_callback("MO-TALLER", f"{s_desc} ({s_hrs}hrs)", s_hrs * s_mo, 1, "Mano de Obra", "Medio", "Disponible")
                 st.toast("Servicio Agregado", icon="🛠️")
 
@@ -406,7 +402,6 @@ with col_right:
     if st.session_state.carrito:
         df_c = pd.DataFrame(st.session_state.carrito)
         
-        # EDITOR DE TABLA CON OPCIONES SEGURAS
         edited = st.data_editor(
             df_c,
             column_config={
@@ -449,16 +444,12 @@ if st.session_state.ver_preview and st.session_state.carrito:
     tot = sub * 1.16
     rows = ""
     hay_pedido_prev = False
-    
     for item in st.session_state.carrito:
         p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
-        
-        # LOGICA VISUAL STATUS
         s_val = item.get('Abasto', '⚠️ REVISAR')
         if s_val == "Disponible": s_cl = "status-disp"
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
-        else: s_cl = "status-rev" # ROJO PARPADEANTE
-        
+        else: s_cl = "status-rev"
         rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
 
     anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO. Se requiere el 100% de anticipo para procesar la orden.</div>' if hay_pedido_prev else ''
@@ -485,11 +476,11 @@ if st.session_state.ver_preview and st.session_state.carrito:
                 {anticipo_html}
             </div>
             <div class="legal-footer">
-                <div class="legal-title">TÉRMINOS Y CONDICIONES (PROFECO)</div>
-                <div>1. <b>PEDIDOS ESPECIALES:</b> Requieren 100% PAGO ANTICIPADO. No cancelaciones ni devoluciones.</div>
-                <div>2. <b>PARTES ELÉCTRICAS:</b> NO CAMBIOS/DEVOLUCIONES. Garantía sujeta a dictamen técnico por defecto de fábrica.</div>
-                <div>3. <b>PROFECO:</b> Conforme a NOM-174-SCFI-2007.</div>
-                <div>4. <b>GARANTÍA:</b> 30 días MO / 12 meses Refacciones Originales (defecto fábrica).</div>
+                <div class="legal-title">TÉRMINOS, CONDICIONES Y CONSENTIMIENTO DIGITAL</div>
+                <div>1. <b>PEDIDOS ESPECIALES:</b> 100% PAGO ANTICIPADO. No cancelaciones.</div>
+                <div>2. <b>PARTES ELÉCTRICAS:</b> NO CAMBIOS/DEVOLUCIONES. Garantía solo defecto fábrica.</div>
+                <div>3. <b>NORMATIVA:</b> NOM-174-SCFI-2007 (Servicios). LFPDPPP (Datos Personales).</div>
+                <div>4. <b>ACEPTACIÓN DIGITAL:</b> Conforme al Art. 89 del Código de Comercio, la aceptación por medios electrónicos (WhatsApp/Correo) produce plenos efectos jurídicos vinculantes.</div>
             </div>
         </div>
     </div>
