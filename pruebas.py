@@ -10,7 +10,7 @@ import os
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
 # ==========================================
-st.set_page_config(page_title="Toyota Asesores Pro", page_icon="🔧", layout="wide")
+st.set_page_config(page_title="Toyota Asesores AI", page_icon="🤖", layout="wide")
 
 # Configurar Zona Horaria CDMX
 try:
@@ -28,6 +28,7 @@ if 'errores_carga' not in st.session_state: st.session_state.errores_carga = []
 if 'cliente' not in st.session_state: st.session_state.cliente = ""
 if 'vin' not in st.session_state: st.session_state.vin = ""
 if 'orden' not in st.session_state: st.session_state.orden = ""
+if 'asesor' not in st.session_state: st.session_state.asesor = ""  # Nuevo campo
 
 # Estilos CSS
 st.markdown("""
@@ -38,49 +39,108 @@ st.markdown("""
         height: 50px; white-space: pre-wrap; background-color: #f0f2f6; border-radius: 5px 5px 0 0; gap: 1px; padding-top: 10px; padding-bottom: 10px;
     }
     .stTabs [aria-selected="true"] { background-color: #eb0a1e; color: white; }
-    .metric-box { border: 1px solid #ddd; padding: 10px; border-radius: 5px; text-align: center; background: #fff; }
     .legal-footer { text-align: center; font-size: 10px; color: #666; margin-top: 50px; border-top: 1px solid #ddd; padding-top: 10px; }
+    
+    /* Estilo para el Botón de IA */
+    div[data-testid="stButton"] > button {
+        transition: all 0.4s ease;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. FUNCIONES DE LÓGICA (IA y DATOS)
+# 2. MOTOR DE IA (BÚSQUEDA PROFUNDA)
 # ==========================================
 def analizador_inteligente_archivos(df_raw):
-    """ Escanea celdas buscando patrones de Partes Toyota y VINs """
+    """ 
+    IA LOCAL: Escanea celdas buscando patrones de:
+    1. Partes Toyota (SKU)
+    2. VIN (17 Dígitos)
+    3. Orden de Trabajo (OT/Folio)
+    4. Nombre del Asesor
+    """
     hallazgos = []
     metadata = {}
+    
+    # Convertimos todo a string, mayúsculas y quitamos espacios extra
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
     
-    patron_sku_format = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b' 
-    patron_sku_plain = r'\b[A-Z0-9]{10,12}\b'
+    # --- PATRONES REGEX ---
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
+    patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b' 
+    patron_sku_pln = r'\b[A-Z0-9]{10,12}\b'
     
+    # Palabras clave para metadatos
+    keywords_orden = ['ORDEN', 'FOLIO', 'OT', 'OS', 'PEDIDO']
+    keywords_asesor = ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR']
+
     for row_idx, row in df.iterrows():
         for col_idx, cell_value in row.items():
-            if re.match(patron_vin, cell_value):
-                metadata['VIN'] = cell_value
-                continue 
             
+            # A. DETECCIÓN DE VIN
+            if re.search(patron_vin, cell_value):
+                match = re.search(patron_vin, cell_value)
+                metadata['VIN'] = match.group(0)
+                continue 
+
+            # B. DETECCIÓN DE ORDEN / FOLIO
+            # 1. En la misma celda (ej: "Orden: 12345")
+            if any(k in cell_value for k in keywords_orden):
+                match_ord = re.search(r'(?:ORDEN|FOLIO|OT|OS|PEDIDO)[\:\.\-\s#]*([A-Z0-9\-]{4,10})', cell_value)
+                if match_ord:
+                    metadata['ORDEN'] = match_ord.group(1)
+                else:
+                    # 2. En la celda vecina (ej: Celda A: "Orden", Celda B: "12345")
+                    try:
+                        idx_pos = df.columns.get_loc(col_idx)
+                        if idx_pos + 1 < len(df.columns):
+                            vecino = df.iloc[row_idx, idx_pos + 1]
+                            if len(vecino) > 3 and len(vecino) < 12: # Filtro básico
+                                metadata['ORDEN'] = vecino
+                    except: pass
+
+            # C. DETECCIÓN DE ASESOR
+            if any(k in cell_value for k in keywords_asesor):
+                # 1. Misma celda (ej: "Asesor: Juan Perez")
+                match_ase = re.search(r'(?:ASESOR|SA|ATENDIO)[\:\.\-\s]+([A-Z\s\.]{4,30})', cell_value)
+                if match_ase:
+                    metadata['ASESOR'] = match_ase.group(1).strip()
+                else:
+                    # 2. Celda vecina
+                    try:
+                        idx_pos = df.columns.get_loc(col_idx)
+                        if idx_pos + 1 < len(df.columns):
+                            vecino = df.iloc[row_idx, idx_pos + 1]
+                            # Validar que no sea un número ni fecha, sino texto (nombre)
+                            if len(vecino) > 3 and not re.search(r'\d', vecino):
+                                metadata['ASESOR'] = vecino
+                    except: pass
+
+            # D. DETECCIÓN DE PARTES (SKU)
             es_sku = False
             sku_detectado = None
-            if re.match(patron_sku_format, cell_value):
+            
+            if re.match(patron_sku_fmt, cell_value):
                 sku_detectado = cell_value
                 es_sku = True
-            elif re.match(patron_sku_plain, cell_value):
-                if not cell_value.isdigit(): 
+            elif re.match(patron_sku_pln, cell_value):
+                if not cell_value.isdigit(): # Evitar telefonos
                     sku_detectado = cell_value
                     es_sku = True
             
             if es_sku:
+                # Buscar Cantidad en vecindad (derecha)
                 cantidad = 1
                 try:
                     idx_pos = df.columns.get_loc(col_idx)
                     if idx_pos + 1 < len(df.columns):
                         vecino = df.iloc[row_idx, idx_pos + 1]
-                        if vecino.replace('.','',1).isdigit():
-                            cantidad = int(float(vecino))
+                        # Limpieza para detectar numero "1.0", "2", etc
+                        clean_vecino = vecino.replace('.0', '')
+                        if clean_vecino.isdigit():
+                            cantidad = int(clean_vecino)
                 except: pass
+                
                 hallazgos.append({'sku': sku_detectado, 'cant': cantidad})
 
     return hallazgos, metadata
@@ -182,34 +242,40 @@ class PDF(FPDF):
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
-def generar_pdf_completo(carrito, subtotal, iva, total, cliente, vin, orden):
+def generar_pdf_completo(carrito, subtotal, iva, total, cliente, vin, orden, asesor):
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=60)
     
     fecha_mx = obtener_hora_mx().strftime("%d/%m/%Y %H:%M")
     
-    # Datos Cliente
-    pdf.set_draw_color(200); pdf.set_fill_color(250)
-    pdf.rect(10, 35, 190, 22, 'FD')
+    # Datos Header (Gris)
+    pdf.set_draw_color(200); pdf.set_fill_color(245)
+    pdf.rect(10, 35, 190, 28, 'FD') # Rectangulo más alto para incluir Asesor
     pdf.set_xy(12, 38)
     
+    # Fila 1: Cliente y Fecha
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9)
     pdf.cell(90, 5, str(cliente).upper(), 0, 0)
-    
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 9)
     pdf.cell(40, 5, fecha_mx, 0, 1)
     
+    # Fila 2: VIN y Orden
     pdf.set_x(12)
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'VIN:', 0, 0); pdf.set_font('Arial', '', 9)
     pdf.cell(90, 5, str(vin).upper(), 0, 0)
-    
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.set_font('Arial', '', 9)
     pdf.cell(40, 5, str(orden).upper(), 0, 1)
+
+    # Fila 3: Asesor
+    pdf.set_x(12)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'ASESOR:', 0, 0); pdf.set_font('Arial', '', 9)
+    pdf.cell(150, 5, str(asesor).upper(), 0, 1)
     pdf.ln(10)
 
     # Tabla
@@ -222,7 +288,6 @@ def generar_pdf_completo(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     for item in carrito:
         desc = item['Descripción'][:60]
-        # Distinguir Servicios de Refacciones visualmente
         tipo = "REF" if "Refac" in item.get('Tipo', 'Refacción') else "SERV"
         
         pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
@@ -230,7 +295,6 @@ def generar_pdf_completo(carrito, subtotal, iva, total, cliente, vin, orden):
         pdf.cell(cols[2], 6, str(item['Cantidad']), 'B', 0, 'C')
         pdf.cell(cols[3], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
         pdf.cell(cols[4], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
-        
         pdf.set_font('Arial', 'B', 6)
         pdf.cell(cols[5], 6, tipo, 'B', 1, 'C')
         pdf.set_font('Arial', '', 7)
@@ -250,6 +314,8 @@ def generar_pdf_completo(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf.set_draw_color(0); pdf.line(80, pdf.get_y(), 130, pdf.get_y())
     pdf.set_font('Arial', '', 7); pdf.set_text_color(100)
     pdf.cell(0, 4, 'FIRMA DEL ASESOR', 0, 1, 'C')
+    if asesor: pdf.cell(0, 4, asesor.upper(), 0, 1, 'C')
+    
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
@@ -264,49 +330,81 @@ st.markdown(f"**{obtener_hora_mx().strftime('%d/%m/%Y')}**", unsafe_allow_html=T
 
 # PESTAÑAS PRINCIPALES
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📂 1. Datos & Carga", 
+    "📂 1. Datos & IA", 
     "🔍 2. Refacciones", 
     "🎨 3. Mano de Obra", 
     "🛒 4. Carrito Final"
 ])
 
-# --- TAB 1: DATOS GENERALES Y CARGA MASIVA ---
+# --- TAB 1: DATOS & IA ---
 with tab1:
     st.markdown("### 📝 Encabezado de Orden")
-    st.info("Puedes editar estos datos en cualquier momento. Se actualizarán en el PDF.")
     
-    col_d1, col_d2, col_d3 = st.columns(3)
-    st.session_state.cliente = col_d1.text_input("Cliente / Aseguradora", value=st.session_state.cliente, key="txt_cli")
-    st.session_state.vin = col_d2.text_input("VIN (17 Caracteres)", value=st.session_state.vin, max_chars=17, key="txt_vin")
-    st.session_state.orden = col_d3.text_input("Orden de Compra / Folio", value=st.session_state.orden, key="txt_ord")
+    # Fila de datos editables
+    c1, c2, c3, c4 = st.columns(4)
+    st.session_state.cliente = c1.text_input("Cliente", value=st.session_state.cliente, key="txt_cli")
+    st.session_state.vin = c2.text_input("VIN (17 Dígitos)", value=st.session_state.vin, max_chars=17, key="txt_vin")
+    st.session_state.orden = c3.text_input("Orden / Folio", value=st.session_state.orden, key="txt_ord")
+    st.session_state.asesor = c4.text_input("Asesor", value=st.session_state.asesor, key="txt_ase")
     
     st.divider()
-    st.markdown("### ⚡ Carga Masiva Inteligente")
+    st.markdown("### 🧠 Carga Masiva (IA Inteligente)")
+    st.info("Sube tu archivo. La IA buscará automáticamente: Partes, VIN, Orden y Asesor.")
+    
     uploaded_file = st.file_uploader("Arrastra Excel o CSV aquí", type=['xlsx', 'xls', 'csv'])
     
-    if uploaded_file and st.button("Analizar Archivo"):
-        with st.spinner("IA Analizando..."):
-            try:
-                if uploaded_file.name.endswith('.csv'): df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
-                else: df_up = pd.read_excel(uploaded_file)
-                
-                items, meta = analizador_inteligente_archivos(df_up)
-                
-                if 'VIN' in meta and not st.session_state.vin: st.session_state.vin = meta['VIN']
-                
-                if items:
-                    ok, err = procesar_skus(items)
-                    st.session_state.errores_carga = err
-                    st.success(f"✅ Cargados: {ok} ítems.")
-                else: st.warning("No se detectaron piezas.")
-            except Exception as e: st.error(f"Error: {e}")
+    if uploaded_file:
+        # BOTÓN DE IA ADAPTATIVO (VISUAL)
+        if st.button("✨ EJECUTAR ANÁLISIS IA", type="primary"):
+            
+            # Contenedor de estado interactivo (Simula que el sistema "piensa")
+            with st.status("🤖 La IA está analizando el documento...", expanded=True) as status:
+                st.write("📂 Leyendo estructura del archivo...")
+                try:
+                    if uploaded_file.name.endswith('.csv'): 
+                        df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
+                    else: 
+                        df_up = pd.read_excel(uploaded_file)
+                    
+                    st.write("🔍 Escaneando celdas buscando patrones Toyota...")
+                    items, meta = analizador_inteligente_archivos(df_up)
+                    
+                    # Actualización de Metadatos
+                    if 'VIN' in meta: 
+                        st.session_state.vin = meta['VIN']
+                        st.write(f"✅ VIN Detectado: {meta['VIN']}")
+                    
+                    if 'ORDEN' in meta: 
+                        st.session_state.orden = meta['ORDEN']
+                        st.write(f"✅ Orden Detectada: {meta['ORDEN']}")
+                        
+                    if 'ASESOR' in meta:
+                        st.session_state.asesor = meta['ASESOR']
+                        st.write(f"✅ Asesor Detectado: {meta['ASESOR']}")
+                    
+                    st.write("🔧 Verificando números de parte...")
+                    if items:
+                        ok, err = procesar_skus(items)
+                        st.session_state.errores_carga = err
+                        
+                        # Estado Final
+                        status.update(label=f"✅ Análisis Completado: {ok} piezas encontradas.", state="complete", expanded=False)
+                        st.success(f"Proceso finalizado. {ok} partes agregadas al carrito.")
+                        if err: st.warning(f"⚠️ {len(err)} códigos no se encontraron en catálogo.")
+                    else:
+                        status.update(label="⚠️ Análisis finalizado sin refacciones.", state="error")
+                        st.warning("Se detectaron datos, pero no refacciones con formato válido.")
+                        
+                except Exception as e:
+                    status.update(label="❌ Error en el análisis", state="error")
+                    st.error(f"Error crítico: {e}")
 
     if st.session_state.errores_carga:
-        with st.expander("⚠️ Ver códigos no encontrados"):
+        with st.expander("⚠️ Ver códigos desconocidos"):
             st.table(st.session_state.errores_carga)
             if st.button("Limpiar Errores"): st.session_state.errores_carga = []; st.rerun()
 
-# --- TAB 2: REFACCIONES (BÚSQUEDA Y MANUAL) ---
+# --- TAB 2: REFACCIONES ---
 with tab2:
     col_search, col_add_manual = st.columns([2, 1])
     
@@ -336,33 +434,29 @@ with tab2:
             else: st.info("No encontrado en catálogo.")
 
     with col_add_manual:
-        st.markdown("#### 🛠️ Carga Manual / Ítem Libre")
-        st.info("Usa esto para piezas que no están en el sistema o items especiales.")
+        st.markdown("#### 🛠️ Ítem Libre / Manual")
         with st.form("form_manual"):
-            m_sku = st.text_input("SKU / Código", value="GENERICO")
+            m_sku = st.text_input("Código", value="GENERICO")
             m_desc = st.text_input("Descripción", value="Pieza Especial")
             m_price = st.number_input("Precio Unitario", min_value=0.0)
             m_cant = st.number_input("Cantidad", min_value=1, value=1)
             
-            if st.form_submit_button("Agregar Manualmente"):
+            if st.form_submit_button("Agregar Manual"):
                 iva_m = (m_price * m_cant) * 0.16
                 st.session_state.carrito.append({
                     "SKU": m_sku.upper(), "Descripción": m_desc, "Cantidad": m_cant,
                     "Precio Base": m_price, "IVA": iva_m, "Importe Total": (m_price * m_cant) + iva_m,
                     "Estatus": "Disponible", "Tipo": "Refacción"
                 })
-                st.success("Item manual agregado.")
+                st.success("Item agregado.")
 
-# --- TAB 3: MANO DE OBRA / PINTURA ---
+# --- TAB 3: MANO DE OBRA ---
 with tab3:
     st.markdown("### 🎨 Servicios de Taller y Pintura")
     c_serv1, c_serv2 = st.columns(2)
-    
     with c_serv1:
         with st.form("form_servicio"):
             s_desc = st.text_input("Descripción del Servicio", placeholder="Ej. Pintura Facia Delantera")
-            
-            # SOLICITUD ESPECÍFICA: Incrementos de .50 empezando en .50
             col_h, col_p = st.columns(2)
             s_horas = col_h.number_input("Horas / Unidades", min_value=0.5, step=0.5, format="%.1f")
             s_precio = col_p.number_input("Precio por Hora/Unidad", min_value=0.0, value=500.0)
@@ -375,12 +469,11 @@ with tab3:
                 st.session_state.carrito.append({
                     "SKU": "SERV-TALLER", 
                     "Descripción": f"{s_desc} ({s_horas} Hrs/Uds)", 
-                    "Cantidad": 1, # Se maneja como 1 unidad del servicio completo
+                    "Cantidad": 1,
                     "Precio Base": s_total_calc, 
                     "IVA": iva_s, 
                     "Importe Total": s_total_calc + iva_s,
-                    "Estatus": "Servicio", 
-                    "Tipo": "Mano de Obra"
+                    "Estatus": "Servicio", "Tipo": "Mano de Obra"
                 })
                 st.toast("🛠️ Servicio agregado")
 
@@ -390,7 +483,6 @@ with tab4:
         st.markdown("### 🛒 Resumen Final")
         df_c = pd.DataFrame(st.session_state.carrito)
         
-        # Editor interactivo
         edited_df = st.data_editor(
             df_c,
             column_config={
@@ -398,11 +490,9 @@ with tab4:
                 "IVA": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "Tipo": st.column_config.TextColumn(disabled=True),
             },
-            num_rows="dynamic",
-            key="cart_editor"
+            num_rows="dynamic", key="cart_editor"
         )
         
-        # Lógica de actualización al editar
         if not edited_df.equals(df_c):
             regs = edited_df.to_dict('records')
             for r in regs:
@@ -411,7 +501,6 @@ with tab4:
             st.session_state.carrito = regs
             st.rerun()
 
-        # Totales
         sub = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
         iva = sum(i['IVA'] for i in st.session_state.carrito)
         tot = sub + iva
@@ -421,17 +510,19 @@ with tab4:
         cm2.metric("IVA (16%)", f"${iva:,.2f}")
         cm3.metric("TOTAL", f"${tot:,.2f}")
         
-        # Botones Finales
         cb1, cb2 = st.columns(2)
         with cb1:
-            pdf_data = generar_pdf_completo(st.session_state.carrito, sub, iva, tot, st.session_state.cliente, st.session_state.vin, st.session_state.orden)
+            pdf_data = generar_pdf_completo(
+                st.session_state.carrito, sub, iva, tot, 
+                st.session_state.cliente, st.session_state.vin, 
+                st.session_state.orden, st.session_state.asesor
+            )
             st.download_button("📄 Descargar PDF Oficial", pdf_data, f"Cotizacion_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
         with cb2:
             if st.button("🗑️ Limpiar Todo", type="secondary", use_container_width=True):
                 st.session_state.carrito = []
-                st.session_state.cliente = ""; st.session_state.vin = ""; st.session_state.orden = ""
+                st.session_state.cliente = ""; st.session_state.vin = ""; st.session_state.orden = ""; st.session_state.asesor = ""
                 st.rerun()
-    else:
-        st.info("El carrito está vacío. Agrega refacciones o mano de obra.")
+    else: st.info("El carrito está vacío.")
 
-st.markdown('<div class="legal-footer">Sistema Toyota Los Fuertes v5.0 | Refacciones & Servicios</div>', unsafe_allow_html=True)
+st.markdown('<div class="legal-footer">Sistema Toyota Los Fuertes v6.0 AI | Refacciones & Servicios</div>', unsafe_allow_html=True)
