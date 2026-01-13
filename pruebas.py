@@ -58,32 +58,94 @@ df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
-    df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
     
+    # Preprocesamiento: Convertir todo a mayúsculas para facilitar regex
+    df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
+    # Mantener una copia original (raw) si quisiéramos extraer nombres con formato Capital Case, 
+    # pero usualmente en facturas todo viene en mayúsculas.
+    
+    # --- DEFINICIÓN DE PATRONES ---
+    
+    # 1. VIN: 17 caracteres alfanuméricos estrictos (letras y números, sin caracteres especiales)
+    # Exclusión típica: I, O, Q a veces no se usan, pero dejamos el rango abierto por si acaso.
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
+    
+    # 2. ORDEN: 8 dígitos exactos (según requerimiento)
+    patron_orden_8 = r'\b\d{8}\b'
+    
+    # 3. PATRONES SKU (Partes Toyota)
     patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
-    keywords = {'ORDEN': ['ORDEN', 'FOLIO', 'OT'], 'ASESOR': ['ASESOR', 'SA', 'ATENDIO'], 'CLIENTE': ['CLIENTE', 'ATTN', 'NOMBRE']}
+    patron_sku_pln = r'\b[A-Z0-9]{10,12}\b'
+    
+    # Palabras clave para contexto
+    keywords_orden = ['ORDEN', 'FOLIO', 'OT', 'OS', 'PEDIDO', 'NUMERO']
+    keywords_asesor = ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR', 'S.A.']
+    keywords_cliente = ['CLIENTE', 'ATTN', 'NOMBRE', 'ASEGURADO']
 
+    # --- BARRIDO CELDA POR CELDA ---
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
-            # VIN
-            if re.search(patron_vin, val): metadata['VIN'] = re.search(patron_vin, val).group(0)
             
-            # Metadatos Genéricos
-            for key, words in keywords.items():
-                if any(w in val for w in words):
-                    match = re.search(fr'(?:{"|".join(words)})[\:\.\-\s#]*([A-Z0-9\-\.\s]{{4,40}})', val)
-                    if match: metadata[key] = match.group(1).strip()
+            # A. BÚSQUEDA DE VIN (GLOBAL)
+            # Busca en cualquier celda que coincida con el patrón de 17 caracteres
+            if 'VIN' not in metadata:
+                match_vin = re.search(patron_vin, val)
+                if match_vin: 
+                    metadata['VIN'] = match_vin.group(0)
+
+            # B. BÚSQUEDA DE ORDEN (8 DÍGITOS)
+            # Estrategia: Primero buscar cerca de palabras clave "Orden/Folio"
+            if 'ORDEN' not in metadata:
+                # 1. Si la celda contiene la palabra clave Y el número
+                if any(k in val for k in keywords_orden):
+                    match_ord = re.search(patron_orden_8, val)
+                    if match_ord:
+                        metadata['ORDEN'] = match_ord.group(0)
                     else:
-                        try: # Vecino derecha
+                        # 2. Si la palabra clave está aquí, buscar el número en la celda derecha
+                        try:
                             vecino = df.iloc[r_idx, df.columns.get_loc(c_idx) + 1]
-                            if len(vecino) > 3 and (key != 'ORDEN' or len(vecino) < 12): metadata[key] = vecino
+                            match_vecino = re.search(patron_orden_8, str(vecino))
+                            if match_vecino:
+                                metadata['ORDEN'] = match_vecino.group(0)
                         except: pass
 
-            # SKUs
+            # C. BÚSQUEDA DE ASESOR (NOMBRES PROPIOS)
+            if 'ASESOR' not in metadata:
+                if any(k in val for k in keywords_asesor):
+                    # Limpiamos la etiqueta para ver si queda el nombre en la misma celda
+                    # Ej: "ASESOR: JUAN PEREZ" -> Se queda con "JUAN PEREZ"
+                    contenido = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR|S\.A\.)[\:\.\-\s]*', '', val).strip()
+                    
+                    # Verificamos que sea texto (longitud > 4) y NO contenga números (para no agarrar fechas/montos)
+                    if len(contenido) > 4 and not re.search(r'\d', contenido):
+                        metadata['ASESOR'] = contenido
+                    else:
+                        # Si no, buscamos en la celda de la derecha
+                        try:
+                            vecino = df.iloc[r_idx, df.columns.get_loc(c_idx) + 1]
+                            vecino_str = str(vecino).strip()
+                            # Heurística: Longitud > 4 y SIN números
+                            if len(vecino_str) > 4 and not re.search(r'\d', vecino_str):
+                                metadata['ASESOR'] = vecino_str
+                        except: pass
+            
+            # D. BÚSQUEDA DE CLIENTE
+            if 'CLIENTE' not in metadata:
+                if any(k in val for k in keywords_cliente):
+                    contenido = re.sub(r'(?:CLIENTE|ATTN|NOMBRE|ASEGURADO)[\:\.\-\s]*', '', val).strip()
+                    if len(contenido) > 4:
+                         metadata['CLIENTE'] = contenido
+                    else:
+                        try:
+                            vecino = df.iloc[r_idx, df.columns.get_loc(c_idx) + 1]
+                            if len(str(vecino)) > 4: metadata['CLIENTE'] = str(vecino)
+                        except: pass
+
+            # E. DETECCIÓN DE SKUs
             es_sku = False; sku_det = None
             if re.match(patron_sku_fmt, val): sku_det = val; es_sku = True
-            elif re.match(r'\b[A-Z0-9]{10,12}\b', val) and not val.isdigit(): sku_det = val; es_sku = True
+            elif re.match(patron_sku_pln, val) and not val.isdigit(): sku_det = val; es_sku = True
             
             if es_sku:
                 cant = 1
@@ -92,6 +154,19 @@ def analizador_inteligente_archivos(df_raw):
                     if vecino.isdigit(): cant = int(vecino)
                 except: pass
                 hallazgos.append({'sku': sku_det, 'cant': cant})
+    
+    # --- FALLBACKS (Último recurso) ---
+    
+    # Si no encontró ORDEN por contexto, busca cualquier número de 8 dígitos aislado
+    if 'ORDEN' not in metadata:
+        for r_idx, row in df.iterrows():
+            for val in row:
+                match_global = re.search(patron_orden_8, str(val))
+                if match_global:
+                    metadata['ORDEN'] = match_global.group(0)
+                    break # Encontramos el primero y asumimos que es ese
+            if 'ORDEN' in metadata: break
+
     return hallazgos, metadata
 
 def agregar_item(sku, desc, precio, cant, tipo, estatus="Disponible"):
@@ -309,3 +384,4 @@ with col_right:
                 st.rerun()
     else:
         st.info("El carrito está vacío. Busca piezas o sube un archivo.")
+
