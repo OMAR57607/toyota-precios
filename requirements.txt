@@ -2,10 +2,11 @@ streamlit
 pandas
 deep-translator
 fpdf
-pyzbar
 Pillow
+pyzbar
 pytz
 easyocr
 numpy
-opencv-python-headless
+requests
 openpyxl
+opencv-python-headless
