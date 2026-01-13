@@ -1,16 +1,12 @@
 import streamlit as st
 import pandas as pd
 from deep_translator import GoogleTranslator
-import urllib.parse
 from datetime import datetime
 from fpdf import FPDF
-from PIL import Image
-from pyzbar.pyzbar import decode
 import pytz
-import easyocr
-import numpy as np
 import re
 import os
+import io
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -30,151 +26,232 @@ def obtener_hora_mx():
 # Inicializar variables de sesión
 if 'carrito' not in st.session_state: st.session_state.carrito = []
 if 'errores_carga' not in st.session_state: st.session_state.errores_carga = [] 
-    
-# Variables para autocompletado (VIN, Cliente, Orden)
-if 'auto_cliente' not in st.session_state: st.session_state.auto_cliente = ""
-if 'auto_vin' not in st.session_state: st.session_state.auto_vin = ""
-if 'auto_orden' not in st.session_state: st.session_state.auto_orden = ""
+if 'cliente' not in st.session_state: st.session_state.cliente = ""
+if 'vin' not in st.session_state: st.session_state.vin = ""
+if 'orden' not in st.session_state: st.session_state.orden = ""
 
-@st.cache_resource
-def cargar_lector_ocr():
-    # Carga el modelo en memoria una sola vez
-    return easyocr.Reader(['en', 'es'], gpu=False) 
-
-# Estilos CSS
+# Estilos CSS Profesionales
 st.markdown("""
     <style>
-    h1 { color: #eb0a1e !important; text-align: center; }
-    .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
-    .metric-box { border: 1px solid #ddd; padding: 10px; border-radius: 5px; text-align: center; }
-    .legal-footer { text-align: center; font-size: 10px; opacity: 0.6; margin-top: 40px; }
+    h1 { color: #eb0a1e !important; text-align: center; font-family: 'Arial Black', sans-serif; }
+    h3 { color: #333; border-bottom: 2px solid #eb0a1e; padding-bottom: 10px; }
+    .stButton button { 
+        width: 100%; border-radius: 5px; font-weight: bold; 
+        background-color: #f0f0f0; border: 1px solid #ccc;
+        transition: all 0.3s;
+    }
+    .stButton button:hover {
+        border-color: #eb0a1e; color: #eb0a1e;
+    }
+    .legal-footer { 
+        text-align: center; font-size: 10px; color: #666; 
+        margin-top: 50px; border-top: 1px solid #ddd; padding-top: 10px;
+    }
+    .success-box { background-color: #d1fae5; padding: 10px; border-radius: 5px; border-left: 5px solid #10b981; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CLASE PDF (Con Logo y Formato)
+# 2. MOTOR DE RECONOCIMIENTO INTELIGENTE (AI LOCAL)
+# ==========================================
+def analizador_inteligente_archivos(df_raw):
+    """
+    Escanea cada celda del archivo buscando patrones de Toyota (Partes y VINs)
+    sin importar el nombre de la columna o el orden.
+    """
+    hallazgos = []
+    metadata = {}
+    
+    # Convertimos todo a string y mayúsculas
+    df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
+    
+    # Expresiones Regulares (Patrones)
+    # Patrón SKU Toyota: 5 letras/num - 5 letras/num (ej. 90915-YZZF1) o 10-12 seguidos
+    patron_sku_format = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b' 
+    patron_sku_plain = r'\b[A-Z0-9]{10,12}\b'
+    # Patrón VIN: 17 caracteres (excluyendo I,O,Q tipicos, pero flexible)
+    patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
+    
+    for row_idx, row in df.iterrows():
+        for col_idx, cell_value in row.items():
+            
+            # 1. BUSCAR VIN
+            if re.match(patron_vin, cell_value):
+                metadata['VIN'] = cell_value
+                continue # Si es VIN, no es parte
+
+            # 2. BUSCAR SKU (Con o sin guión)
+            es_sku = False
+            sku_detectado = None
+            
+            if re.match(patron_sku_format, cell_value):
+                sku_detectado = cell_value
+                es_sku = True
+            elif re.match(patron_sku_plain, cell_value):
+                # Filtro anti-falsos positivos (ej. telefonos)
+                if not cell_value.isdigit(): # Toyota SKUs suelen tener letras
+                    sku_detectado = cell_value
+                    es_sku = True
+            
+            if es_sku:
+                # INTELIGENCIA DE CANTIDAD:
+                # Si encontramos un SKU, buscamos en las celdas adyacentes (derecha) un número
+                cantidad = 1
+                try:
+                    # Intentar buscar en la siguiente columna
+                    idx_pos = df.columns.get_loc(col_idx)
+                    if idx_pos + 1 < len(df.columns):
+                        vecino = df.iloc[row_idx, idx_pos + 1]
+                        if vecino.replace('.','',1).isdigit():
+                            cantidad = int(float(vecino))
+                except:
+                    pass # Se queda en 1
+                
+                hallazgos.append({'sku': sku_detectado, 'cant': cantidad})
+
+    return hallazgos, metadata
+
+# ==========================================
+# 3. GENERACIÓN DE PDF CON LEGALES
 # ==========================================
 class PDF(FPDF):
     def header(self):
-        # LOGO INTELIGENTE
         if os.path.exists("logo.png"):
-            try:
-                self.image("logo.png", 10, 8, 33)
+            try: self.image("logo.png", 10, 8, 33)
             except: pass
         
         self.set_font('Arial', 'B', 16)
-        self.set_text_color(235, 10, 30) # Rojo Toyota
+        self.set_text_color(235, 10, 30)
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
-        
         self.set_font('Arial', '', 10)
         self.set_text_color(0)
-        self.cell(0, 5, 'PRESUPUESTO DE REFACCIONES Y SERVICIOS', 0, 1, 'C')
+        self.cell(0, 5, 'PRESUPUESTO FORMAL DE REFACCIONES', 0, 1, 'C')
         self.ln(15)
 
     def footer(self):
-        self.set_y(-30)
+        self.set_y(-55) # Espacio para legales
+        self.set_font('Arial', 'B', 7)
+        self.set_text_color(0)
+        self.cell(0, 4, 'TÉRMINOS Y CONDICIONES COMERCIALES', 0, 1, 'L')
+        
+        self.set_font('Arial', '', 6)
+        self.set_text_color(80)
+        legales = (
+            "1. PRECIOS Y VIGENCIA: Los precios están expresados en Moneda Nacional (MXN) e incluyen IVA (16%). "
+            "Esta cotización tiene una vigencia de 24 horas o hasta agotar existencias. Sujeto a cambios sin previo aviso por parte de Toyota de México.\n"
+            "2. PARTES ELÉCTRICAS: En partes eléctricas y electrónicas NO HAY GARANTÍA NI DEVOLUCIONES, sin excepción alguna, "
+            "debido a la naturaleza sensible de los componentes.\n"
+            "3. PEDIDOS ESPECIALES: Para refacciones bajo pedido (Back Order) se requiere un anticipo del 50% no reembolsable en caso de cancelación por parte del cliente. "
+            "Los tiempos de entrega son estimados y dependen de la logística de planta.\n"
+            "4. GARANTÍA: La garantía de refacciones instaladas en taller autorizado es de 12 meses o 20,000 km (lo que ocurra primero). "
+            "Refacciones vendidas por mostrador cuentan con garantía limitada contra defectos de fábrica, sujeta a dictamen técnico.\n"
+            "5. DEVOLUCIONES: Toda devolución causa un 20% de cargo administrativo. No se aceptan devoluciones después de 5 días naturales, ni en material maltratado o sin empaque original.\n"
+            "6. AVISO LEGAL: Las partes descritas cumplen con la NOM-050-SCFI-2004."
+        )
+        self.multi_cell(0, 3, legales, 0, 'J')
+        
+        self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        self.set_text_color(128)
-        self.multi_cell(0, 4, 'Precios en MXN. Incluyen IVA (16%). VIGENCIA: 24 HORAS. Descripciones bajo NOM-050-SCFI-2004.', 0, 'C')
+        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
-def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
+def generar_pdf_completo(carrito, subtotal, iva, total, cliente, vin, orden):
     pdf = PDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=30)
+    pdf.set_auto_page_break(auto=True, margin=60) # Margen alto para no pisar el footer legal
     
     fecha_mx = obtener_hora_mx().strftime("%d/%m/%Y %H:%M")
     
-    # Limpieza de "None" para el PDF
-    orden_safe = str(orden) if orden and orden != "None" else "S/N"
-    cliente_safe = str(cliente) if cliente and cliente != "None" else "Mostrador"
-    vin_safe = str(vin) if vin and vin != "None" else "N/A"
+    # --- BLOQUE DE INFORMACIÓN ---
+    pdf.set_draw_color(200)
+    pdf.set_fill_color(250)
+    pdf.rect(10, 35, 190, 22, 'FD')
     
-    # Bloque de Datos del Cliente
-    pdf.set_fill_color(245, 245, 245)
-    pdf.rect(10, 35, 190, 25, 'F')
     pdf.set_xy(12, 38)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'CLIENTE:', 0, 0)
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(90, 5, str(cliente).upper() if cliente else "MOSTRADOR / PÚBLICO GENERAL", 0, 0)
     
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(25, 6, 'Fecha:', 0, 0)
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(50, 6, fecha_mx, 0, 0)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(25, 6, 'Orden:', 0, 0)
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(50, 6, orden_safe, 0, 1)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'FECHA:', 0, 0)
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(40, 5, fecha_mx, 0, 1)
     
     pdf.set_x(12)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(25, 6, 'Cliente:', 0, 0)
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(100, 6, cliente_safe, 0, 1)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'VIN:', 0, 0)
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(90, 5, str(vin).upper() if vin else "N/A", 0, 0)
+    
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'ORDEN:', 0, 0)
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(40, 5, str(orden).upper() if orden else "S/N", 0, 1)
 
-    pdf.set_x(12)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(25, 6, 'VIN:', 0, 0)
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(100, 6, vin_safe, 0, 1)
     pdf.ln(10)
 
-    # Tabla de Productos
+    # --- TABLA ---
     pdf.set_fill_color(235, 10, 30)
     pdf.set_text_color(255)
     pdf.set_font('Arial', 'B', 8)
     
-    # Anchos de columna
-    w = [30, 60, 12, 25, 20, 25, 18] # SKU, Desc, Cant, Unit, IVA, Total, Estatus
-    headers = ['SKU', 'Descripción', 'Cant.', 'P. Base', 'IVA', 'Total', 'Estatus']
+    cols = [30, 75, 15, 25, 25, 20] # Anchos
+    headers = ['NÚMERO PARTE', 'DESCRIPCIÓN', 'CANT', 'UNITARIO', 'TOTAL', 'ESTATUS']
     
     for i, h in enumerate(headers):
-        pdf.cell(w[i], 8, h, 1, 0, 'C', True)
+        pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
     pdf.ln()
 
     pdf.set_text_color(0)
     pdf.set_font('Arial', '', 7)
     
     for item in carrito:
-        desc = item['Descripción'][:38] # Truncar si es muy largo
-        pdf.cell(w[0], 8, item['SKU'], 1, 0, 'C')
-        pdf.cell(w[1], 8, desc, 1, 0, 'L')
-        pdf.cell(w[2], 8, str(int(item['Cantidad'])), 1, 0, 'C')
-        pdf.cell(w[3], 8, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
-        pdf.cell(w[4], 8, f"${item['IVA']:,.2f}", 1, 0, 'R')
-        pdf.cell(w[5], 8, f"${item['Importe Total']:,.2f}", 1, 0, 'R')
+        desc = item['Descripción'][:55]
+        pdf.cell(cols[0], 6, item['SKU'], 'B', 0, 'C')
+        pdf.cell(cols[1], 6, desc, 'B', 0, 'L')
+        pdf.cell(cols[2], 6, str(int(item['Cantidad'])), 'B', 0, 'C')
+        pdf.cell(cols[3], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
+        pdf.cell(cols[4], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
         
+        # Estatus con color condicional
         st_txt = item['Estatus']
-        if "Back Order" in st_txt: pdf.set_text_color(200, 0, 0)
+        if "Back" in st_txt: pdf.set_text_color(200, 0, 0)
         else: pdf.set_text_color(0)
-        
-        pdf.cell(w[6], 8, st_txt, 1, 1, 'C')
+        pdf.cell(cols[5], 6, st_txt, 'B', 1, 'C')
         pdf.set_text_color(0)
 
     pdf.ln(5)
     
-    # Totales
+    # --- TOTALES ---
     pdf.set_font('Arial', '', 10)
-    offset_x = 130
-    
-    pdf.cell(offset_x)
+    x_total = 140
+    pdf.set_x(x_total)
     pdf.cell(30, 6, 'Subtotal:', 0, 0, 'R')
     pdf.cell(30, 6, f"${subtotal:,.2f}", 0, 1, 'R')
     
-    pdf.cell(offset_x)
+    pdf.set_x(x_total)
     pdf.cell(30, 6, 'IVA (16%):', 0, 0, 'R')
     pdf.cell(30, 6, f"${iva:,.2f}", 0, 1, 'R')
     
+    pdf.set_x(x_total)
     pdf.set_font('Arial', 'B', 12)
     pdf.set_text_color(235, 10, 30)
-    pdf.cell(offset_x)
-    pdf.cell(30, 8, 'TOTAL:', 0, 0, 'R')
+    pdf.cell(30, 8, 'TOTAL MXN:', 0, 0, 'R')
     pdf.cell(30, 8, f"${total:,.2f}", 0, 1, 'R')
+    
+    # Firma
+    pdf.set_y(pdf.get_y() + 15)
+    pdf.set_draw_color(0)
+    pdf.line(80, pdf.get_y(), 130, pdf.get_y())
+    pdf.set_font('Arial', '', 7)
+    pdf.set_text_color(100)
+    pdf.cell(0, 4, 'FIRMA DEL ASESOR', 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 3. LÓGICA DE DATOS Y BÚSQUEDA
+# 4. CARGA DE BASE DE DATOS
 # ==========================================
-
 @st.cache_data
 def traducir_profe(texto):
     try:
@@ -190,7 +267,6 @@ def cargar_catalogo():
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
         
-        # Detectar columnas clave dinámicamente
         c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
         c_desc = next((c for c in df.columns if 'DESC' in c), None)
         c_precio = next((c for c in df.columns if 'PRICE' in c or 'PRECIO' in c), None)
@@ -200,56 +276,27 @@ def cargar_catalogo():
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
-        # Limpieza robusta de precio
         def clean_price(x):
-            try:
-                s = str(x).replace('$', '').replace(',', '').strip()
-                return float(s)
+            try: return float(str(x).replace('$', '').replace(',', '').strip())
             except: return 0.0
             
         df['PRECIO_NUM'] = df[c_precio].apply(clean_price)
         return df, c_sku, c_desc
     except: return None, None, None
 
-df, col_sku_db, col_desc_db = cargar_catalogo()
+df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
-def buscar_metadatos(texto_completo):
-    """ Busca VIN, Orden y Cliente en texto crudo (OCR o Excel) """
-    datos = {}
-    texto_upper = str(texto_completo).upper()
-    
-    # VIN: 17 caracteres (evitando I, O, Q típicamente, pero siendo flexible)
-    match_vin = re.search(r'\b[A-HJ-NPR-Z0-9]{17}\b', texto_upper)
-    if match_vin: datos['VIN'] = match_vin.group(0)
-
-    # ORDEN: Formatos típicos "Orden: 12345", "Folio 12345" o solo números de 5-6 dígitos aislados
-    match_orden = re.search(r'(?:ORDEN|FOLIO|PEDIDO|REF)[\.\:\s#]*([A-Z0-9\-]{4,10})', texto_upper)
-    if match_orden: 
-        datos['ORDEN'] = match_orden.group(1).strip()
-    else:
-        # Intento de encontrar números de orden aislados si no hay etiqueta
-        nums = re.findall(r'\b\d{5,6}\b', texto_upper)
-        if nums: datos['ORDEN'] = nums[0] # Tomar el primer número de 5-6 cifras
-
-    # CLIENTE: Busca etiquetas comunes
-    match_cliente = re.search(r'(?:CLIENTE|NOMBRE|ASEGURADORA)[:\.\-\s]+([A-Z\s\.]{4,40})', texto_upper)
-    if match_cliente: datos['CLIENTE'] = match_cliente.group(1).strip()
-    
-    return datos
-
-def procesar_sku_logic(lista_items):
-    """ Busca los SKUs en la BD y calcula precios """
-    if df is None: return 0, [x['sku'] for x in lista_items]
-    
+def procesar_skus(lista_items):
+    if df_db is None: return 0, [x['sku'] for x in lista_items]
     exitos = 0
     fallos = []
     
     for item in lista_items:
         raw = str(item['sku']).upper().strip()
         clean = raw.replace('-', '')
-        cant = int(item['cant'])
+        cant = int(item['cant']) if item['cant'] > 0 else 1
         
-        match = df[df['SKU_CLEAN'] == clean]
+        match = df_db[df_db['SKU_CLEAN'] == clean]
         if not match.empty:
             row = match.iloc[0]
             desc = traducir_profe(row[col_desc_db]) if col_desc_db else "Refacción Original"
@@ -272,267 +319,194 @@ def procesar_sku_logic(lista_items):
     return exitos, fallos
 
 # ==========================================
-# 4. INTERFAZ DE USUARIO (FRONTEND)
+# 5. INTERFAZ DE USUARIO (FRONTEND)
 # ==========================================
 
 # Sidebar
 st.sidebar.title("Asesor Toyota")
 if os.path.exists("logo.png"): st.sidebar.image("logo.png", use_container_width=True)
-modo = st.sidebar.radio("Modo de Trabajo:", ["🔍 Cotizador Manual / Escáner", "📂 Carga Masiva (Excel)"])
 
-# Título Principal
-st.title("TOYOTA LOS FUERTES")
-fecha_str = obtener_hora_mx().strftime("%d/%m/%Y %H:%M")
-st.markdown(f"<div style='text-align: right; color: gray;'>{fecha_str}</div>", unsafe_allow_html=True)
+menu = st.sidebar.selectbox("Herramientas", ["📂 Carga Inteligente (Excel/CSV)", "🔍 Búsqueda Manual"])
 
-if df is None:
-    st.error("⚠️ Base de datos no encontrada. Carga 'lista_precios.zip'.")
+# Main Header
+col_h1, col_h2 = st.columns([3, 1])
+col_h1.title("TOYOTA LOS FUERTES")
+col_h2.markdown(f"**{obtener_hora_mx().strftime('%d/%m/%Y')}**")
 
-# ---------------------------------------------------------
-# BLOQUE 1: DATOS DEL ENCABEZADO (Común para ambos modos)
-# ---------------------------------------------------------
+if df_db is None:
+    st.error("⚠️ ERROR CRÍTICO: No se encuentra 'lista_precios.zip'. El sistema no puede cotizar.")
+    st.stop()
+
+# --- DATOS GENERALES ---
 with st.container():
-    st.markdown("#### 📋 Datos de la Orden de Trabajo")
-    
-    # Botón Especial para Escanear la "Hoja Viajera" (Header)
-    with st.expander("📷 Escanear Encabezado (Código de Barras / QR / Texto)", expanded=False):
-        cam_header = st.camera_input("Escanear Orden/VIN", key="cam_header")
-        if cam_header:
-            img = Image.open(cam_header)
-            detectados = {}
-            
-            # 1. Intentar Barcode (pyzbar) - Es lo más rápido y preciso para órdenes
-            codigos = decode(img)
-            for codigo in codigos:
-                txt_code = codigo.data.decode("utf-8")
-                detectados.update(buscar_metadatos(txt_code))
-                # A veces el código de barras es directo el VIN o la Orden
-                if len(txt_code) == 17: detectados['VIN'] = txt_code
-                if len(txt_code) in [5, 6] and txt_code.isdigit(): detectados['ORDEN'] = txt_code
-            
-            # 2. Si no hay barcode, usar OCR (easyocr)
-            if not detectados:
-                reader = cargar_lector_ocr()
-                res = reader.readtext(np.array(img), detail=0)
-                full_text = " ".join(res)
-                detectados = buscar_metadatos(full_text)
-            
-            # Actualizar campos
-            if detectados:
-                if 'VIN' in detectados: st.session_state.auto_vin = detectados['VIN']
-                if 'ORDEN' in detectados: st.session_state.auto_orden = detectados['ORDEN']
-                if 'CLIENTE' in detectados: st.session_state.auto_cliente = detectados['CLIENTE']
-                st.success(f"Datos detectados: {detectados}")
-                st.rerun()
-            else:
-                st.warning("No se detectaron datos legibles.")
-
-    # Campos de Texto (Se llenan manual o auto)
+    st.markdown("### 📄 Datos de la Orden")
     c1, c2, c3 = st.columns(3)
-    val_cli = st.text_input("Cliente", value=st.session_state.auto_cliente, key="in_cli")
-    val_vin = st.text_input("VIN", value=st.session_state.auto_vin, max_chars=17, key="in_vin")
-    val_ord = st.text_input("No. Orden", value=st.session_state.auto_orden, key="in_ord")
+    st.session_state.cliente = c1.text_input("Cliente / Aseguradora", value=st.session_state.cliente)
+    st.session_state.vin = c2.text_input("VIN (17 Dígitos)", value=st.session_state.vin, max_chars=17)
+    st.session_state.orden = c3.text_input("Orden / Folio", value=st.session_state.orden)
+    st.write("---")
+
+# --- LÓGICA DE HERRAMIENTAS ---
+if menu == "📂 Carga Inteligente (Excel/CSV)":
+    st.markdown("""
+    **Instrucciones:** Arrastra cualquier archivo (Excel, CSV). El sistema detectará automáticamente:
+    * Números de Parte (con o sin guiones)
+    * Cantidades (si están en la celda de la derecha)
+    * VINs dentro del archivo
+    """)
     
-    # Sincronizar session state
-    st.session_state.auto_cliente = val_cli
-    st.session_state.auto_vin = val_vin
-    st.session_state.auto_orden = val_ord
-
-st.write("---")
-
-# ---------------------------------------------------------
-# BLOQUE 2: LÓGICA SEGÚN MODO
-# ---------------------------------------------------------
-
-if modo == "🔍 Cotizador Manual / Escáner":
-    
-    # Buscador Manual
-    busqueda = st.text_input("🔍 Buscar SKU o Descripción:", placeholder="Escribe para buscar...")
-    
-    if busqueda and df is not None:
-        b_raw = busqueda.upper().strip()
-        b_clean = b_raw.replace('-', '')
-        
-        # Filtro
-        mask = df.apply(lambda x: x.astype(str).str.contains(b_raw, case=False)).any(axis=1) | \
-               df['SKU_CLEAN'].str.contains(b_clean, na=False)
-        res = df[mask].head(8)
-        
-        if not res.empty:
-            # Encabezados visuales
-            hc1, hc2, hc3, hc4 = st.columns([3, 1, 1, 1])
-            hc1.markdown("**Refacción**")
-            hc2.markdown("**Cant**")
-            hc3.markdown("**Estatus**")
-            hc4.markdown("**Acción**")
-            st.divider()
-            
-            for i, row in res.iterrows():
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                    desc = traducir_profe(row[col_desc_db])
-                    sku = row[col_sku_db]
-                    precio = row['PRECIO_NUM']
-                    
-                    with col1:
-                        st.markdown(f"**{desc}**")
-                        st.caption(f"{sku} | Unit: ${precio:,.2f}")
-                    
-                    cant = col2.number_input("C", 1, key=f"n_{i}", label_visibility="collapsed")
-                    est = col3.selectbox("S", ["Disponible", "Back Order", "No Disp."], key=f"s_{i}", label_visibility="collapsed")
-                    
-                    if col4.button("➕", key=f"b_{i}"):
-                        iva_u = (precio * cant) * 0.16
-                        tot_u = (precio * cant) + iva_u
-                        st.session_state.carrito.append({
-                            "SKU": sku, "Descripción": desc, "Cantidad": cant,
-                            "Precio Base": precio, "IVA": iva_u, "Importe Total": tot_u, "Estatus": est
-                        })
-                        st.toast("Agregado al carrito")
-                    st.divider()
-        else:
-            st.warning("Producto no encontrado.")
-            # Agregar Manual
-            with st.expander("🛠️ Agregar Manualmente"):
-                with st.form("manual_add"):
-                    mc1, mc2, mc3 = st.columns(3)
-                    m_sku = mc1.text_input("SKU", value=busqueda.upper())
-                    m_desc = mc2.text_input("Descripción", value="Refacción Manual")
-                    m_precio = mc3.number_input("Precio Base", min_value=0.0)
-                    if st.form_submit_button("Agregar"):
-                        iva_m = m_precio * 0.16
-                        st.session_state.carrito.append({
-                            "SKU": m_sku, "Descripción": m_desc, "Cantidad": 1,
-                            "Precio Base": m_precio, "IVA": iva_m, "Importe Total": m_precio + iva_m, "Estatus": "Disponible"
-                        })
-                        st.rerun()
-
-elif modo == "📂 Carga Masiva (Excel)":
-    st.info("Sube tu archivo Excel. El sistema buscará VIN y Orden automáticamente.")
-    uploaded_file = st.file_uploader("Arrastra tu Excel aquí", type=['xlsx', 'xls'])
+    uploaded_file = st.file_uploader("Sube tu archivo aquí", type=['xlsx', 'xls', 'csv'])
     
     if uploaded_file:
-        try:
-            # Leer Excel
-            df_excel = pd.read_excel(uploaded_file)
-            
-            # 1. ESCANEO PROFUNDO DE METADATOS (Header)
-            # Convertimos todo el dataframe a texto para buscar VINs/Ordenes que estén "flotando" en celdas
-            full_text_excel = df_excel.to_string()
-            meta_excel = buscar_metadatos(full_text_excel)
-            
-            # Actualizar si encontramos algo nuevo y los campos están vacíos
-            if not st.session_state.auto_vin and 'VIN' in meta_excel: st.session_state.auto_vin = meta_excel['VIN']
-            if not st.session_state.auto_orden and 'ORDEN' in meta_excel: st.session_state.auto_orden = meta_excel['ORDEN']
-            
-            # 2. ENCONTRAR COLUMNAS DE PRODUCTOS
-            # Normalizar nombres de columnas para ser flexibles
-            df_excel.columns = [str(c).upper().strip() for c in df_excel.columns]
-            
-            # Posibles nombres para SKU y Cantidad
-            col_sku_ex = next((c for c in df_excel.columns if c in ['SKU', 'PART NUMBER', 'NO. PARTE', 'NUMERO DE PARTE', 'ITEM', 'PARTE']), None)
-            col_cant_ex = next((c for c in df_excel.columns if c in ['QTY', 'CANTIDAD', 'CANT', 'UNIDADES', 'PIEZAS']), None)
-            
-            if col_sku_ex:
-                st.success(f"Columna de partes detectada: {col_sku_ex}")
-                if st.button("Procesar Excel"):
-                    items_a_procesar = []
-                    for _, row in df_excel.iterrows():
-                        if pd.notna(row[col_sku_ex]):
-                            qty = 1
-                            if col_cant_ex and pd.notna(row[col_cant_ex]):
-                                try: qty = int(row[col_cant_ex])
-                                except: qty = 1
-                            items_a_procesar.append({'sku': row[col_sku_ex], 'cant': qty})
+        if st.button("🧠 ANALIZAR ARCHIVO CON IA LOCAL"):
+            with st.spinner("Escaneando celdas..."):
+                try:
+                    # Carga agnóstica
+                    if uploaded_file.name.endswith('.csv'):
+                        df_upload = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
+                    else:
+                        df_upload = pd.read_excel(uploaded_file)
                     
-                    ok, errores = procesar_sku_logic(items_a_procesar)
-                    st.session_state.errores_carga = errores
-                    st.success(f"✅ Se cargaron {ok} partidas correctamente.")
-                    if errores: st.warning(f"⚠️ {len(errores)} códigos no encontrados.")
-                    st.rerun()
-            else:
-                st.error("No encontré una columna que parezca 'Número de Parte' o 'SKU'. Revisa tu Excel.")
-                st.write("Columnas detectadas:", df_excel.columns.tolist())
-                
-        except Exception as e:
-            st.error(f"Error al leer el archivo: {e}")
+                    # EJECUTAR MOTOR INTELIGENTE
+                    items_detectados, meta_detectada = analizador_inteligente_archivos(df_upload)
+                    
+                    # Actualizar metadata si se encuentra
+                    if 'VIN' in meta_detectada: 
+                        st.session_state.vin = meta_detectada['VIN']
+                        st.toast(f"VIN Detectado: {meta_detectada['VIN']}")
+                    
+                    # Procesar items
+                    if items_detectados:
+                        ok, err = procesar_skus(items_detectados)
+                        st.session_state.errores_carga = err
+                        
+                        msg = f"✅ Procesado Exitoso: {ok} partes agregadas."
+                        if err: msg += f" | ⚠️ {len(err)} desconocidos."
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.warning("No se detectaron patrones de números de parte Toyota en el archivo.")
+                        
+                except Exception as e:
+                    st.error(f"Error al leer archivo: {e}")
 
-    # Visualización de errores de carga masiva
+    # Mostrar errores de carga
     if st.session_state.errores_carga:
-        with st.expander(f"⚠️ Resolver {len(st.session_state.errores_carga)} No Encontrados", expanded=True):
-            st.write(", ".join(st.session_state.errores_carga))
-            if st.button("Limpiar Errores"):
+        with st.expander("Ver códigos no encontrados en catálogo"):
+            st.table(pd.DataFrame(st.session_state.errores_carga, columns=["SKU Desconocido"]))
+            if st.button("Limpiar lista de errores"):
                 st.session_state.errores_carga = []
                 st.rerun()
 
-# ---------------------------------------------------------
-# BLOQUE 3: CARRITO Y FINALIZACIÓN
-# ---------------------------------------------------------
-if st.session_state.carrito:
-    st.write("---")
-    st.subheader("🛒 Resumen de Cotización")
+elif menu == "🔍 Búsqueda Manual":
+    busqueda = st.text_input("Escribe SKU o Nombre de la pieza:", placeholder="Ej. Filtro aceite o 90915...")
     
-    # Encabezado Tabla
-    h1, h2, h3, h4, h5, h6, h7 = st.columns([1.5, 3, 0.8, 1.2, 1.2, 1.2, 0.5])
-    h1.markdown("**SKU**")
-    h2.markdown("**Desc**")
-    h3.markdown("**Cant**")
-    h4.markdown("**Unit**")
-    h5.markdown("**IVA**")
-    h6.markdown("**Total**")
-    h7.markdown("**X**")
-    
-    idx_del = None
-    for i, item in enumerate(st.session_state.carrito):
-        with st.container():
-            c1, c2, c3, c4, c5, c6, c7 = st.columns([1.5, 3, 0.8, 1.2, 1.2, 1.2, 0.5])
-            c1.write(item['SKU'])
-            c2.write(item['Descripción'])
-            
-            # Edición de cantidad
-            new_q = c3.number_input("C", 1, value=int(item['Cantidad']), key=f"cq_{i}", label_visibility="collapsed")
-            if new_q != item['Cantidad']:
-                item['Cantidad'] = new_q
-                item['IVA'] = (item['Precio Base'] * new_q) * 0.16
-                item['Importe Total'] = (item['Precio Base'] * new_q) + item['IVA']
-                st.rerun()
-                
-            c4.write(f"${item['Precio Base']:,.2f}")
-            c5.write(f"${item['IVA']:,.2f}")
-            c6.write(f"${item['Importe Total']:,.2f}")
-            if c7.button("🗑️", key=f"d_{i}"): idx_del = i
-    
-    if idx_del is not None:
-        st.session_state.carrito.pop(idx_del)
-        st.rerun()
+    if busqueda:
+        b_raw = busqueda.upper().strip()
+        b_clean = b_raw.replace('-', '')
+        mask = df_db.apply(lambda x: x.astype(str).str.contains(b_raw, case=False)).any(axis=1) | \
+               df_db['SKU_CLEAN'].str.contains(b_clean, na=False)
+        res = df_db[mask].head(10)
         
-    st.divider()
+        if not res.empty:
+            st.markdown("#### Resultados")
+            for i, row in res.iterrows():
+                with st.form(key=f"form_{i}"):
+                    c_desc, c_cant, c_btn = st.columns([3, 1, 1])
+                    desc_es = traducir_profe(row[col_desc_db])
+                    sku = row[col_sku_db]
+                    price = row['PRECIO_NUM']
+                    
+                    c_desc.markdown(f"**{desc_es}**\n\n`{sku}` - ${price:,.2f}")
+                    cant = c_cant.number_input("Cant", 1, key=f"n_{i}")
+                    
+                    if c_btn.form_submit_button("Agregar"):
+                        iva = (price * cant) * 0.16
+                        st.session_state.carrito.append({
+                            "SKU": sku, "Descripción": desc_es, "Cantidad": cant,
+                            "Precio Base": price, "IVA": iva, "Importe Total": (price * cant) + iva,
+                            "Estatus": "Disponible"
+                        })
+                        st.toast("Agregado")
+                        st.rerun()
+        else:
+            st.warning("No encontrado.")
+            with st.expander("Agregar Manualmente (Item libre)"):
+                m_sku = st.text_input("SKU Manual")
+                m_desc = st.text_input("Descripción")
+                m_price = st.number_input("Precio", 0.0)
+                if st.button("Guardar Manual"):
+                    iva = m_price * 0.16
+                    st.session_state.carrito.append({
+                        "SKU": m_sku, "Descripción": m_desc, "Cantidad": 1,
+                        "Precio Base": m_price, "IVA": iva, "Importe Total": m_price + iva,
+                        "Estatus": "Disponible"
+                    })
+                    st.rerun()
+
+# --- RESUMEN Y PDF ---
+if st.session_state.carrito:
+    st.markdown("### 🛒 Cotización Actual")
     
-    # Totales
     df_c = pd.DataFrame(st.session_state.carrito)
-    sub = (df_c['Precio Base'] * df_c['Cantidad']).sum()
-    iva = df_c['IVA'].sum()
-    tot = df_c['Importe Total'].sum()
     
-    mt1, mt2, mt3 = st.columns(3)
-    mt1.metric("Subtotal", f"${sub:,.2f}")
-    mt2.metric("IVA (16%)", f"${iva:,.2f}")
-    mt3.metric("GRAN TOTAL", f"${tot:,.2f}")
+    # Edición directa en tabla (Streamlit moderno)
+    edited_df = st.data_editor(
+        df_c,
+        column_config={
+            "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
+            "IVA": st.column_config.NumberColumn(format="$%.2f", disabled=True),
+            "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
+            "Estatus": st.column_config.SelectboxColumn(options=["Disponible", "Back Order", "Sin Stock"]),
+        },
+        num_rows="dynamic",
+        key="editor_carrito"
+    )
+
+    # Recalcular totales basados en la edición
+    if not edited_df.equals(df_c):
+        # Actualizar sesión si hubo cambios
+        registros = edited_df.to_dict('records')
+        for reg in registros:
+            reg['IVA'] = (reg['Precio Base'] * reg['Cantidad']) * 0.16
+            reg['Importe Total'] = (reg['Precio Base'] * reg['Cantidad']) + reg['IVA']
+        st.session_state.carrito = registros
+        st.rerun()
+
+    # Calcular Totales Finales
+    subtotal = sum(item['Precio Base'] * item['Cantidad'] for item in st.session_state.carrito)
+    iva_total = sum(item['IVA'] for item in st.session_state.carrito)
+    total_gral = subtotal + iva_total
+
+    c_tot1, c_tot2, c_tot3 = st.columns(3)
+    c_tot1.metric("Subtotal", f"${subtotal:,.2f}")
+    c_tot2.metric("IVA (16%)", f"${iva_total:,.2f}")
+    c_tot3.metric("GRAN TOTAL", f"${total_gral:,.2f}")
+
+    # Botones finales
+    col_fin1, col_fin2 = st.columns(2)
     
-    # Acciones Finales
-    b1, b2 = st.columns([1, 1])
-    with b1:
-        pdf_data = generar_pdf_bytes(st.session_state.carrito, sub, iva, tot, 
-                                     st.session_state.auto_cliente, 
-                                     st.session_state.auto_vin, 
-                                     st.session_state.auto_orden)
-        st.download_button("📄 Descargar PDF Oficial", data=pdf_data, file_name="Cotizacion_Toyota.pdf", mime="application/pdf", type="primary")
-    with b2:
-        if st.button("🗑️ Nueva Cotización (Limpiar)"):
+    with col_fin1:
+        pdf_bytes = generar_pdf_completo(
+            st.session_state.carrito, subtotal, iva_total, total_gral,
+            st.session_state.cliente, st.session_state.vin, st.session_state.orden
+        )
+        st.download_button(
+            label="📄 DESCARGAR PDF OFICIAL",
+            data=pdf_bytes,
+            file_name=f"Cotizacion_{st.session_state.orden if st.session_state.orden else 'Cliente'}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
+
+    with col_fin2:
+        if st.button("🗑️ Borrar Todo", type="secondary", use_container_width=True):
             st.session_state.carrito = []
-            st.session_state.auto_vin = ""
-            st.session_state.auto_orden = ""
-            st.session_state.auto_cliente = ""
+            st.session_state.cliente = ""
+            st.session_state.vin = ""
+            st.session_state.orden = ""
+            st.session_state.errores_carga = []
             st.rerun()
 
-st.markdown('<div class="legal-footer">Sistema Interno Toyota Los Fuertes - v3.0 All-In-One</div>', unsafe_allow_html=True)
+st.markdown('<div class="legal-footer">© 2024 Toyota Los Fuertes | Sistema de Gestión de Refacciones v4.0 AI</div>', unsafe_allow_html=True)
