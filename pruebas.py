@@ -17,7 +17,11 @@ tz_cdmx = pytz.timezone('America/Mexico_City') if 'America/Mexico_City' in pytz.
 def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now()
 
 # Inicializar Sesión
-defaults = {'carrito': [], 'errores_carga': [], 'cliente': "", 'vin': "", 'orden': "", 'asesor': ""}
+defaults = {
+    'carrito': [], 'errores_carga': [], 'cliente': "", 'vin': "", 'orden': "", 'asesor': "",
+    # Variables temporales para pasar datos de búsqueda a manual
+    'temp_sku': "", 'temp_desc': "", 'temp_precio': 0.0
+}
 for k, v in defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
@@ -59,90 +63,66 @@ df_db, col_sku_db, col_desc_db = cargar_catalogo()
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
     
-    # Preprocesamiento: Convertir todo a mayúsculas para facilitar regex
+    # Preprocesamiento
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
-    # Mantener una copia original (raw) si quisiéramos extraer nombres con formato Capital Case, 
-    # pero usualmente en facturas todo viene en mayúsculas.
     
-    # --- DEFINICIÓN DE PATRONES ---
-    
-    # 1. VIN: 17 caracteres alfanuméricos estrictos (letras y números, sin caracteres especiales)
-    # Exclusión típica: I, O, Q a veces no se usan, pero dejamos el rango abierto por si acaso.
+    # Patrones
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
-    
-    # 2. ORDEN: 8 dígitos exactos (según requerimiento)
     patron_orden_8 = r'\b\d{8}\b'
-    
-    # 3. PATRONES SKU (Partes Toyota)
     patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
     patron_sku_pln = r'\b[A-Z0-9]{10,12}\b'
     
-    # Palabras clave para contexto
     keywords_orden = ['ORDEN', 'FOLIO', 'OT', 'OS', 'PEDIDO', 'NUMERO']
     keywords_asesor = ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR', 'S.A.']
     keywords_cliente = ['CLIENTE', 'ATTN', 'NOMBRE', 'ASEGURADO']
 
-    # --- BARRIDO CELDA POR CELDA ---
+    # Barrido
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
             
-            # A. BÚSQUEDA DE VIN (GLOBAL)
-            # Busca en cualquier celda que coincida con el patrón de 17 caracteres
+            # A. VIN
             if 'VIN' not in metadata:
                 match_vin = re.search(patron_vin, val)
-                if match_vin: 
-                    metadata['VIN'] = match_vin.group(0)
+                if match_vin: metadata['VIN'] = match_vin.group(0)
 
-            # B. BÚSQUEDA DE ORDEN (8 DÍGITOS)
-            # Estrategia: Primero buscar cerca de palabras clave "Orden/Folio"
+            # B. ORDEN
             if 'ORDEN' not in metadata:
-                # 1. Si la celda contiene la palabra clave Y el número
                 if any(k in val for k in keywords_orden):
                     match_ord = re.search(patron_orden_8, val)
-                    if match_ord:
-                        metadata['ORDEN'] = match_ord.group(0)
+                    if match_ord: metadata['ORDEN'] = match_ord.group(0)
                     else:
-                        # 2. Si la palabra clave está aquí, buscar el número en la celda derecha
                         try:
                             vecino = df.iloc[r_idx, df.columns.get_loc(c_idx) + 1]
                             match_vecino = re.search(patron_orden_8, str(vecino))
-                            if match_vecino:
-                                metadata['ORDEN'] = match_vecino.group(0)
+                            if match_vecino: metadata['ORDEN'] = match_vecino.group(0)
                         except: pass
 
-            # C. BÚSQUEDA DE ASESOR (NOMBRES PROPIOS)
+            # C. ASESOR
             if 'ASESOR' not in metadata:
                 if any(k in val for k in keywords_asesor):
-                    # Limpiamos la etiqueta para ver si queda el nombre en la misma celda
-                    # Ej: "ASESOR: JUAN PEREZ" -> Se queda con "JUAN PEREZ"
                     contenido = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR|S\.A\.)[\:\.\-\s]*', '', val).strip()
-                    
-                    # Verificamos que sea texto (longitud > 4) y NO contenga números (para no agarrar fechas/montos)
                     if len(contenido) > 4 and not re.search(r'\d', contenido):
                         metadata['ASESOR'] = contenido
                     else:
-                        # Si no, buscamos en la celda de la derecha
                         try:
                             vecino = df.iloc[r_idx, df.columns.get_loc(c_idx) + 1]
                             vecino_str = str(vecino).strip()
-                            # Heurística: Longitud > 4 y SIN números
                             if len(vecino_str) > 4 and not re.search(r'\d', vecino_str):
                                 metadata['ASESOR'] = vecino_str
                         except: pass
             
-            # D. BÚSQUEDA DE CLIENTE
+            # D. CLIENTE
             if 'CLIENTE' not in metadata:
                 if any(k in val for k in keywords_cliente):
                     contenido = re.sub(r'(?:CLIENTE|ATTN|NOMBRE|ASEGURADO)[\:\.\-\s]*', '', val).strip()
-                    if len(contenido) > 4:
-                         metadata['CLIENTE'] = contenido
+                    if len(contenido) > 4: metadata['CLIENTE'] = contenido
                     else:
                         try:
                             vecino = df.iloc[r_idx, df.columns.get_loc(c_idx) + 1]
                             if len(str(vecino)) > 4: metadata['CLIENTE'] = str(vecino)
                         except: pass
 
-            # E. DETECCIÓN DE SKUs
+            # E. SKUs
             es_sku = False; sku_det = None
             if re.match(patron_sku_fmt, val): sku_det = val; es_sku = True
             elif re.match(patron_sku_pln, val) and not val.isdigit(): sku_det = val; es_sku = True
@@ -155,27 +135,38 @@ def analizador_inteligente_archivos(df_raw):
                 except: pass
                 hallazgos.append({'sku': sku_det, 'cant': cant})
     
-    # --- FALLBACKS (Último recurso) ---
-    
-    # Si no encontró ORDEN por contexto, busca cualquier número de 8 dígitos aislado
+    # Fallback Orden
     if 'ORDEN' not in metadata:
         for r_idx, row in df.iterrows():
             for val in row:
                 match_global = re.search(patron_orden_8, str(val))
-                if match_global:
-                    metadata['ORDEN'] = match_global.group(0)
-                    break # Encontramos el primero y asumimos que es ese
+                if match_global: metadata['ORDEN'] = match_global.group(0); break
             if 'ORDEN' in metadata: break
 
     return hallazgos, metadata
 
-def agregar_item(sku, desc, precio, cant, tipo, estatus="Disponible"):
+# Función auxiliar para agregar (Callback seguro)
+def agregar_item_callback(sku, desc_raw, precio, cant, tipo):
+    try:
+        # Intento de traducción seguro
+        desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
+    except:
+        desc = str(desc_raw) # Fallback a inglés si falla la API
+        
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
         "SKU": sku, "Descripción": desc, "Cantidad": cant,
         "Precio Base": precio, "IVA": iva, "Importe Total": (precio * cant) + iva,
-        "Estatus": estatus, "Tipo": tipo
+        "Estatus": "Disponible", "Tipo": tipo
     })
+
+def cargar_en_manual(sku, desc, precio):
+    st.session_state.temp_sku = sku
+    try:
+        st.session_state.temp_desc = GoogleTranslator(source='en', target='es').translate(str(desc))
+    except:
+        st.session_state.temp_desc = str(desc)
+    st.session_state.temp_precio = precio
 
 # ==========================================
 # 3. GENERADOR PDF
@@ -198,7 +189,7 @@ class PDF(FPDF):
 def generar_pdf():
     pdf = PDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=45)
     
-    # Encabezado Datos
+    # Encabezado
     pdf.set_fill_color(245); pdf.rect(10, 35, 190, 22, 'F')
     pdf.set_xy(12, 38); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.cliente.upper(), 0, 0)
@@ -245,7 +236,7 @@ def generar_pdf():
 # ==========================================
 if df_db is None: st.error("⚠️ Error crítico: No se encontró 'lista_precios.zip'"); st.stop()
 
-# --- SIDEBAR: DATOS & CARGA ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.markdown("### 🚘 Datos del Servicio")
     st.session_state.orden = st.text_input("Orden / Folio", st.session_state.orden)
@@ -262,21 +253,19 @@ with st.sidebar:
                 df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
                 items, meta = analizador_inteligente_archivos(df_up)
                 
-                # Actualizar Sidebar
+                # Actualizar
                 if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
                 if 'VIN' in meta: st.session_state.vin = meta['VIN']
                 if 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
                 if 'ASESOR' in meta: st.session_state.asesor = meta['ASESOR']
                 
-                # Procesar Piezas
                 exitos, fallos = 0, []
                 for it in items:
                     clean = str(it['sku']).upper().replace('-', '').strip()
                     match = df_db[df_db['SKU_CLEAN'] == clean]
                     if not match.empty:
                         row = match.iloc[0]
-                        desc_t = GoogleTranslator(source='en', target='es').translate(str(row[col_desc_db])) if col_desc_db else "Refacción"
-                        agregar_item(row[col_sku_db], desc_t, row['PRECIO_NUM'], it['cant'], "Refacción")
+                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción")
                         exitos += 1
                     else: fallos.append(it['sku'])
                 
@@ -286,7 +275,7 @@ with st.sidebar:
                 st.rerun()
             except Exception as e: st.error(f"Error: {e}")
 
-# --- MAIN: CUERPO PRINCIPAL ---
+# --- MAIN ---
 st.title("Cotizador Los Fuertes")
 
 col_left, col_right = st.columns([1.2, 2])
@@ -304,24 +293,38 @@ with col_left:
                 mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['SKU_CLEAN'].str.contains(b_raw, na=False)
                 for _, row in df_db[mask].head(3).iterrows():
                     with st.container(border=True):
-                        c1, c2 = st.columns([3, 1])
-                        sku_db = row[col_sku_db]
-                        pr_db = row['PRECIO_NUM']
+                        c1, c2, c3 = st.columns([3, 0.7, 0.7])
+                        sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']; desc_ori = row[col_desc_db]
                         c1.markdown(f"**{sku_db}**\n\n${pr_db:,.2f}")
-                        if c2.button("➕", key=f"add_{sku_db}"):
-                            desc_db = GoogleTranslator(source='en', target='es').translate(str(row[col_desc_db]))
-                            agregar_item(sku_db, desc_db, pr_db, 1, "Refacción")
-                            st.toast(f"Agregado: {sku_db}", icon="✅")
+                        
+                        # Botón: Cargar en Manual
+                        if c2.button("✏️", key=f"edit_{sku_db}", help="Editar en manual"):
+                            cargar_en_manual(sku_db, desc_ori, pr_db)
+                            st.rerun() # Forzar recarga para ir a tab manual si se desea (o solo poblar)
+
+                        # Botón: Agregar Rápido (FIXED con on_click)
+                        c3.button("➕", key=f"add_{sku_db}", help="Agregar directo", 
+                                  on_click=agregar_item_callback, 
+                                  args=(sku_db, desc_ori, pr_db, 1, "Refacción"))
         
         with tab_man:
+            # Si hay datos temporales cargados desde búsqueda, úsalos
+            val_sku = st.session_state.temp_sku if st.session_state.temp_sku else "GENERICO"
+            val_desc = st.session_state.temp_desc if st.session_state.temp_desc else "Refacción General"
+            val_prec = st.session_state.temp_precio if st.session_state.temp_precio else 0.0
+
             with st.form("manual_part"):
                 c1, c2 = st.columns(2)
-                m_sku = c1.text_input("SKU", "GENERICO")
-                m_pr = c2.number_input("Precio", min_value=0.0)
-                m_desc = st.text_input("Descripción", "Refacción General")
+                m_sku = c1.text_input("SKU", value=val_sku)
+                m_pr = c2.number_input("Precio", min_value=0.0, value=float(val_prec))
+                m_desc = st.text_input("Descripción", value=val_desc)
                 if st.form_submit_button("Agregar Manual"):
-                    agregar_item(m_sku.upper(), m_desc, m_pr, 1, "Refacción")
+                    # Usamos el mismo callback seguro
+                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción")
+                    # Limpiamos temporales
+                    st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.toast("Agregado Manualmente", icon="✅")
+                    st.rerun()
 
     else: # Mano de Obra
         with st.container(border=True):
@@ -330,7 +333,7 @@ with col_left:
             s_hrs = c1.number_input("Horas", 1.0, step=0.5)
             s_mo = c2.number_input("Costo Hora", value=500.0)
             if st.button("Agregar Servicio", type="primary"):
-                agregar_item("MO-TALLER", f"{s_desc} ({s_hrs}hrs)", s_hrs * s_mo, 1, "Mano de Obra", "Servicio")
+                agregar_item_callback("MO-TALLER", f"{s_desc} ({s_hrs}hrs)", s_hrs * s_mo, 1, "Mano de Obra")
                 st.toast("Servicio Agregado", icon="🛠️")
 
 with col_right:
@@ -339,13 +342,13 @@ with col_right:
     if st.session_state.carrito:
         df_c = pd.DataFrame(st.session_state.carrito)
         
-        # Editor limpio
         edited = st.data_editor(
             df_c,
             column_config={
                 "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
+                "IVA": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
-                "IVA": None, "Estatus": None, "Tipo": None, # Ocultar visualmente para limpieza
+                "Estatus": None, "Tipo": None, 
                 "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
                 "Descripción": st.column_config.TextColumn(width="medium", disabled=True),
                 "SKU": st.column_config.TextColumn(width="small", disabled=True),
@@ -355,7 +358,6 @@ with col_right:
             key="editor_cart"
         )
         
-        # Lógica de recálculo al editar
         if not edited.equals(df_c):
             new_cart = edited.to_dict('records')
             for r in new_cart:
@@ -366,7 +368,6 @@ with col_right:
             st.session_state.carrito = new_cart
             st.rerun()
 
-        # Totales y Acciones
         sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
         tot = sub * 1.16
         
