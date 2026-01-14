@@ -437,7 +437,7 @@ if st.session_state.carrito:
     edited = st.data_editor(
         df_c,
         column_config={
-            "Prioridad": st.column_config.SelectboxColumn(options=["Urgente", "Medio"], width="small"),
+            "Prioridad": st.column_config.SelectboxColumn(options=["Urgente", "Medio", "Bajo"], width="small"),
             "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small"),
             "Precio Base": st.column_config.NumberColumn("P. Unit.", format="$%.2f", disabled=True),
             "Importe Total": st.column_config.NumberColumn("Total", format="$%.2f", disabled=True),
