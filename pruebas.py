@@ -83,9 +83,6 @@ st.markdown("""
     .total-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #333; }
     .total-final { font-size: 18px; font-weight: bold; color: #eb0a1e; border-top: 2px solid #ddd; padding-top: 5px; margin-top: 5px; }
     
-    .legal-footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 8px; color: #555; text-align: justify; line-height: 1.3; }
-    .legal-title { font-weight: bold; margin-bottom: 5px; color: #333; font-size: 9px; }
-
     /* Badges Prioridad */
     .badge-urg { background-color: #d32f2f; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
     .badge-med { background-color: #fbc02d; color: black; padding: 2px 5px; border-radius: 3px; }
@@ -212,7 +209,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 3. GENERADOR PDF (CORE FIX)
+# 3. GENERADOR PDF (COMPLETO CON LEGALES)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -415,7 +412,6 @@ with col_right:
     if st.session_state.carrito:
         df_c = pd.DataFrame(st.session_state.carrito)
         
-        # FIX: width="stretch" para cumplir con la nueva API
         edited = st.data_editor(
             df_c,
             column_config={
@@ -429,9 +425,7 @@ with col_right:
                 "Descripción": st.column_config.TextColumn(width="medium", disabled=True),
                 "SKU": st.column_config.TextColumn(width="small", disabled=True),
             },
-            width="stretch", # REEMPLAZADO use_container_width=True
-            num_rows="dynamic", 
-            key="editor_cart"
+            use_container_width=True, num_rows="dynamic", key="editor_cart"
         )
         if not edited.equals(df_c):
             new_cart = edited.to_dict('records')
@@ -444,23 +438,17 @@ with col_right:
         sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
         tot = sub * 1.16
         c_p, c_d, c_l = st.columns([1, 1, 0.5])
-        
-        # FIX: width="stretch" en botones también
         with c_p:
-            if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, width="stretch"): pass
+            if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, use_container_width=True): pass
         with c_d:
             pdf_bytes = generar_pdf()
-            # download_button aún soporta use_container_width en algunas versiones, pero usamos width si el error lo pide. 
-            # Si download_button se queja de width='stretch', revertir a use_container_width.
-            # Asumiendo que st.download_button sigue el mismo patrón que st.button en esta versión futura.
-            st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True) 
-            # NOTA: download_button a veces tarda más en adoptar params nuevos. Dejo use_container_width aquí por seguridad salvo que falle.
+            st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
         with c_l:
             if st.button("🗑️", help="Limpiar"): st.session_state.carrito = []; st.rerun()
 
     else: st.info("Carrito vacío.")
 
-# --- VISTA PREVIA ---
+# --- VISTA PREVIA LIMPIA (SIN LEGALES) ---
 if st.session_state.ver_preview and st.session_state.carrito:
     sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
     tot = sub * 1.16
@@ -472,39 +460,12 @@ if st.session_state.ver_preview and st.session_state.carrito:
         if s_val == "Disponible": s_cl = "status-disp"
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
         else: s_cl = "status-rev"
+        
+        # HTML PLANO SIN ESPACIOS PARA EVITAR BLOQUE DE CÓDIGO
         rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
 
     anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO. Se requiere el 100% de anticipo para procesar la orden.</div>' if hay_pedido_prev else ''
 
-    html_preview = f"""
-    <div class="preview-container">
-        <div class="preview-paper">
-            <div class="preview-header">
-                <div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div>
-                <div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div>
-            </div>
-            <div class="info-grid">
-                <div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div>
-                <div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div>
-            </div>
-            <table class="custom-table">
-                <thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">TOTAL</th></tr></thead>
-                <tbody>{rows}</tbody>
-            </table>
-            <div class="total-box">
-                <div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div>
-                <div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div>
-                <div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>
-                {anticipo_html}
-            </div>
-            <div class="legal-footer">
-                <div class="legal-title">TÉRMINOS, CONDICIONES Y CONSENTIMIENTO DIGITAL</div>
-                <div>1. <b>PEDIDOS ESPECIALES:</b> 100% PAGO ANTICIPADO. No cancelaciones.</div>
-                <div>2. <b>PARTES ELÉCTRICAS:</b> NO CAMBIOS/DEVOLUCIONES. Garantía solo defecto fábrica.</div>
-                <div>3. <b>NORMATIVA:</b> NOM-174-SCFI-2007 (Servicios). LFPDPPP (Datos Personales).</div>
-                <div>4. <b>ACEPTACIÓN DIGITAL:</b> Conforme al Art. 89 del Código de Comercio, la aceptación por medios electrónicos (WhatsApp/Correo) produce plenos efectos jurídicos vinculantes.</div>
-            </div>
-        </div>
-    </div>
-    """
+    html_preview = f"""<div class="preview-container"><div class="preview-paper"><div class="preview-header"><div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div><div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div></div><div class="info-grid"><div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div><div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div></div><table class="custom-table"><thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">TOTAL</th></tr></thead><tbody>{rows}</tbody></table><div class="total-box"><div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div><div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div><div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>{anticipo_html}</div></div></div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
+
