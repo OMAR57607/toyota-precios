@@ -38,13 +38,14 @@ def init_session():
         if key not in st.session_state:
             st.session_state[key] = value
 
+# --- CORRECCIÓN 2: Limpieza Total ---
 def limpiar_todo():
     st.session_state.carrito = []
     st.session_state.errores_carga = []
     st.session_state.cliente = ""
     st.session_state.vin = ""
     st.session_state.orden = ""
-    # st.session_state.asesor = "" 
+    st.session_state.asesor = "" # Ahora sí borra el asesor
     st.session_state.temp_sku = ""
     st.session_state.temp_desc = ""
     st.session_state.temp_precio = 0.0
@@ -53,7 +54,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (MEJORADO PARA TITULOS COMPLETOS)
+# 2. ESTILOS CSS
 # ==========================================
 st.markdown("""
     <style>
@@ -80,7 +81,6 @@ st.markdown("""
     .info-item { font-size: 12px; margin-bottom: 6px; color: #333; }
     .info-label { font-weight: 700; color: #555; display: inline-block; width: 70px; }
     
-    /* TABLA: Configuración para ajustar texto y títulos completos */
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; table-layout: fixed; }
     table.custom-table th { 
         background-color: #eb0a1e !important; 
@@ -89,7 +89,7 @@ st.markdown("""
         text-align: left; 
         font-weight: bold; 
         text-transform: uppercase;
-        white-space: nowrap; /* Evita que el título se corte */
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -200,9 +200,14 @@ def analizador_inteligente_archivos(df_raw):
             
     return hallazgos, metadata
 
-def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
-    try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
-    except: desc = str(desc_raw)
+# --- CORRECCIÓN 1: Lógica de traducción condicional ---
+def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR", traducir=True):
+    # Si traducir es True, intentamos traducir. Si es False, usamos el texto directo.
+    if traducir:
+        try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
+        except: desc = str(desc_raw)
+    else:
+        desc = str(desc_raw)
     
     # Cálculos internos
     iva_monto = (precio_base * cant) * 0.16
@@ -218,8 +223,8 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
         "Abasto": abasto,
         "Tiempo Entrega": "", 
         "Cantidad": cant, 
-        "Precio Base": precio_base, # Guardamos base para PDF detallado
-        "Precio Unitario (c/IVA)": precio_unitario_con_iva, # Visualización usuario
+        "Precio Base": precio_base, 
+        "Precio Unitario (c/IVA)": precio_unitario_con_iva, 
         "IVA": iva_monto, 
         "Importe Total": total_linea, 
         "Estatus": "Disponible", 
@@ -235,7 +240,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF AVANZADO (TÍTULOS COMPLETOS Y DETALLE)
+# 4. GENERADOR PDF
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -295,9 +300,8 @@ def generar_pdf():
     pdf.cell(100, 5, ase_safe, 0, 1)
     pdf.ln(8)
 
-    # Tabla Header - TÍTULOS COMPLETOS
+    # Tabla Header
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 6)
-    # Ajuste de anchos para que quepan títulos completos
     cols = [20, 45, 15, 18, 25, 10, 20, 17, 20] 
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'PRIORIDAD', 'ESTATUS', 'TIEMPO ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
@@ -314,14 +318,12 @@ def generar_pdf():
         abasto = item.get('Abasto', '⚠️ REVISAR')
         if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
 
-        # Preparar Textos
         sku_txt = item['SKU'][:15]
         desc_txt = str(item['Descripción']).encode('latin-1', 'replace').decode('latin-1')
         prio = item.get('Prioridad', 'Medio')
         st_txt = abasto.replace("⚠️ ", "").upper()
         te_txt = str(item['Tiempo Entrega'])[:12]
         
-        # --- CÁLCULO DE ALTURA DINÁMICA DE LA FILA ---
         text_width = pdf.get_string_width(desc_txt)
         col_width = cols[1] - 2 
         lines = int(math.ceil(text_width / col_width))
@@ -339,40 +341,35 @@ def generar_pdf():
         y_start = pdf.get_y()
         x_start = pdf.get_x()
 
-        # Col 0: SKU
         pdf.cell(cols[0], row_height, sku_txt, 1, 0, 'C')
         
-        # Col 1: Descripción (MultiCell)
         x_desc = pdf.get_x()
         y_desc = pdf.get_y()
         pdf.rect(x_desc, y_desc, cols[1], row_height)
         pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
         pdf.set_xy(x_desc + cols[1], y_desc)
         
-        # Col 2: Prioridad
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        # Col 3: Status
         if "REVISAR" in abasto: pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         elif "Pedido" in abasto or "Back" in abasto: pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        # Resto de columnas (Detalle Financiero)
         pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
         pdf.cell(cols[5], row_height, str(item['Cantidad']), 1, 0, 'C')
-        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R') # PRECIO BASE
-        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R') # IVA
-        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R') # TOTAL LINEA
+        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R') 
+        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R') 
+        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R') 
 
     pdf.ln(5)
     total = sub + iva_total
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
-        pdf.cell(60, 5, "** REQUIERE ANTICIPO DEL 100% **", 0, 1, 'R')
+        pdf.cell(60, 5, "** REQUIERE ANTICIPO **", 0, 1, 'R')
 
     pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
     pdf.cell(30, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
@@ -419,7 +416,8 @@ with st.sidebar:
                     match = df_db[df_db['SKU_CLEAN'] == clean]
                     if not match.empty:
                         row = match.iloc[0]
-                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR")
+                        # Aquí mantenemos traducir=True (por defecto)
+                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR", traducir=True)
                         exitos += 1
                     else: fallos.append(it['sku'])
                 status.update(label=f"✅ {exitos} items importados", state="complete")
@@ -427,7 +425,8 @@ with st.sidebar:
             except Exception as e: st.error(f"Error: {e}")
 
     st.divider()
-    if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", width="stretch"):
+    # Botón de limpieza total actualizado
+    if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", use_container_width=True):
         limpiar_todo()
         st.rerun()
 
@@ -451,6 +450,7 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                     c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
                     if c2.button("✏️", key=f"ed_{sku_db}"):
                         cargar_en_manual(sku_db, row[col_desc_db], pr_db); st.rerun()
+                    # Agregado desde BD: Usamos traducción automática
                     c3.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
         with col_r:
             with st.form("manual"):
@@ -460,7 +460,8 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                 m_pr = c_p.number_input("Precio Base", 0.0, value=float(st.session_state.temp_precio))
                 m_desc = st.text_input("Descripción", value=st.session_state.temp_desc)
                 if st.form_submit_button("Agregar Manual"):
-                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción")
+                    # MANUAL: No traducir
+                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR", traducir=False)
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.rerun()
     else:
@@ -473,7 +474,8 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
             if st.form_submit_button("Agregar Servicio 🛠️"):
                 total_mo = mo_hrs * mo_cost
                 desc_final = f"{mo_desc} ({mo_hrs} hrs)"
-                agregar_item_callback("MO-TALLER", desc_final, total_mo, 1, "Mano de Obra", "Medio", "Disponible")
+                # MANO DE OBRA: No traducir
+                agregar_item_callback("MO-TALLER", desc_final, total_mo, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
                 st.toast("Mano de Obra Agregada", icon="✅")
                 st.rerun()
 
@@ -484,7 +486,6 @@ st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 if st.session_state.carrito:
     df_c = pd.DataFrame(st.session_state.carrito)
     
-    # Editor de Datos: Muestra "Precio Unitario (c/IVA)" al usuario
     edited = st.data_editor(
         df_c,
         column_config={
@@ -492,7 +493,7 @@ if st.session_state.carrito:
             "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small", required= True),
             "Precio Unitario (c/IVA)": st.column_config.NumberColumn("P. Unit. (Neto)", format="$%.2f", disabled=True),
             "Importe Total": st.column_config.NumberColumn("Total Línea", format="$%.2f", disabled=True),
-            "Precio Base": None, # Oculto, usado para PDF
+            "Precio Base": None, 
             "IVA": None, 
             "Tipo": None, "Estatus": None,
             "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
@@ -506,7 +507,6 @@ if st.session_state.carrito:
     if not edited.equals(df_c):
         new_cart = edited.to_dict('records')
         for r in new_cart:
-            # Recalcular montos si cambia la cantidad
             r['IVA'] = (r['Precio Base'] * r['Cantidad']) * 0.16
             r['Importe Total'] = (r['Precio Base'] * r['Cantidad']) + r['IVA']
         st.session_state.carrito = new_cart
@@ -560,7 +560,6 @@ if st.session_state.ver_preview and st.session_state.carrito:
         a_style = "status-disp" if a_val == "Disponible" else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev"))
         if "Pedido" in a_val or "Back" in a_val: hay_pedido_prev = True
         
-        # Muestra P. UNITARIO CON IVA
         rows_html += f"""<tr>
 <td>{item['SKU']}</td>
 <td style="max-width: 280px;">{item['Descripción']}</td>
