@@ -651,4 +651,4 @@ if st.session_state.ver_preview and st.session_state.carrito:
 </div>
 </div>
 </div>"""
-    st.markdown(html_preview, unsafe_allow_html=T
+    st.markdown(html_preview, unsafe_allow_html=True)
