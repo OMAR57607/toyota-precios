@@ -161,34 +161,45 @@ def analizador_inteligente_archivos(df_raw):
             if 'VIN' not in metadata:
                 m = re.search(patron_vin, val)
                 if m: metadata['VIN'] = m.group(0)
+            
             if 'ORDEN' not in metadata:
                 if any(k in val for k in keywords['ORDEN']):
                     m = re.search(patron_orden_8, val)
-                    if m: metadata['ORDEN'] = m.group(0)
+                    if m: 
+                        metadata['ORDEN'] = m.group(0)
                     else:
                         try:
                             vecino = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1])
                             m2 = re.search(patron_orden_8, vecino)
                             if m2: metadata['ORDEN'] = m2.group(0)
                         except: pass
+            
             if 'ASESOR' not in metadata and any(k in val for k in keywords['ASESOR']):
                 cont = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR)[\:\.\-\s]*', '', val).strip()
-                if len(cont)>4 and not re.search(r'\d', cont): metadata['ASESOR'] = cont
+                if len(cont)>4 and not re.search(r'\d', cont): 
+                    metadata['ASESOR'] = cont
                 else:
                     try:
                         vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
-                        if len(vec)>4 and not re.search(r'\d', vec): metadata['ASESOR'] = vec
+                        if len(vec)>4 and not re.search(r'\d', vec): 
+                            metadata['ASESOR'] = vec
                     except: pass
+            
             if 'CLIENTE' not in metadata and any(k in val for k in keywords['CLIENTE']):
                 cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val).strip()
-                if len(cont)>4: metadata['CLIENTE'] = cont
+                if len(cont)>4: 
+                    metadata['CLIENTE'] = cont
                 else:
-                    try: vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip(); 
-                    if len(vec)>4: metadata['CLIENTE'] = vec
+                    try: 
+                        vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
+                        if len(vec)>4: 
+                            metadata['CLIENTE'] = vec
                     except: pass
+            
             es_sku = False; sku_det = None
             if re.match(patron_sku_fmt, val): sku_det = val; es_sku = True
             elif re.match(patron_sku_pln, val) and not val.isdigit(): sku_det = val; es_sku = True
+            
             if es_sku:
                 cant = 1
                 try: 
@@ -196,12 +207,14 @@ def analizador_inteligente_archivos(df_raw):
                     if vecino.isdigit(): cant = int(vecino)
                 except: pass
                 hallazgos.append({'sku': sku_det, 'cant': cant})
+    
     if 'ORDEN' not in metadata:
         for _, row in df.iterrows():
             for val in row:
                 m = re.search(patron_orden_8, str(val))
                 if m: metadata['ORDEN'] = m.group(0); break
             if 'ORDEN' in metadata: break
+            
     return hallazgos, metadata
 
 def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
@@ -241,7 +254,7 @@ class PDF(FPDF):
         self.cell(0, 4, 'CONTRATO DE ADHESIÓN Y TÉRMINOS LEGALES (NOM-174-SCFI-2007)', 0, 1, 'L')
         self.set_font('Arial', '', 5); self.set_text_color(60)
         
-        # LEYENDAS LEGALES CON FUNDAMENTO (No abusivas)
+        # LEYENDAS LEGALES CON FUNDAMENTO
         legales = (
             "1. VIGENCIA Y PRECIOS: Presupuesto válido por 24 horas. Precios en MXN incluyen IVA. Sujetos a cambio sin previo aviso por actualización del fabricante.\n"
             "2. PEDIDOS ESPECIALES: Para partes no disponibles en stock, se requiere un anticipo del 100%. En caso de cancelación por causas imputables al consumidor, "
