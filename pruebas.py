@@ -10,6 +10,23 @@ import base64
 import urllib.parse
 import math
 
+
+import streamlit as st
+
+st.set_page_config(
+    page_title="Cotizador Toyota Los Fuertes",
+    page_icon="🚗", # O la ruta a tu favicon 'logo.png'
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
+# Nota: Streamlit a veces tarda en actualizar la imagen de previsualización en WhatsApp
+# pero el Título (page_title) cambia de inmediato.
+
+
+
+
+
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
 # ==========================================
