@@ -10,10 +10,6 @@ import base64
 import urllib.parse
 import math
 
-# NUEVAS LIBRERIAS PARA PDF E IMAGENES
-import pdfplumber
-import pytesseract
-from PIL import Image
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -147,90 +143,68 @@ def cargar_catalogo():
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
-# --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE: LOGICA HÍBRIDA ---
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
-    
-    # 1. Preprocesamiento general
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
-    
-    # 2. Definición de Patrones (Regex)
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
     patron_orden_8 = r'\b\d{8}\b'
-    # SKU con guión: 5 caracteres - 5 caracteres (ej. 90915-YZZF1)
-    patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b' 
-    # SKU plano: 10 o 12 caracteres alfanuméricos (ej. 04152YZZA1)
+    patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
     patron_sku_pln = r'\b[A-Z0-9]{10,12}\b'
-    
     keywords = {'ORDEN': ['ORDEN', 'FOLIO', 'OT', 'OS'], 'ASESOR': ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR'], 'CLIENTE': ['CLIENTE', 'ATTN', 'NOMBRE']}
-
-    # 3. Detectar si es modo "Texto Plano" (PDF/IMG con 1 sola columna) o "Excel/CSV" (Multi-columna)
-    es_texto_plano = df.shape[1] < 2 
 
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
-            val_str = str(val)
-            
-            # --- METADATA ---
             if 'VIN' not in metadata:
-                m = re.search(patron_vin, val_str)
+                m = re.search(patron_vin, val)
                 if m: metadata['VIN'] = m.group(0)
             
             if 'ORDEN' not in metadata:
-                # Buscar número de 8 dígitos
-                m = re.search(patron_orden_8, val_str)
-                # Si está la keyword en la misma celda
-                if m and any(k in val_str for k in keywords['ORDEN']): 
-                    metadata['ORDEN'] = m.group(0)
-                # O si encontramos un numero de 8 dígitos "huérfano" que podría ser la orden
-                elif m and not metadata.get('ORDEN'):
-                    metadata['ORDEN'] = m.group(0)
+                if any(k in val for k in keywords['ORDEN']):
+                    m = re.search(patron_orden_8, val)
+                    if m: metadata['ORDEN'] = m.group(0)
+                    else:
+                        try:
+                            vecino = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1])
+                            m2 = re.search(patron_orden_8, vecino)
+                            if m2: metadata['ORDEN'] = m2.group(0)
+                        except: pass
             
-            if 'ASESOR' not in metadata and any(k in val_str for k in keywords['ASESOR']):
-                # Limpieza simple
-                cont = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR)[\:\.\-\s]*', '', val_str).strip()
+            if 'ASESOR' not in metadata and any(k in val for k in keywords['ASESOR']):
+                cont = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR)[\:\.\-\s]*', '', val).strip()
                 if len(cont)>4 and not re.search(r'\d', cont): metadata['ASESOR'] = cont
-            
-            if 'CLIENTE' not in metadata and any(k in val_str for k in keywords['CLIENTE']):
-                cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val_str).strip()
-                if len(cont)>4: metadata['CLIENTE'] = cont
-
-            # --- DETECCIÓN DE SKU ---
-            sku_encontrado = None
-            
-            # Intento 1: Formato con guión
-            m_fmt = re.search(patron_sku_fmt, val_str)
-            if m_fmt:
-                sku_encontrado = m_fmt.group(0)
-            else:
-                # Intento 2: Formato plano (evitando números puros que parecen SKU pero no lo son)
-                m_pln = re.search(patron_sku_pln, val_str)
-                if m_pln and not val_str.isdigit():
-                    sku_encontrado = m_pln.group(0)
-            
-            # Si encontramos SKU, buscamos la cantidad
-            if sku_encontrado:
-                cant = 1
-                
-                if not es_texto_plano:
-                    # LÓGICA EXCEL: Mirar columna vecina a la derecha
-                    try: 
-                        idx_num = df.columns.get_loc(c_idx)
-                        if idx_num + 1 < len(df.columns):
-                            vecino = str(df.iloc[r_idx, idx_num+1]).replace('.0', '').strip()
-                            if vecino.isdigit(): cant = int(vecino)
-                    except: pass
                 else:
-                    # LÓGICA PDF/IMG: Buscar número pequeño en la misma línea
-                    linea_sin_sku = val_str.replace(sku_encontrado, "")
-                    numeros = re.findall(r'\b\d{1,2}\b', linea_sin_sku)
-                    # Tomar el primer número entre 1 y 99 que encontremos
-                    for n in numeros:
-                        if n.isdigit() and 0 < int(n) < 100:
-                            cant = int(n)
-                            break
-                            
-                hallazgos.append({'sku': sku_encontrado, 'cant': cant})
+                    try:
+                        vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
+                        if len(vec)>4 and not re.search(r'\d', vec): metadata['ASESOR'] = vec
+                    except: pass
+            
+            if 'CLIENTE' not in metadata and any(k in val for k in keywords['CLIENTE']):
+                cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val).strip()
+                if len(cont)>4: metadata['CLIENTE'] = cont
+                else:
+                    try: 
+                        vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
+                        if len(vec)>4: metadata['CLIENTE'] = vec
+                    except: pass
+            
+            es_sku = False; sku_det = None
+            if re.match(patron_sku_fmt, val): sku_det = val; es_sku = True
+            elif re.match(patron_sku_pln, val) and not val.isdigit(): sku_det = val; es_sku = True
+            
+            if es_sku:
+                cant = 1
+                try: 
+                    vecino = df.iloc[r_idx, df.columns.get_loc(c_idx)+1].replace('.0', '')
+                    if vecino.isdigit(): cant = int(vecino)
+                except: pass
+                hallazgos.append({'sku': sku_det, 'cant': cant})
+    
+    if 'ORDEN' not in metadata:
+        for _, row in df.iterrows():
+            for val in row:
+                m = re.search(patron_orden_8, str(val))
+                if m: metadata['ORDEN'] = m.group(0); break
+            if 'ORDEN' in metadata: break
             
     return hallazgos, metadata
 
@@ -384,6 +358,7 @@ def generar_pdf():
         pdf.set_xy(x_desc + cols[1], y_desc)
         
         # --- COLOREADO PRIORIDAD (FONDO) ---
+        # Definir colores RGB para fondo y texto
         if prio == 'Urgente':
             pdf.set_fill_color(211, 47, 47) # Rojo
             pdf.set_text_color(255, 255, 255)
@@ -432,7 +407,7 @@ def generar_pdf():
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
-        pdf.cell(60, 5, "** REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL **", 0, 1, 'R')
+        pdf.cell(60, 5, "** REQUIERE ANTICIPO **", 0, 1, 'R')
 
     pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
     pdf.cell(30, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
@@ -462,71 +437,28 @@ with st.sidebar:
     
     st.divider()
     st.markdown("### 🤖 Carga Inteligente")
-    
-    uploaded_file = st.file_uploader("Excel / CSV / PDF / IMG", type=['xlsx', 'csv', 'pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
-    
+    uploaded_file = st.file_uploader("Excel / CSV", type=['xlsx', 'csv'], label_visibility="collapsed")
     if uploaded_file and st.button("Analizar Archivo", type="primary"):
         with st.status("Procesando...", expanded=False) as status:
             try:
-                df_up = None
-                fname = uploaded_file.name.lower()
+                df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+                items, meta = analizador_inteligente_archivos(df_up)
+                if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
+                if 'VIN' in meta: st.session_state.vin = meta['VIN']
+                if 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
+                if 'ASESOR' in meta: st.session_state.asesor = meta['ASESOR']
                 
-                # --- CAMBIO: LÓGICA DE LECTURA SEGÚN EXTENSIÓN ---
-                if fname.endswith('.csv'):
-                    df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
-                elif fname.endswith(('.xlsx', '.xls')):
-                    df_up = pd.read_excel(uploaded_file)
-                elif fname.endswith('.pdf'):
-                    text_content = []
-                    with pdfplumber.open(uploaded_file) as pdf:
-                        for page in pdf.pages:
-                            text_content.append(page.extract_text())
-                    full_text = "\n".join(filter(None, text_content))
-                    lines = full_text.split('\n')
-                    df_up = pd.DataFrame(lines, columns=['Content'])
-                elif fname.endswith(('.png', '.jpg', '.jpeg')):
-                    try:
-                        image = Image.open(uploaded_file)
-                        text = pytesseract.image_to_string(image)
-                        lines = text.split('\n')
-                        df_up = pd.DataFrame(lines, columns=['Content'])
-                    except:
-                        st.error("Error OCR. Se requiere Tesseract instalado.")
-                        df_up = None
-                
-                # PROCESAMIENTO
-                if df_up is not None:
-                    items, meta = analizador_inteligente_archivos(df_up)
-                    if 'CLIENTE' in meta and not st.session_state.cliente: st.session_state.cliente = meta['CLIENTE']
-                    if 'VIN' in meta and not st.session_state.vin: st.session_state.vin = meta['VIN']
-                    if 'ORDEN' in meta and not st.session_state.orden: st.session_state.orden = meta['ORDEN']
-                    if 'ASESOR' in meta and not st.session_state.asesor: st.session_state.asesor = meta['ASESOR']
-                    
-                    exitos, fallos = 0, []
-                    for it in items:
-                        clean = str(it['sku']).upper().replace('-', '').strip()
-                        match = df_db[df_db['SKU_CLEAN'] == clean]
-                        if not match.empty:
-                            row = match.iloc[0]
-                            # Verificar duplicados para sumar cantidad
-                            existe = False
-                            for prod in st.session_state.carrito:
-                                if prod['SKU'] == row[col_sku_db]:
-                                    prod['Cantidad'] += it['cant']
-                                    prod['IVA'] = (prod['Precio Base'] * prod['Cantidad']) * 0.16
-                                    prod['Importe Total'] = (prod['Precio Base'] * prod['Cantidad']) + prod['IVA']
-                                    existe = True
-                                    break
-                            
-                            if not existe:
-                                agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR", traducir=True)
-                            exitos += 1
-                        else: fallos.append(it['sku'])
-                    status.update(label=f"✅ {exitos} items importados", state="complete")
-                    st.rerun()
-                else:
-                    st.error("Formato no soportado o error al leer.")
-
+                exitos, fallos = 0, []
+                for it in items:
+                    clean = str(it['sku']).upper().replace('-', '').strip()
+                    match = df_db[df_db['SKU_CLEAN'] == clean]
+                    if not match.empty:
+                        row = match.iloc[0]
+                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR", traducir=True)
+                        exitos += 1
+                    else: fallos.append(it['sku'])
+                status.update(label=f"✅ {exitos} items importados", state="complete")
+                st.rerun()
             except Exception as e: st.error(f"Error: {e}")
 
     st.divider()
@@ -572,7 +504,7 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
             c1, c2, c3 = st.columns([2, 1, 1])
             mo_desc = c1.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Diagnóstico...")
             mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
-            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=600.0, step=50.0) 
+            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0) 
             if st.form_submit_button("Agregar Servicio 🛠️"):
                 total_mo = mo_hrs * mo_cost
                 desc_final = f"{mo_desc} ({mo_hrs} hrs)"
