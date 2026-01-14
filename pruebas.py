@@ -18,22 +18,41 @@ st.set_page_config(page_title="Toyota Asesores AI", page_icon="🤖", layout="wi
 tz_cdmx = pytz.timezone('America/Mexico_City') if 'America/Mexico_City' in pytz.all_timezones else None
 def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now()
 
-# Función para Resetear TODO
-def limpiar_todo():
-    keys_to_reset = ['carrito', 'errores_carga', 'cliente', 'vin', 'orden', 'asesor', 'temp_sku', 'temp_desc', 'temp_precio', 'ver_preview']
-    for key in keys_to_reset:
-        if key in st.session_state:
-            if key == 'carrito' or key == 'errores_carga':
-                st.session_state[key] = []
-            elif key == 'temp_precio':
-                st.session_state[key] = 0.0
-            elif key == 'ver_preview':
-                st.session_state[key] = False
-            else:
-                st.session_state[key] = ""
+# --- CORRECCIÓN DE ESTADO DE SESIÓN (BUG FIX) ---
+def init_session():
+    # Diccionario con valores por defecto para TODAS las variables
+    defaults = {
+        'carrito': [], 
+        'errores_carga': [], 
+        'cliente': "", 
+        'vin': "", 
+        'orden': "", 
+        'asesor': "",
+        'temp_sku': "", 
+        'temp_desc': "", 
+        'temp_precio': 0.0, 
+        'ver_preview': False
+    }
+    
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-# Inicializar Sesión (si no existen)
-if 'carrito' not in st.session_state: limpiar_todo()
+def limpiar_todo():
+    # Resetea valores a su estado inicial explícitamente
+    st.session_state.carrito = []
+    st.session_state.errores_carga = []
+    st.session_state.cliente = ""
+    st.session_state.vin = ""
+    st.session_state.orden = ""
+    st.session_state.asesor = ""
+    st.session_state.temp_sku = ""
+    st.session_state.temp_desc = ""
+    st.session_state.temp_precio = 0.0
+    st.session_state.ver_preview = False
+
+# Ejecutar inicialización al principio de CADA carga
+init_session()
 
 # Estilos CSS
 st.markdown("""
