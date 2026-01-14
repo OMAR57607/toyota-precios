@@ -37,12 +37,14 @@ def init_session():
             st.session_state[key] = value
 
 def limpiar_todo():
+    # Reseteo forzado de todas las variables críticas
     st.session_state.carrito = []
     st.session_state.errores_carga = []
     st.session_state.cliente = ""
     st.session_state.vin = ""
     st.session_state.orden = ""
-    # Mantenemos el asesor
+    # El asesor se mantiene por comodidad, si quieres borrarlo descomenta la linea abajo:
+    # st.session_state.asesor = ""
     st.session_state.temp_sku = ""
     st.session_state.temp_desc = ""
     st.session_state.temp_precio = 0.0
@@ -51,14 +53,11 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (RESPONSIVE & ADAPTATIVO)
+# 2. ESTILOS CSS
 # ==========================================
 st.markdown("""
     <style>
-    /* Ajuste general */
     .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-    
-    /* Botón WhatsApp */
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
         background-color: #25D366; color: white !important;
@@ -66,51 +65,26 @@ st.markdown("""
         font-weight: 700; width: 100%; margin-top: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s ease;
     }
-    .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); box-shadow: 0 6px 8px rgba(0,0,0,0.15); }
+    .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); }
 
-    /* VISTA PREVIA (SIMULACIÓN PAPEL) */
-    .preview-container {
-        background-color: #525659;
-        padding: 20px;
-        border-radius: 8px;
-        display: flex;
-        justify-content: center;
-        margin-top: 20px;
-        overflow-x: auto;
-    }
-    .preview-paper {
-        background-color: white !important;
-        color: black !important;
-        width: 100%;
-        max-width: 900px;
-        min-width: 600px;
-        padding: 40px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        font-family: 'Helvetica', 'Arial', sans-serif;
-    }
-    
-    /* Encabezados Preview */
+    /* VISTA PREVIA */
+    .preview-container { background-color: #525659; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; }
+    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 900px; min-width: 600px; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Helvetica', 'Arial', sans-serif; }
     .preview-header { border-bottom: 3px solid #eb0a1e; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
     .preview-title { font-size: 26px; font-weight: 900; color: #eb0a1e; margin: 0; line-height: 1.2; }
     .preview-subtitle { font-size: 14px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
-    
-    /* Grid de Información */
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 25px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; }
     .info-item { font-size: 12px; margin-bottom: 6px; color: #333; }
     .info-label { font-weight: 700; color: #555; display: inline-block; width: 70px; }
-
-    /* Tabla Formal */
+    
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; }
     table.custom-table th { background-color: #eb0a1e !important; color: white !important; padding: 10px 8px; text-align: left; font-weight: bold; text-transform: uppercase; }
     table.custom-table td { border-bottom: 1px solid #eee; padding: 8px; color: #333 !important; vertical-align: middle; }
     table.custom-table tr:last-child td { border-bottom: 2px solid #eb0a1e; }
     
-    /* Totales */
     .total-box { margin-left: auto; width: 300px; }
-    .total-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; color: #333; }
     .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
-
-    /* Etiquetas */
+    
     .badge-urg { background: #d32f2f; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     .status-disp { color: #2e7d32; background: #e8f5e9; border: 1px solid #2e7d32; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     .status-ped { color: #e65100; background: #fff3e0; border: 1px solid #e65100; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
@@ -147,6 +121,7 @@ def cargar_catalogo():
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
+# --- ANALIZADOR INTELIGENTE (CORREGIDO SYNTAXERROR) ---
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
@@ -254,27 +229,24 @@ class PDF(FPDF):
         self.cell(0, 4, 'CONTRATO DE ADHESIÓN Y TÉRMINOS LEGALES (NOM-174-SCFI-2007)', 0, 1, 'L')
         self.set_font('Arial', '', 5); self.set_text_color(60)
         
-        # LEYENDAS LEGALES CON FUNDAMENTO
         legales = (
-            "1. VIGENCIA Y PRECIOS: Presupuesto válido por 24 horas. Precios en MXN incluyen IVA. Sujetos a cambio sin previo aviso por actualización del fabricante.\n"
+            "1. VIGENCIA Y PRECIOS: Presupuesto válido por 24 horas. Precios en MXN incluyen IVA. Sujetos a cambio sin previo aviso.\n"
             "2. PEDIDOS ESPECIALES: Para partes no disponibles en stock, se requiere un anticipo del 100%. En caso de cancelación por causas imputables al consumidor, "
             "se aplicará una pena convencional del 20% sobre el anticipo por gastos administrativos (Art. 92 LFPC).\n"
             "3. GARANTÍA: 12 meses en refacciones genuinas Toyota y 30 días en mano de obra. La garantía de partes eléctricas está sujeta a diagnóstico técnico "
-            "para descartar daños por instalación externa o manipulación indebida (Art. 77 LFPC). Las partes eléctricas no admiten devolución si se encuentran en buen estado funcional.\n"
+            "para descartar daños por instalación externa (Art. 77 LFPC). Las partes eléctricas no admiten devolución si se encuentran en buen estado funcional.\n"
             "4. CONSENTIMIENTO DIGITAL: De conformidad con los Art. 89 bis y 93 del Código de Comercio, la aceptación de este presupuesto a través de medios electrónicos "
-            "(WhatsApp, Correo, SMS) produce los mismos efectos jurídicos que la firma autógrafa, perfeccionando el contrato de servicios.\n"
-            "5. PRIVACIDAD: Sus datos personales son tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares. Aviso de privacidad disponible en recepción."
+            "(WhatsApp, Correo) produce los mismos efectos jurídicos que la firma autógrafa.\n"
+            "5. PRIVACIDAD: Sus datos personales son tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares."
         )
         self.multi_cell(0, 2.5, legales, 0, 'J')
         
-        # Área de firmas
         self.ln(5)
         y_firma = self.get_y()
         self.line(10, y_firma, 80, y_firma); self.line(110, y_firma, 190, y_firma)
         self.set_font('Arial', 'B', 6)
         self.cell(90, 3, "TOYOTA LOS FUERTES (ASESOR)", 0, 0, 'C')
         self.cell(90, 3, "NOMBRE Y FIRMA DE CONFORMIDAD DEL CLIENTE", 0, 1, 'C')
-        
         self.set_y(-12); self.set_font('Arial', 'I', 8); self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
 def generar_pdf():
@@ -282,7 +254,7 @@ def generar_pdf():
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=80)
     
-    # Info Header
+    # Header Info
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9)
     cli_safe = str(st.session_state.cliente.upper()).encode('latin-1', 'replace').decode('latin-1')
@@ -339,8 +311,6 @@ def generar_pdf():
         pdf.cell(cols[8], 6, f"${item['Importe Total']:,.2f}", 'B', 1, 'R')
 
     pdf.ln(5)
-    
-    # Totales
     total = sub + iva_total
     if hay_pedido:
         pdf.set_x(130)
@@ -400,39 +370,65 @@ with st.sidebar:
             except Exception as e: st.error(f"Error: {e}")
 
     st.divider()
-    if st.button("🗑️ Nueva Cotización"): limpiar_todo(); st.rerun()
+    # --- BOTÓN DE BORRADO TOTAL RESTAURADO ---
+    if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", width="stretch"):
+        limpiar_todo()
+        st.rerun()
 
 # --- MAIN ---
 st.title("Toyota Los Fuertes")
 st.caption("Sistema de Cotización de Servicios y Refacciones")
 
-with st.expander("🔎 Búsqueda y Agregado Manual", expanded=True):
-    col_l, col_r = st.columns([1.2, 1])
-    with col_l:
-        q = st.text_input("Buscar SKU o Nombre", key="search_q")
-        if q:
-            b_raw = q.upper().strip().replace('-', '')
-            mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['SKU_CLEAN'].str.contains(b_raw, na=False)
-            for _, row in df_db[mask].head(3).iterrows():
-                c1, c2, c3 = st.columns([3, 0.7, 1])
-                sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']
-                c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
-                if c2.button("✏️", key=f"ed_{sku_db}"):
-                    cargar_en_manual(sku_db, row[col_desc_db], pr_db); st.rerun()
-                c3.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
-    with col_r:
-        with st.form("manual"):
-            c_s, c_p = st.columns([1, 1])
-            m_sku = c_s.text_input("SKU", value=st.session_state.temp_sku)
-            m_pr = c_p.number_input("Precio", 0.0, value=float(st.session_state.temp_precio))
-            m_desc = st.text_input("Descripción", value=st.session_state.temp_desc)
-            if st.form_submit_button("Agregar Manual"):
-                agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción")
-                st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
+# --- SECCIÓN DE AGREGADO (RESTAURADO: SELECTOR TIPO) ---
+with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=True):
+    # Selector de Tipo
+    tipo_add = st.radio("Tipo de Ítem:", ["Refacción 🔧", "Mano de Obra 🛠️"], horizontal=True, label_visibility="collapsed")
+    
+    if tipo_add == "Refacción 🔧":
+        # Lógica Refacciones
+        col_l, col_r = st.columns([1.2, 1])
+        with col_l:
+            q = st.text_input("Buscar SKU o Nombre", key="search_q", placeholder="Ej. Filtro, Balatas...")
+            if q:
+                b_raw = q.upper().strip().replace('-', '')
+                mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['SKU_CLEAN'].str.contains(b_raw, na=False)
+                for _, row in df_db[mask].head(3).iterrows():
+                    c1, c2, c3 = st.columns([3, 0.7, 1])
+                    sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']
+                    c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
+                    if c2.button("✏️", key=f"ed_{sku_db}"):
+                        cargar_en_manual(sku_db, row[col_desc_db], pr_db); st.rerun()
+                    c3.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
+        with col_r:
+            with st.form("manual"):
+                st.markdown("**Agregar Manual (Refacción)**")
+                c_s, c_p = st.columns([1, 1])
+                m_sku = c_s.text_input("SKU", value=st.session_state.temp_sku)
+                m_pr = c_p.number_input("Precio", 0.0, value=float(st.session_state.temp_precio))
+                m_desc = st.text_input("Descripción", value=st.session_state.temp_desc)
+                if st.form_submit_button("Agregar Manual"):
+                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción")
+                    st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
+                    st.rerun()
+    else:
+        # Lógica Mano de Obra (RESTAURADA)
+        st.markdown("**Agregar Mano de Obra (Servicio)**")
+        with st.form("form_mo"):
+            c1, c2, c3 = st.columns([2, 1, 1])
+            mo_desc = c1.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Diagnóstico...")
+            mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
+            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0) # Precio default sugerido
+            
+            if st.form_submit_button("Agregar Servicio 🛠️"):
+                total_mo = mo_hrs * mo_cost
+                desc_final = f"{mo_desc} ({mo_hrs} hrs)"
+                agregar_item_callback("MO-TALLER", desc_final, total_mo, 1, "Mano de Obra", "Medio", "Disponible")
+                st.toast("Mano de Obra Agregada", icon="✅")
                 st.rerun()
 
 st.divider()
 
+# --- CARRO Y ACCIONES ---
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
@@ -500,7 +496,7 @@ if st.session_state.carrito:
         msg_enc = urllib.parse.quote(msg_raw)
         st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
-# --- VISTA PREVIA LIMPIA (SIN SUBTOTALES NI LEGALES) ---
+# --- VISTA PREVIA LIMPIA ---
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
