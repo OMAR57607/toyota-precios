@@ -8,6 +8,7 @@ import re
 import os
 import base64
 import urllib.parse
+import math
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -37,14 +38,12 @@ def init_session():
             st.session_state[key] = value
 
 def limpiar_todo():
-    # Reseteo forzado de todas las variables críticas
     st.session_state.carrito = []
     st.session_state.errores_carga = []
     st.session_state.cliente = ""
     st.session_state.vin = ""
     st.session_state.orden = ""
-    # El asesor se mantiene por comodidad, si quieres borrarlo descomenta la linea abajo:
-    # st.session_state.asesor = ""
+    # st.session_state.asesor = "" # Opcional: descomentar si se quiere borrar asesor
     st.session_state.temp_sku = ""
     st.session_state.temp_desc = ""
     st.session_state.temp_precio = 0.0
@@ -53,11 +52,12 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS
+# 2. ESTILOS CSS (MEJORADO PARA TEXT WRAPPING)
 # ==========================================
 st.markdown("""
     <style>
     .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+    
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
         background-color: #25D366; color: white !important;
@@ -70,25 +70,28 @@ st.markdown("""
     /* VISTA PREVIA */
     .preview-container { background-color: #525659; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; }
     .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 900px; min-width: 600px; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Helvetica', 'Arial', sans-serif; }
+    
     .preview-header { border-bottom: 3px solid #eb0a1e; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
     .preview-title { font-size: 26px; font-weight: 900; color: #eb0a1e; margin: 0; line-height: 1.2; }
     .preview-subtitle { font-size: 14px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
+    
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 25px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; }
     .info-item { font-size: 12px; margin-bottom: 6px; color: #333; }
     .info-label { font-weight: 700; color: #555; display: inline-block; width: 70px; }
     
-    table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; }
+    /* TABLA: Configuración para ajustar texto (Wrapping) */
+    table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; table-layout: fixed; }
     table.custom-table th { background-color: #eb0a1e !important; color: white !important; padding: 10px 8px; text-align: left; font-weight: bold; text-transform: uppercase; }
-    table.custom-table td { border-bottom: 1px solid #eee; padding: 8px; color: #333 !important; vertical-align: middle; }
+    table.custom-table td { border-bottom: 1px solid #eee; padding: 8px; color: #333 !important; vertical-align: top; word-wrap: break-word; }
     table.custom-table tr:last-child td { border-bottom: 2px solid #eb0a1e; }
     
     .total-box { margin-left: auto; width: 300px; }
     .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
     
-    .badge-urg { background: #d32f2f; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
-    .status-disp { color: #2e7d32; background: #e8f5e9; border: 1px solid #2e7d32; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
-    .status-ped { color: #e65100; background: #fff3e0; border: 1px solid #e65100; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
-    .status-bo { color: #fff; background: #000; border: 1px solid #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
+    .badge-urg { background: #d32f2f; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
+    .status-disp { color: #2e7d32; background: #e8f5e9; border: 1px solid #2e7d32; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
+    .status-ped { color: #e65100; background: #fff3e0; border: 1px solid #e65100; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
+    .status-bo { color: #fff; background: #000; border: 1px solid #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
     
     @media only screen and (max-width: 600px) {
@@ -121,7 +124,6 @@ def cargar_catalogo():
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
-# --- ANALIZADOR INTELIGENTE (CORREGIDO SYNTAXERROR) ---
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
@@ -140,8 +142,7 @@ def analizador_inteligente_archivos(df_raw):
             if 'ORDEN' not in metadata:
                 if any(k in val for k in keywords['ORDEN']):
                     m = re.search(patron_orden_8, val)
-                    if m: 
-                        metadata['ORDEN'] = m.group(0)
+                    if m: metadata['ORDEN'] = m.group(0)
                     else:
                         try:
                             vecino = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1])
@@ -151,24 +152,20 @@ def analizador_inteligente_archivos(df_raw):
             
             if 'ASESOR' not in metadata and any(k in val for k in keywords['ASESOR']):
                 cont = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR)[\:\.\-\s]*', '', val).strip()
-                if len(cont)>4 and not re.search(r'\d', cont): 
-                    metadata['ASESOR'] = cont
+                if len(cont)>4 and not re.search(r'\d', cont): metadata['ASESOR'] = cont
                 else:
                     try:
                         vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
-                        if len(vec)>4 and not re.search(r'\d', vec): 
-                            metadata['ASESOR'] = vec
+                        if len(vec)>4 and not re.search(r'\d', vec): metadata['ASESOR'] = vec
                     except: pass
             
             if 'CLIENTE' not in metadata and any(k in val for k in keywords['CLIENTE']):
                 cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val).strip()
-                if len(cont)>4: 
-                    metadata['CLIENTE'] = cont
+                if len(cont)>4: metadata['CLIENTE'] = cont
                 else:
                     try: 
                         vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
-                        if len(vec)>4: 
-                            metadata['CLIENTE'] = vec
+                        if len(vec)>4: metadata['CLIENTE'] = vec
                     except: pass
             
             es_sku = False; sku_det = None
@@ -211,7 +208,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF (NORMATIVIDAD APLICADA)
+# 4. GENERADOR PDF AVANZADO (MULTICELL ROW)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -278,37 +275,89 @@ def generar_pdf():
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
 
-    # Tabla Body
+    # Tabla Body con Ajuste de Altura (Redimensionamiento)
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     sub = 0; iva_total = 0
     hay_pedido = False
+    
     for item in st.session_state.carrito:
         sub += item['Precio Base'] * item['Cantidad']
         iva_total += item['IVA']
         abasto = item.get('Abasto', '⚠️ REVISAR')
         if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
 
-        pdf.set_text_color(0)
-        pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
-        desc_safe = str(item['Descripción'][:38]).encode('latin-1', 'replace').decode('latin-1')
-        pdf.cell(cols[1], 6, desc_safe, 'B', 0, 'L')
+        # Preparar Textos
+        sku_txt = item['SKU'][:15]
+        desc_txt = str(item['Descripción']).encode('latin-1', 'replace').decode('latin-1')
         
-        prio = item.get('Prioridad', 'Medio', 'Bajo')
+        prio = item.get('Prioridad', 'Medio')
+        prio_txt = prio[:1].upper()
+        
+        st_txt = abasto.replace("⚠️ ", "").replace("Disponible","DISP").replace("Por Pedido","PED").replace("Back Order","BO").upper()
+        te_txt = str(item['Tiempo Entrega'])[:10]
+        
+        # --- CÁLCULO DE ALTURA DINÁMICA DE LA FILA ---
+        # Calculamos cuántas líneas ocupará la descripción en un ancho de 45 (cols[1])
+        # Aproximación: ancho del texto / ancho de columna
+        # Mejor método en FPDF plano: GetStringWidth
+        text_width = pdf.get_string_width(desc_txt)
+        col_width = cols[1] - 2 # Margen interno
+        
+        # Número de líneas estimadas
+        lines = int(math.ceil(text_width / col_width))
+        if lines < 1: lines = 1
+        
+        line_height = 4 # Altura por línea de texto
+        row_height = max(6, lines * line_height) # Altura mínima 6, o lo que ocupe el texto
+        
+        # Verificar Salto de Página
+        if pdf.get_y() + row_height > 260:
+            pdf.add_page()
+            # Reimprimir header tabla si salta
+            pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 7)
+            for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
+            pdf.ln()
+            pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
+
+        # Guardar posición Y inicial
+        y_start = pdf.get_y()
+        x_start = pdf.get_x()
+
+        # IMPRIMIR CELDAS (Usando posición absoluta para Description MultiCell)
+        
+        # Col 0: SKU
+        pdf.cell(cols[0], row_height, sku_txt, 1, 0, 'C')
+        
+        # Col 1: Descripción (MultiCell)
+        x_desc = pdf.get_x()
+        y_desc = pdf.get_y()
+        
+        # Dibujar el borde de la celda descripción (Rectángulo vacío)
+        pdf.rect(x_desc, y_desc, cols[1], row_height)
+        
+        # Imprimir el texto dentro (MultiCell sin borde para no duplicar lineas internas)
+        pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
+        
+        # Regresar el cursor a la derecha de la columna descripción
+        pdf.set_xy(x_desc + cols[1], y_desc)
+        
+        # Col 2: Prioridad (Con color)
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
-        pdf.cell(cols[2], 6, prio[:1].upper(), 'B', 0, 'C')
+        pdf.cell(cols[2], row_height, prio_txt, 1, 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
+        # Col 3: Status (Con color)
         if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         elif abasto == "Por Pedido" or abasto == "Back Order": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
-        st_txt = abasto.replace("⚠️ ", "").replace("Disponible","DISP").replace("Por Pedido","PED").replace("Back Order","BO").upper()
-        pdf.cell(cols[3], 6, st_txt, 'B', 0, 'C')
-        
+        pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
-        pdf.cell(cols[4], 6, str(item['Tiempo Entrega'])[:10], 'B', 0, 'C')
-        pdf.cell(cols[5], 6, str(item['Cantidad']), 'B', 0, 'C')
-        pdf.cell(cols[6], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
-        pdf.cell(cols[7], 6, f"${item['IVA'] / item['Cantidad']:,.2f}", 'B', 0, 'R')
-        pdf.cell(cols[8], 6, f"${item['Importe Total']:,.2f}", 'B', 1, 'R')
+        
+        # Resto de columnas
+        pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
+        pdf.cell(cols[5], row_height, str(item['Cantidad']), 1, 0, 'C')
+        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
+        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R')
+        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R') # Salto de línea al final
 
     pdf.ln(5)
     total = sub + iva_total
@@ -370,7 +419,6 @@ with st.sidebar:
             except Exception as e: st.error(f"Error: {e}")
 
     st.divider()
-    # --- BOTÓN DE BORRADO TOTAL RESTAURADO ---
     if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", width="stretch"):
         limpiar_todo()
         st.rerun()
@@ -379,13 +427,10 @@ with st.sidebar:
 st.title("Toyota Los Fuertes")
 st.caption("Sistema de Cotización de Servicios y Refacciones")
 
-# --- SECCIÓN DE AGREGADO (RESTAURADO: SELECTOR TIPO) ---
 with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=True):
-    # Selector de Tipo
     tipo_add = st.radio("Tipo de Ítem:", ["Refacción 🔧", "Mano de Obra 🛠️"], horizontal=True, label_visibility="collapsed")
     
     if tipo_add == "Refacción 🔧":
-        # Lógica Refacciones
         col_l, col_r = st.columns([1.2, 1])
         with col_l:
             q = st.text_input("Buscar SKU o Nombre", key="search_q", placeholder="Ej. Filtro, Balatas...")
@@ -411,14 +456,12 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.rerun()
     else:
-        # Lógica Mano de Obra (RESTAURADA)
         st.markdown("**Agregar Mano de Obra (Servicio)**")
         with st.form("form_mo"):
             c1, c2, c3 = st.columns([2, 1, 1])
             mo_desc = c1.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Diagnóstico...")
             mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
-            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0) # Precio default sugerido
-            
+            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0) 
             if st.form_submit_button("Agregar Servicio 🛠️"):
                 total_mo = mo_hrs * mo_cost
                 desc_final = f"{mo_desc} ({mo_hrs} hrs)"
@@ -428,16 +471,16 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
 
 st.divider()
 
-# --- CARRO Y ACCIONES ---
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
     df_c = pd.DataFrame(st.session_state.carrito)
     
+    # RESTAURADO: Prioridades completas (Urgente, Medio, Bajo)
     edited = st.data_editor(
         df_c,
         column_config={
-            "Prioridad": st.column_config.SelectboxColumn(options=["Urgente", "Medio", "Bajo"], width="small"),
+            "Prioridad": st.column_config.SelectboxColumn(options=["Urgente", "Medio", "Bajo"], width="small", required=True),
             "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small"),
             "Precio Base": st.column_config.NumberColumn("P. Unit.", format="$%.2f", disabled=True),
             "Importe Total": st.column_config.NumberColumn("Total", format="$%.2f", disabled=True),
@@ -496,7 +539,7 @@ if st.session_state.carrito:
         msg_enc = urllib.parse.quote(msg_raw)
         st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
-# --- VISTA PREVIA LIMPIA ---
+# --- VISTA PREVIA ADAPTATIVA (TEXT WRAPPING) ---
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
@@ -506,9 +549,10 @@ if st.session_state.ver_preview and st.session_state.carrito:
         a_style = "status-disp" if a_val == "Disponible" else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev"))
         if "Pedido" in a_val or "Back" in a_val: hay_pedido_prev = True
         
+        # HTML con max-width en Descripción para forzar salto de línea
         rows_html += f"""<tr>
 <td>{item['SKU']}</td>
-<td>{item['Descripción']}</td>
+<td style="max-width: 280px;">{item['Descripción']}</td>
 <td><span class="{p_style}">{item['Prioridad']}</span></td>
 <td><span class="{a_style}">{a_val}</span></td>
 <td>{item['Tiempo Entrega']}</td>
@@ -541,8 +585,14 @@ if st.session_state.ver_preview and st.session_state.carrito:
 <table class="custom-table">
 <thead>
 <tr>
-<th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>ABASTO</th><th>T.ENT</th>
-<th style="text-align:center">CANT</th><th style="text-align:right">P. UNIT</th><th style="text-align:right">TOTAL</th>
+<th style="width:12%">CÓDIGO</th>
+<th style="width:35%">DESCRIPCIÓN</th>
+<th>PRIORIDAD</th>
+<th>ABASTO</th>
+<th>T.ENT</th>
+<th style="text-align:center">CANT</th>
+<th style="text-align:right">P. UNIT</th>
+<th style="text-align:right">TOTAL</th>
 </tr>
 </thead>
 <tbody>{rows_html}</tbody>
