@@ -57,11 +57,12 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS
+# 2. ESTILOS CSS (MEJORADO CON COLORES)
 # ==========================================
 st.markdown("""
     <style>
     .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+    
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
         background-color: #25D366; color: white !important;
@@ -70,31 +71,57 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s ease;
     }
     .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); }
+
     /* VISTA PREVIA */
     .preview-container { background-color: #525659; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; }
     .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Helvetica', 'Arial', sans-serif; }
+    
     .preview-header { border-bottom: 3px solid #eb0a1e; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
     .preview-title { font-size: 26px; font-weight: 900; color: #eb0a1e; margin: 0; line-height: 1.2; }
     .preview-subtitle { font-size: 14px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
+    
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 25px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; }
     .info-item { font-size: 12px; margin-bottom: 6px; color: #333; }
     .info-label { font-weight: 700; color: #555; display: inline-block; width: 70px; }
+    
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; table-layout: fixed; }
-    table.custom-table th { background-color: #eb0a1e !important; color: white !important; padding: 10px 8px; text-align: left; font-weight: bold; text-transform: uppercase; }
+    table.custom-table th { 
+        background-color: #eb0a1e !important; 
+        color: white !important; 
+        padding: 10px 8px; 
+        text-align: left; 
+        font-weight: bold; 
+        text-transform: uppercase;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     table.custom-table td { border-bottom: 1px solid #eee; padding: 8px; color: #333 !important; vertical-align: top; word-wrap: break-word; }
+    table.custom-table tr:last-child td { border-bottom: 2px solid #eb0a1e; }
+    
     .total-box { margin-left: auto; width: 300px; }
     .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
-    /* BADGES */
+    
+    /* COLORES BADGES PRIORIDAD */
     .badge-base { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; color: white; }
-    .badge-urg { background: #d32f2f; } 
-    .badge-med { background: #f57c00; } 
-    .badge-baj { background: #0288d1; } 
+    .badge-urg { background: #d32f2f; } /* Rojo */
+    .badge-med { background: #f57c00; } /* Naranja */
+    .badge-baj { background: #0288d1; } /* Azul */
+
+    /* COLORES BADGES ESTATUS */
     .status-base { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
     .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; }
     .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }
     .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }
     .status-rev { color: #b71c1c; background: #ffcdd2; border: 1px solid #b71c1c; }
+
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
+    
+    @media only screen and (max-width: 600px) {
+        .preview-paper { padding: 15px; min-width: 100%; }
+        .info-grid { grid-template-columns: 1fr; gap: 10px; }
+        .total-box { width: 100%; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -120,83 +147,91 @@ def cargar_catalogo():
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
+# --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE: LOGICA HÍBRIDA ---
 def analizador_inteligente_archivos(df_raw):
-    """
-    Versión Robusta: Funciona para DataFrames estructurados (Excel) y No Estructurados (PDF/OCR)
-    """
     hallazgos = []; metadata = {}
     
-    # Pre-procesamiento: Convertir todo a string mayúscula
+    # 1. Preprocesamiento general
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
     
-    # Patrones Regex
+    # 2. Definición de Patrones (Regex)
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
     patron_orden_8 = r'\b\d{8}\b'
-    # Patrón SKU: Busca "XXXXX-XXXXX" O "XXXXXXXXXX" (10-12 chars)
-    patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
+    # SKU con guión: 5 caracteres - 5 caracteres (ej. 90915-YZZF1)
+    patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b' 
+    # SKU plano: 10 o 12 caracteres alfanuméricos (ej. 04152YZZA1)
     patron_sku_pln = r'\b[A-Z0-9]{10,12}\b'
     
     keywords = {'ORDEN': ['ORDEN', 'FOLIO', 'OT', 'OS'], 'ASESOR': ['ASESOR', 'SA', 'ATENDIO', 'ADVISOR'], 'CLIENTE': ['CLIENTE', 'ATTN', 'NOMBRE']}
 
-    es_texto_plano = df.shape[1] == 1 # Si solo tiene 1 columna, es PDF o Imagen OCR
+    # 3. Detectar si es modo "Texto Plano" (PDF/IMG con 1 sola columna) o "Excel/CSV" (Multi-columna)
+    es_texto_plano = df.shape[1] < 2 
 
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
             val_str = str(val)
             
-            # --- BÚSQUEDA METADATA ---
+            # --- METADATA ---
             if 'VIN' not in metadata:
                 m = re.search(patron_vin, val_str)
                 if m: metadata['VIN'] = m.group(0)
             
             if 'ORDEN' not in metadata:
+                # Buscar número de 8 dígitos
                 m = re.search(patron_orden_8, val_str)
-                if m and any(k in val_str for k in keywords['ORDEN']): metadata['ORDEN'] = m.group(0)
-                elif m and not any(k in val_str for k in keywords['ORDEN']):
-                    # Si encontramos un numero de 8 digitos pero sin label, lo guardamos tentativo
-                    if not metadata.get('ORDEN'): metadata['ORDEN'] = m.group(0)
+                # Si está la keyword en la misma celda
+                if m and any(k in val_str for k in keywords['ORDEN']): 
+                    metadata['ORDEN'] = m.group(0)
+                # O si encontramos un numero de 8 dígitos "huérfano" que podría ser la orden
+                elif m and not metadata.get('ORDEN'):
+                    metadata['ORDEN'] = m.group(0)
             
-            # --- BÚSQUEDA SKU ---
+            if 'ASESOR' not in metadata and any(k in val_str for k in keywords['ASESOR']):
+                # Limpieza simple
+                cont = re.sub(r'(?:ASESOR|SA|ATENDIO|ADVISOR)[\:\.\-\s]*', '', val_str).strip()
+                if len(cont)>4 and not re.search(r'\d', cont): metadata['ASESOR'] = cont
+            
+            if 'CLIENTE' not in metadata and any(k in val_str for k in keywords['CLIENTE']):
+                cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val_str).strip()
+                if len(cont)>4: metadata['CLIENTE'] = cont
+
+            # --- DETECCIÓN DE SKU ---
             sku_encontrado = None
             
-            # 1. Intentar encontrar formato con guion (XXXXX-XXXXX) dentro del texto
+            # Intento 1: Formato con guión
             m_fmt = re.search(patron_sku_fmt, val_str)
             if m_fmt:
                 sku_encontrado = m_fmt.group(0)
             else:
-                # 2. Intentar encontrar formato plano (XXXXXXXXXX)
+                # Intento 2: Formato plano (evitando números puros que parecen SKU pero no lo son)
                 m_pln = re.search(patron_sku_pln, val_str)
-                # Validar que no sea un número de teléfono o VIN (usualmente VIN es 17, SKU es 10 o 12)
-                if m_pln and not val_str.isdigit() and len(m_pln.group(0)) in [10, 12]:
+                if m_pln and not val_str.isdigit():
                     sku_encontrado = m_pln.group(0)
-
+            
+            # Si encontramos SKU, buscamos la cantidad
             if sku_encontrado:
                 cant = 1
                 
-                # LÓGICA EXCEL (Busca en columna vecina)
                 if not es_texto_plano:
-                    try:
-                        idx_actual = df.columns.get_loc(c_idx)
-                        if idx_actual + 1 < len(df.columns):
-                            vecino = str(df.iloc[r_idx, idx_actual + 1]).replace('.0', '').strip()
+                    # LÓGICA EXCEL: Mirar columna vecina a la derecha
+                    try: 
+                        idx_num = df.columns.get_loc(c_idx)
+                        if idx_num + 1 < len(df.columns):
+                            vecino = str(df.iloc[r_idx, idx_num+1]).replace('.0', '').strip()
                             if vecino.isdigit(): cant = int(vecino)
                     except: pass
-                
-                # LÓGICA PDF/IMAGEN (Busca número suelto en la misma línea)
                 else:
-                    # Quitamos el SKU de la línea para no confundirlo con cantidad
+                    # LÓGICA PDF/IMG: Buscar número pequeño en la misma línea
                     linea_sin_sku = val_str.replace(sku_encontrado, "")
-                    # Buscamos números pequeños (1-99) que indiquen cantidad
-                    nums = re.findall(r'\b\d{1,2}\b', linea_sin_sku)
-                    if nums:
-                        # Tomamos el primer número que parezca cantidad (a veces hay precios, esto es heurístico)
-                        for n in nums:
-                            if n.isdigit() and 0 < int(n) < 100: 
-                                cant = int(n)
-                                break
-
+                    numeros = re.findall(r'\b\d{1,2}\b', linea_sin_sku)
+                    # Tomar el primer número entre 1 y 99 que encontremos
+                    for n in numeros:
+                        if n.isdigit() and 0 < int(n) < 100:
+                            cant = int(n)
+                            break
+                            
                 hallazgos.append({'sku': sku_encontrado, 'cant': cant})
-    
+            
     return hallazgos, metadata
 
 def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR", traducir=True):
@@ -206,8 +241,11 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
     else:
         desc = str(desc_raw)
     
+    # Cálculos internos
     iva_monto = (precio_base * cant) * 0.16
     total_linea = (precio_base * cant) + iva_monto
+    
+    # Precio Unitario CON IVA para visualización
     precio_unitario_con_iva = precio_base * 1.16
     
     st.session_state.carrito.append({
@@ -234,7 +272,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF
+# 4. GENERADOR PDF (LOGICA DE COLOR APLICADA)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -251,14 +289,19 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 7); self.set_text_color(0)
         self.cell(0, 4, 'CONTRATO DE ADHESIÓN Y TÉRMINOS LEGALES (NOM-174-SCFI-2007)', 0, 1, 'L')
         self.set_font('Arial', '', 5); self.set_text_color(60)
+        
         legales = (
             "1. VIGENCIA Y PRECIOS: Presupuesto válido por 24 horas. Precios en MXN incluyen IVA. Sujetos a cambio sin previo aviso.\n"
-            "2. PEDIDOS ESPECIALES: Para partes no disponibles en stock, se requiere un anticipo del 100%.\n"
-            "3. GARANTÍA: 12 meses en refacciones genuinas Toyota y 30 días en mano de obra.\n"
-            "4. CONSENTIMIENTO DIGITAL: La aceptación por medios electrónicos produce efectos jurídicos.\n"
-            "5. PRIVACIDAD: Sus datos personales son tratados conforme a la Ley."
+            "2. PEDIDOS ESPECIALES: Para partes no disponibles en stock, se requiere un anticipo del 100%. En caso de cancelación por causas imputables al consumidor, "
+            "se aplicará una pena convencional del 20% sobre el anticipo por gastos administrativos (Art. 92 LFPC).\n"
+            "3. GARANTÍA: 12 meses en refacciones genuinas Toyota y 30 días en mano de obra. La garantía de partes eléctricas está sujeta a diagnóstico técnico "
+            "para descartar daños por instalación externa (Art. 77 LFPC). Las partes eléctricas no admiten devolución si se encuentran en buen estado funcional.\n"
+            "4. CONSENTIMIENTO DIGITAL: De conformidad con los Art. 89 bis y 93 del Código de Comercio, la aceptación de este presupuesto a través de medios electrónicos "
+            "(WhatsApp, Correo) produce los mismos efectos jurídicos que la firma autógrafa.\n"
+            "5. PRIVACIDAD: Sus datos personales son tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares."
         )
         self.multi_cell(0, 2.5, legales, 0, 'J')
+        
         self.ln(5)
         y_firma = self.get_y()
         self.line(10, y_firma, 80, y_firma); self.line(110, y_firma, 190, y_firma)
@@ -272,65 +315,145 @@ def generar_pdf():
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=80)
     
-    # Datos Header
-    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9)
-    pdf.cell(100, 5, str(st.session_state.cliente)[:40], 0, 0)
+    # Header Info
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9)
+    cli_safe = str(st.session_state.cliente.upper()).encode('latin-1', 'replace').decode('latin-1')
+    pdf.cell(100, 5, cli_safe, 0, 0)
     pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
     
-    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'VIN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(100, 5, str(st.session_state.vin), 0, 0)
-    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, str(st.session_state.orden), 0, 1)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'VIN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(100, 5, str(st.session_state.vin.upper()), 0, 0)
+    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, str(st.session_state.orden.upper()), 0, 1)
     
-    pdf.ln(5)
-    # Tabla
+    pdf.set_x(10); pdf.set_font('Arial', 'B', 9)
+    pdf.cell(20, 5, 'ASESOR:', 0, 0); pdf.set_font('Arial', '', 9)
+    ase_safe = str(st.session_state.asesor.upper()).encode('latin-1', 'replace').decode('latin-1')
+    pdf.cell(100, 5, ase_safe, 0, 1)
+    pdf.ln(8)
+
+    # Tabla Header
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 6)
     cols = [20, 45, 15, 18, 25, 10, 20, 17, 20] 
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'PRIORIDAD', 'ESTATUS', 'TIEMPO ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
 
+    # Tabla Body
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
-    sub = 0; iva_total = 0; hay_pedido = False
+    sub = 0; iva_total = 0
+    hay_pedido = False
     
     for item in st.session_state.carrito:
         sub += item['Precio Base'] * item['Cantidad']
         iva_total += item['IVA']
-        if "Pedido" in item.get('Abasto','') or "Back" in item.get('Abasto',''): hay_pedido = True
-        
-        # Filas
-        sku = item['SKU'][:15]
-        desc = str(item['Descripción'])[:50]
-        # Validar altura
-        if pdf.get_y() > 250: pdf.add_page(); pdf.ln(10)
-        
-        pdf.cell(cols[0], 6, sku, 1, 0, 'C')
-        pdf.cell(cols[1], 6, desc, 1, 0, 'L')
-        pdf.cell(cols[2], 6, item['Prioridad'][:9], 1, 0, 'C')
-        pdf.cell(cols[3], 6, item['Abasto'].replace("⚠️ ","")[:10], 1, 0, 'C')
-        pdf.cell(cols[4], 6, str(item['Tiempo Entrega'])[:12], 1, 0, 'C')
-        pdf.cell(cols[5], 6, str(item['Cantidad']), 1, 0, 'C')
-        pdf.cell(cols[6], 6, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
-        pdf.cell(cols[7], 6, f"${item['IVA']/item['Cantidad']:,.2f}", 1, 0, 'R')
-        pdf.cell(cols[8], 6, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
+        abasto = item.get('Abasto', '⚠️ REVISAR')
+        if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
 
-    total = sub + iva_total
+        sku_txt = item['SKU'][:15]
+        desc_txt = str(item['Descripción']).encode('latin-1', 'replace').decode('latin-1')
+        prio = item.get('Prioridad', 'Medio')
+        st_txt = abasto.replace("⚠️ ", "").upper()
+        te_txt = str(item['Tiempo Entrega'])[:12]
+        
+        text_width = pdf.get_string_width(desc_txt)
+        col_width = cols[1] - 2 
+        lines = int(math.ceil(text_width / col_width))
+        if lines < 1: lines = 1
+        line_height = 4 
+        row_height = max(6, lines * line_height) 
+        
+        if pdf.get_y() + row_height > 260:
+            pdf.add_page()
+            pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 6)
+            for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
+            pdf.ln()
+            pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
+
+        y_start = pdf.get_y()
+        x_start = pdf.get_x()
+
+        # SKU
+        pdf.cell(cols[0], row_height, sku_txt, 1, 0, 'C')
+        
+        # Descripcion
+        x_desc = pdf.get_x()
+        y_desc = pdf.get_y()
+        pdf.rect(x_desc, y_desc, cols[1], row_height)
+        pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
+        pdf.set_xy(x_desc + cols[1], y_desc)
+        
+        # --- COLOREADO PRIORIDAD (FONDO) ---
+        if prio == 'Urgente':
+            pdf.set_fill_color(211, 47, 47) # Rojo
+            pdf.set_text_color(255, 255, 255)
+        elif prio == 'Medio':
+            pdf.set_fill_color(245, 124, 0) # Naranja
+            pdf.set_text_color(255, 255, 255)
+        else: # Bajo
+            pdf.set_fill_color(2, 136, 209) # Azul
+            pdf.set_text_color(255, 255, 255)
+
+        pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True) # Fill=True
+        
+        # Reset color
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(0, 0, 0)
+        
+        # --- COLOREADO ESTATUS (FONDO) ---
+        if "Disponible" in abasto:
+            pdf.set_fill_color(46, 125, 50) # Verde
+            pdf.set_text_color(255, 255, 255)
+        elif "Pedido" in abasto:
+            pdf.set_fill_color(239, 108, 0) # Naranja Pedido
+            pdf.set_text_color(255, 255, 255)
+        elif "Back" in abasto:
+            pdf.set_fill_color(33, 33, 33) # Negro/Gris Oscuro
+            pdf.set_text_color(255, 255, 255)
+        else: # Revisar
+            pdf.set_fill_color(198, 40, 40) # Rojo Revisar
+            pdf.set_text_color(255, 255, 255)
+
+        pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True) # Fill=True
+
+        # Reset Color
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(0, 0, 0)
+        
+        # Resto Columnas
+        pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
+        pdf.cell(cols[5], row_height, str(item['Cantidad']), 1, 0, 'C')
+        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R') 
+        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R') 
+        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R') 
+
     pdf.ln(5)
-    pdf.set_x(120)
-    pdf.cell(40, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
-    pdf.set_x(120)
-    pdf.cell(40, 5, 'IVA 16%:', 0, 0, 'R'); pdf.cell(30, 5, f"${iva_total:,.2f}", 0, 1, 'R')
-    pdf.set_x(120); pdf.set_font('Arial', 'B', 10)
-    pdf.cell(40, 6, 'TOTAL:', 0, 0, 'R'); pdf.cell(30, 6, f"${total:,.2f}", 0, 1, 'R')
+    total = sub + iva_total
+    if hay_pedido:
+        pdf.set_x(130)
+        pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
+        pdf.cell(60, 5, "** REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL **", 0, 1, 'R')
+
+    pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
+    pdf.cell(30, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
+    pdf.set_x(130)
+    pdf.cell(30, 5, 'IVA 16%:', 0, 0, 'R'); pdf.cell(30, 5, f"${iva_total:,.2f}", 0, 1, 'R')
+    pdf.set_x(130); pdf.set_font('Arial', 'B', 11); pdf.set_text_color(235, 10, 30)
+    pdf.cell(30, 7, 'GRAN TOTAL:', 0, 0, 'R'); pdf.cell(30, 7, f"${total:,.2f}", 0, 1, 'R')
     
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-if df_db is None: st.error("⚠️ Falta lista_precios.zip en el directorio."); st.stop()
+if df_db is None: st.error("Falta lista_precios.zip"); st.stop()
 
 # --- SIDEBAR ---
 with st.sidebar:
-    if os.path.exists("logo.png"): st.image("logo.png", use_container_width=True)
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+    st.divider()
+    
     st.markdown("### 🚘 Datos del Servicio")
     st.session_state.orden = st.text_input("Orden", st.session_state.orden)
     st.session_state.vin = st.text_input("VIN", st.session_state.vin)
@@ -339,63 +462,53 @@ with st.sidebar:
     
     st.divider()
     st.markdown("### 🤖 Carga Inteligente")
+    
     uploaded_file = st.file_uploader("Excel / CSV / PDF / IMG", type=['xlsx', 'csv', 'pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
     if uploaded_file and st.button("Analizar Archivo", type="primary"):
-        with st.status("Procesando...", expanded=True) as status:
+        with st.status("Procesando...", expanded=False) as status:
             try:
                 df_up = None
                 fname = uploaded_file.name.lower()
                 
-                # 1. CARGA EXCEL / CSV
+                # --- CAMBIO: LÓGICA DE LECTURA SEGÚN EXTENSIÓN ---
                 if fname.endswith('.csv'):
                     df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
-                elif fname.endswith('.xlsx') or fname.endswith('.xls'):
+                elif fname.endswith(('.xlsx', '.xls')):
                     df_up = pd.read_excel(uploaded_file)
-                
-                # 2. CARGA PDF
                 elif fname.endswith('.pdf'):
                     text_content = []
                     with pdfplumber.open(uploaded_file) as pdf:
                         for page in pdf.pages:
-                            # Extract tables si existen, si no texto
                             text_content.append(page.extract_text())
                     full_text = "\n".join(filter(None, text_content))
                     lines = full_text.split('\n')
                     df_up = pd.DataFrame(lines, columns=['Content'])
-                
-                # 3. CARGA IMAGEN (OCR)
                 elif fname.endswith(('.png', '.jpg', '.jpeg')):
                     try:
                         image = Image.open(uploaded_file)
                         text = pytesseract.image_to_string(image)
                         lines = text.split('\n')
                         df_up = pd.DataFrame(lines, columns=['Content'])
-                    except Exception as e:
-                        st.error("Error OCR. Verifique Tesseract instalado.")
+                    except:
+                        st.error("Error OCR. Se requiere Tesseract instalado.")
                         df_up = None
-
-                # 4. PROCESAMIENTO
+                
+                # PROCESAMIENTO
                 if df_up is not None:
                     items, meta = analizador_inteligente_archivos(df_up)
+                    if 'CLIENTE' in meta and not st.session_state.cliente: st.session_state.cliente = meta['CLIENTE']
+                    if 'VIN' in meta and not st.session_state.vin: st.session_state.vin = meta['VIN']
+                    if 'ORDEN' in meta and not st.session_state.orden: st.session_state.orden = meta['ORDEN']
+                    if 'ASESOR' in meta and not st.session_state.asesor: st.session_state.asesor = meta['ASESOR']
                     
-                    # Actualizar metadata si falta
-                    if not st.session_state.cliente and 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
-                    if not st.session_state.vin and 'VIN' in meta: st.session_state.vin = meta['VIN']
-                    if not st.session_state.orden and 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
-                    if not st.session_state.asesor and 'ASESOR' in meta: st.session_state.asesor = meta['ASESOR']
-                    
-                    exitos = 0
-                    fallos = []
-                    
+                    exitos, fallos = 0, []
                     for it in items:
-                        # Limpieza para match DB (sin guiones)
                         clean = str(it['sku']).upper().replace('-', '').strip()
                         match = df_db[df_db['SKU_CLEAN'] == clean]
-                        
                         if not match.empty:
                             row = match.iloc[0]
-                            # Verificar si ya existe en carrito para sumar cantidad en vez de duplicar
+                            # Verificar duplicados para sumar cantidad
                             existe = False
                             for prod in st.session_state.carrito:
                                 if prod['SKU'] == row[col_sku_db]:
@@ -407,48 +520,73 @@ with st.sidebar:
                             
                             if not existe:
                                 agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR", traducir=True)
-                            
                             exitos += 1
-                        else:
-                            fallos.append(it['sku'])
-                    
-                    status.update(label=f"✅ {exitos} items importados correctamente.", state="complete")
-                    if fallos: st.warning(f"No encontrados en catálogo: {', '.join(fallos)}")
-                    if exitos > 0: st.rerun()
+                        else: fallos.append(it['sku'])
+                    status.update(label=f"✅ {exitos} items importados", state="complete")
+                    st.rerun()
                 else:
-                    st.error("No se pudo leer el archivo.")
-            except Exception as e: 
-                st.error(f"Error crítico: {str(e)}")
+                    st.error("Formato no soportado o error al leer.")
+
+            except Exception as e: st.error(f"Error: {e}")
 
     st.divider()
-    if st.button("🗑️ Limpieza Total", type="secondary", use_container_width=True):
+    if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", use_container_width=True):
         limpiar_todo()
         st.rerun()
 
 # --- MAIN ---
 st.title("Toyota Los Fuertes")
-st.caption("Sistema Integrado de Cotización (OCR + AI Regex)")
+st.caption("Sistema de Cotización de Servicios y Refacciones")
 
-with st.expander("🔎 Agregar Ítems Manualmente", expanded=True):
-    col_l, col_r = st.columns([1.2, 1])
-    with col_l:
-        q = st.text_input("Buscar SKU o Nombre", key="search_q", placeholder="Ej. 04152...")
-        if q:
-            b_raw = q.upper().strip().replace('-', '')
-            mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['SKU_CLEAN'].str.contains(b_raw, na=False)
-            for _, row in df_db[mask].head(3).iterrows():
-                c1, c2, c3 = st.columns([3, 0.7, 1])
-                sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']
-                c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
-                if c3.button("➕", key=f"ad_{sku_db}"):
-                    agregar_item_callback(sku_db, row[col_desc_db], pr_db, 1, "Refacción")
-                    st.toast("Agregado", icon="✅"); st.rerun()
+with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=True):
+    tipo_add = st.radio("Tipo de Ítem:", ["Refacción 🔧", "Mano de Obra 🛠️"], horizontal=True, label_visibility="collapsed")
+    
+    if tipo_add == "Refacción 🔧":
+        col_l, col_r = st.columns([1.2, 1])
+        with col_l:
+            q = st.text_input("Buscar SKU o Nombre", key="search_q", placeholder="Ej. Filtro, Balatas...")
+            if q:
+                b_raw = q.upper().strip().replace('-', '')
+                mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['SKU_CLEAN'].str.contains(b_raw, na=False)
+                for _, row in df_db[mask].head(3).iterrows():
+                    c1, c2, c3 = st.columns([3, 0.7, 1])
+                    sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']
+                    c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
+                    if c2.button("✏️", key=f"ed_{sku_db}"):
+                        cargar_en_manual(sku_db, row[col_desc_db], pr_db); st.rerun()
+                    c3.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
+        with col_r:
+            with st.form("manual"):
+                st.markdown("**Agregar Manual (Refacción)**")
+                c_s, c_p = st.columns([1, 1])
+                m_sku = c_s.text_input("SKU", value=st.session_state.temp_sku)
+                m_pr = c_p.number_input("Precio Base", 0.0, value=float(st.session_state.temp_precio))
+                m_desc = st.text_input("Descripción", value=st.session_state.temp_desc)
+                if st.form_submit_button("Agregar Manual"):
+                    agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR", traducir=False)
+                    st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
+                    st.rerun()
+    else:
+        st.markdown("**Agregar Mano de Obra (Servicio)**")
+        with st.form("form_mo"):
+            c1, c2, c3 = st.columns([2, 1, 1])
+            mo_desc = c1.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Diagnóstico...")
+            mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
+            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=600.0, step=50.0) 
+            if st.form_submit_button("Agregar Servicio 🛠️"):
+                total_mo = mo_hrs * mo_cost
+                desc_final = f"{mo_desc} ({mo_hrs} hrs)"
+                agregar_item_callback("MO-TALLER", desc_final, total_mo, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
+                st.toast("Mano de Obra Agregada", icon="✅")
+                st.rerun()
 
 st.divider()
+
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
     df_c = pd.DataFrame(st.session_state.carrito)
+    
     edited = st.data_editor(
         df_c,
         column_config={
@@ -456,10 +594,15 @@ if st.session_state.carrito:
             "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small", required= True),
             "Precio Unitario (c/IVA)": st.column_config.NumberColumn("P. Unit. (Neto)", format="$%.2f", disabled=True),
             "Importe Total": st.column_config.NumberColumn("Total Línea", format="$%.2f", disabled=True),
+            "Precio Base": None, 
+            "IVA": None, 
+            "Tipo": None, "Estatus": None,
             "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
+            "Descripción": st.column_config.TextColumn(width="medium"),
             "SKU": st.column_config.TextColumn(width="small", disabled=True),
         },
-        use_container_width=True, num_rows="dynamic", key="editor_cart"
+        use_container_width=True,
+        num_rows="dynamic", key="editor_cart"
     )
 
     if not edited.equals(df_c):
@@ -474,14 +617,106 @@ if st.session_state.carrito:
     total_gral = subtotal * 1.16
 
     c1, c2, c3 = st.columns(3)
+    
     with c1:
-        if st.button("👁️ Vista Previa", type="secondary", use_container_width=True): toggle_preview(); st.rerun()
+        if st.button("👁️ Vista Previa / Cerrar", type="secondary", use_container_width=True):
+            toggle_preview(); st.rerun()
+            
     with c2:
         pdf_bytes = generar_pdf()
-        st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
+        st.download_button("📄 Descargar PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
 
-# VISTA PREVIA (Simplificada para mantener código corto)
-if st.session_state.ver_preview:
-    st.markdown("---")
-    st.markdown(f"### Vista Previa: {st.session_state.cliente}")
-    st.info("Visualización HTML activa (similar al PDF generado).")
+    with c3:
+        items_wa = ""
+        for i in st.session_state.carrito:
+            items_wa += f"▪️ {i['Cantidad']}x {i['Descripción']} (${i['Precio Unitario (c/IVA)']:,.2f} c/u)\n"
+        
+        ase_firma = st.session_state.asesor if st.session_state.asesor else "Asesor de Servicio"
+        
+        msg_raw = (
+            f"Estimado/a *{st.session_state.cliente}*,\n\n"
+            f"Por medio del presente, le compartimos el presupuesto solicitado para su vehículo en *Toyota Los Fuertes*:\n\n"
+            f"🔹 VIN: {st.session_state.vin}\n"
+            f"🔹 Orden: {st.session_state.orden}\n\n"
+            f"*DETALLE DEL PRESUPUESTO:*\n"
+            f"{items_wa}\n"
+            f"--------------------\n"
+            f"💰 *GRAN TOTAL: ${total_gral:,.2f} (IVA Incluido)*\n"
+            f"--------------------\n\n"
+            f"Quedamos atentos a su amable autorización.\n\n"
+            f"Atentamente,\n"
+            f"*{ase_firma}*\n"
+            f"Toyota Los Fuertes"
+        )
+        msg_enc = urllib.parse.quote(msg_raw)
+        st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
+
+# --- VISTA PREVIA ADAPTATIVA (CON COLORES COMPLETOS) ---
+if st.session_state.ver_preview and st.session_state.carrito:
+    rows_html = ""
+    hay_pedido_prev = False
+    for item in st.session_state.carrito:
+        # Lógica colores Prioridad
+        p = item['Prioridad']
+        p_class = "badge-base " + ("badge-urg" if p == "Urgente" else ("badge-med" if p == "Medio" else "badge-baj"))
+        
+        # Lógica colores Estatus
+        a_val = item.get('Abasto', '⚠️ REVISAR')
+        a_class = "status-base " + ("status-disp" if "Disponible" in a_val else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev")))
+        
+        if "Pedido" in a_val or "Back" in a_val: hay_pedido_prev = True
+        
+        rows_html += f"""<tr>
+<td>{item['SKU']}</td>
+<td style="max-width: 280px;">{item['Descripción']}</td>
+<td><span class="{p_class}">{p}</span></td>
+<td><span class="{a_class}">{a_val}</span></td>
+<td>{item['Tiempo Entrega']}</td>
+<td style="text-align:center">{item['Cantidad']}</td>
+<td style="text-align:right">${item['Precio Unitario (c/IVA)']:,.2f}</td>
+<td style="text-align:right">${item['Importe Total']:,.2f}</td>
+</tr>"""
+    
+    anticipo_html = '<div class="anticipo-warning">⚠️ REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL</div>' if hay_pedido_prev else ''
+
+    html_preview = f"""<div class="preview-container">
+<div class="preview-paper">
+<div class="preview-header">
+<div>
+<h1 class="preview-title">TOYOTA LOS FUERTES</h1>
+<div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div>
+</div>
+</div>
+<div class="info-grid">
+<div>
+<div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div>
+<div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div>
+</div>
+<div>
+<div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div>
+<div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div>
+<div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div>
+</div>
+</div>
+<table class="custom-table">
+<thead>
+<tr>
+<th style="width:12%">CÓDIGO</th>
+<th style="width:35%">DESCRIPCIÓN</th>
+<th>PRIORIDAD</th>
+<th>ESTATUS</th>
+<th>T.ENT</th>
+<th style="text-align:center">CANT</th>
+<th style="text-align:right">PRECIO UNITARIO (CON IVA)</th>
+<th style="text-align:right">TOTAL</th>
+</tr>
+</thead>
+<tbody>{rows_html}</tbody>
+</table>
+<div class="total-box">
+<div class="total-final">TOTAL: ${total_gral:,.2f}</div>
+{anticipo_html}
+</div>
+</div>
+</div>"""
+    st.markdown(html_preview, unsafe_allow_html=True)
