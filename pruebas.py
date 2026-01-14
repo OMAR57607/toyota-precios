@@ -43,7 +43,7 @@ def limpiar_todo():
     st.session_state.cliente = ""
     st.session_state.vin = ""
     st.session_state.orden = ""
-    # st.session_state.asesor = "" # Opcional: descomentar si se quiere borrar asesor
+    # st.session_state.asesor = "" 
     st.session_state.temp_sku = ""
     st.session_state.temp_desc = ""
     st.session_state.temp_precio = 0.0
@@ -52,7 +52,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (MEJORADO PARA TEXT WRAPPING)
+# 2. ESTILOS CSS (MEJORADO PARA TITULOS COMPLETOS)
 # ==========================================
 st.markdown("""
     <style>
@@ -69,7 +69,7 @@ st.markdown("""
 
     /* VISTA PREVIA */
     .preview-container { background-color: #525659; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; }
-    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 900px; min-width: 600px; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Helvetica', 'Arial', sans-serif; }
+    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Helvetica', 'Arial', sans-serif; }
     
     .preview-header { border-bottom: 3px solid #eb0a1e; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
     .preview-title { font-size: 26px; font-weight: 900; color: #eb0a1e; margin: 0; line-height: 1.2; }
@@ -79,9 +79,19 @@ st.markdown("""
     .info-item { font-size: 12px; margin-bottom: 6px; color: #333; }
     .info-label { font-weight: 700; color: #555; display: inline-block; width: 70px; }
     
-    /* TABLA: Configuración para ajustar texto (Wrapping) */
+    /* TABLA: Configuración para ajustar texto y títulos completos */
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; table-layout: fixed; }
-    table.custom-table th { background-color: #eb0a1e !important; color: white !important; padding: 10px 8px; text-align: left; font-weight: bold; text-transform: uppercase; }
+    table.custom-table th { 
+        background-color: #eb0a1e !important; 
+        color: white !important; 
+        padding: 10px 8px; 
+        text-align: left; 
+        font-weight: bold; 
+        text-transform: uppercase;
+        white-space: nowrap; /* Evita que el título se corte */
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     table.custom-table td { border-bottom: 1px solid #eee; padding: 8px; color: #333 !important; vertical-align: top; word-wrap: break-word; }
     table.custom-table tr:last-child td { border-bottom: 2px solid #eb0a1e; }
     
@@ -189,14 +199,30 @@ def analizador_inteligente_archivos(df_raw):
             
     return hallazgos, metadata
 
-def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
+def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR"):
     try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
     except: desc = str(desc_raw)
-    iva = (precio * cant) * 0.16
+    
+    # Cálculos internos
+    iva_monto = (precio_base * cant) * 0.16
+    total_linea = (precio_base * cant) + iva_monto
+    
+    # Precio Unitario CON IVA para visualización
+    precio_unitario_con_iva = precio_base * 1.16
+    
     st.session_state.carrito.append({
-        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto,
-        "Tiempo Entrega": "", "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
-        "Importe Total": (precio * cant) + iva, "Estatus": "Disponible", "Tipo": tipo
+        "SKU": sku, 
+        "Descripción": desc, 
+        "Prioridad": prioridad, 
+        "Abasto": abasto,
+        "Tiempo Entrega": "", 
+        "Cantidad": cant, 
+        "Precio Base": precio_base, # Guardamos base para PDF detallado
+        "Precio Unitario (c/IVA)": precio_unitario_con_iva, # Visualización usuario
+        "IVA": iva_monto, 
+        "Importe Total": total_linea, 
+        "Estatus": "Disponible", 
+        "Tipo": tipo
     })
 
 def cargar_en_manual(sku, desc, precio):
@@ -208,7 +234,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF AVANZADO (MULTICELL ROW)
+# 4. GENERADOR PDF AVANZADO (TÍTULOS COMPLETOS Y DETALLE)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -268,14 +294,15 @@ def generar_pdf():
     pdf.cell(100, 5, ase_safe, 0, 1)
     pdf.ln(8)
 
-    # Tabla Header
-    pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 7)
-    cols = [22, 45, 12, 18, 20, 10, 20, 20, 23]
-    headers = ['CODIGO', 'DESCRIPCION', 'PRIOR', 'STAT', 'T.ENT', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
+    # Tabla Header - TÍTULOS COMPLETOS
+    pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 6)
+    # Ajuste de anchos para que quepan títulos completos
+    cols = [20, 45, 15, 18, 25, 10, 20, 17, 20] 
+    headers = ['CÓDIGO', 'DESCRIPCIÓN', 'PRIORIDAD', 'ESTATUS', 'TIEMPO ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
 
-    # Tabla Body con Ajuste de Altura (Redimensionamiento)
+    # Tabla Body
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     sub = 0; iva_total = 0
     hay_pedido = False
@@ -289,75 +316,55 @@ def generar_pdf():
         # Preparar Textos
         sku_txt = item['SKU'][:15]
         desc_txt = str(item['Descripción']).encode('latin-1', 'replace').decode('latin-1')
-        
         prio = item.get('Prioridad', 'Medio')
-        prio_txt = prio[:1].upper()
-        
-        st_txt = abasto.replace("⚠️ ", "").replace("Disponible","DISP").replace("Por Pedido","PED").replace("Back Order","BO").upper()
-        te_txt = str(item['Tiempo Entrega'])[:10]
+        st_txt = abasto.replace("⚠️ ", "").upper()
+        te_txt = str(item['Tiempo Entrega'])[:12]
         
         # --- CÁLCULO DE ALTURA DINÁMICA DE LA FILA ---
-        # Calculamos cuántas líneas ocupará la descripción en un ancho de 45 (cols[1])
-        # Aproximación: ancho del texto / ancho de columna
-        # Mejor método en FPDF plano: GetStringWidth
         text_width = pdf.get_string_width(desc_txt)
-        col_width = cols[1] - 2 # Margen interno
-        
-        # Número de líneas estimadas
+        col_width = cols[1] - 2 
         lines = int(math.ceil(text_width / col_width))
         if lines < 1: lines = 1
+        line_height = 4 
+        row_height = max(6, lines * line_height) 
         
-        line_height = 4 # Altura por línea de texto
-        row_height = max(6, lines * line_height) # Altura mínima 6, o lo que ocupe el texto
-        
-        # Verificar Salto de Página
         if pdf.get_y() + row_height > 260:
             pdf.add_page()
-            # Reimprimir header tabla si salta
-            pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 7)
+            pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 6)
             for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
             pdf.ln()
             pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
 
-        # Guardar posición Y inicial
         y_start = pdf.get_y()
         x_start = pdf.get_x()
 
-        # IMPRIMIR CELDAS (Usando posición absoluta para Description MultiCell)
-        
         # Col 0: SKU
         pdf.cell(cols[0], row_height, sku_txt, 1, 0, 'C')
         
         # Col 1: Descripción (MultiCell)
         x_desc = pdf.get_x()
         y_desc = pdf.get_y()
-        
-        # Dibujar el borde de la celda descripción (Rectángulo vacío)
         pdf.rect(x_desc, y_desc, cols[1], row_height)
-        
-        # Imprimir el texto dentro (MultiCell sin borde para no duplicar lineas internas)
         pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
-        
-        # Regresar el cursor a la derecha de la columna descripción
         pdf.set_xy(x_desc + cols[1], y_desc)
         
-        # Col 2: Prioridad (Con color)
+        # Col 2: Prioridad
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
-        pdf.cell(cols[2], row_height, prio_txt, 1, 0, 'C')
+        pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        # Col 3: Status (Con color)
-        if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
-        elif abasto == "Por Pedido" or abasto == "Back Order": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
+        # Col 3: Status
+        if "REVISAR" in abasto: pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
+        elif "Pedido" in abasto or "Back" in abasto: pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         
-        # Resto de columnas
+        # Resto de columnas (Detalle Financiero)
         pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
         pdf.cell(cols[5], row_height, str(item['Cantidad']), 1, 0, 'C')
-        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
-        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R')
-        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R') # Salto de línea al final
+        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R') # PRECIO BASE
+        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R') # IVA
+        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R') # TOTAL LINEA
 
     pdf.ln(5)
     total = sub + iva_total
@@ -449,7 +456,7 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                 st.markdown("**Agregar Manual (Refacción)**")
                 c_s, c_p = st.columns([1, 1])
                 m_sku = c_s.text_input("SKU", value=st.session_state.temp_sku)
-                m_pr = c_p.number_input("Precio", 0.0, value=float(st.session_state.temp_precio))
+                m_pr = c_p.number_input("Precio Base", 0.0, value=float(st.session_state.temp_precio))
                 m_desc = st.text_input("Descripción", value=st.session_state.temp_desc)
                 if st.form_submit_button("Agregar Manual"):
                     agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción")
@@ -476,15 +483,17 @@ st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 if st.session_state.carrito:
     df_c = pd.DataFrame(st.session_state.carrito)
     
-    # RESTAURADO: Prioridades completas (Urgente, Medio, Bajo)
+    # Editor de Datos: Muestra "Precio Unitario (c/IVA)" al usuario
     edited = st.data_editor(
         df_c,
         column_config={
             "Prioridad": st.column_config.SelectboxColumn(options=["Urgente", "Medio", "Bajo"], width="small", required=True),
             "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small"),
-            "Precio Base": st.column_config.NumberColumn("P. Unit.", format="$%.2f", disabled=True),
-            "Importe Total": st.column_config.NumberColumn("Total", format="$%.2f", disabled=True),
-            "IVA": None, "Tipo": None, "Estatus": None,
+            "Precio Unitario (c/IVA)": st.column_config.NumberColumn("P. Unit. (Neto)", format="$%.2f", disabled=True),
+            "Importe Total": st.column_config.NumberColumn("Total Línea", format="$%.2f", disabled=True),
+            "Precio Base": None, # Oculto, usado para PDF
+            "IVA": None, 
+            "Tipo": None, "Estatus": None,
             "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
             "Descripción": st.column_config.TextColumn(width="medium"),
             "SKU": st.column_config.TextColumn(width="small", disabled=True),
@@ -496,6 +505,7 @@ if st.session_state.carrito:
     if not edited.equals(df_c):
         new_cart = edited.to_dict('records')
         for r in new_cart:
+            # Recalcular montos si cambia la cantidad
             r['IVA'] = (r['Precio Base'] * r['Cantidad']) * 0.16
             r['Importe Total'] = (r['Precio Base'] * r['Cantidad']) + r['IVA']
         st.session_state.carrito = new_cart
@@ -517,7 +527,7 @@ if st.session_state.carrito:
     with c3:
         items_wa = ""
         for i in st.session_state.carrito:
-            items_wa += f"▪️ {i['Cantidad']}x {i['Descripción']} (${i['Precio Base']:,.2f} c/u)\n"
+            items_wa += f"▪️ {i['Cantidad']}x {i['Descripción']} (${i['Precio Unitario (c/IVA)']:,.2f} c/u)\n"
         
         ase_firma = st.session_state.asesor if st.session_state.asesor else "Asesor de Servicio"
         
@@ -539,7 +549,7 @@ if st.session_state.carrito:
         msg_enc = urllib.parse.quote(msg_raw)
         st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
-# --- VISTA PREVIA ADAPTATIVA (TEXT WRAPPING) ---
+# --- VISTA PREVIA ADAPTATIVA ---
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
@@ -549,7 +559,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
         a_style = "status-disp" if a_val == "Disponible" else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev"))
         if "Pedido" in a_val or "Back" in a_val: hay_pedido_prev = True
         
-        # HTML con max-width en Descripción para forzar salto de línea
+        # Muestra P. UNITARIO CON IVA
         rows_html += f"""<tr>
 <td>{item['SKU']}</td>
 <td style="max-width: 280px;">{item['Descripción']}</td>
@@ -557,7 +567,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
 <td><span class="{a_style}">{a_val}</span></td>
 <td>{item['Tiempo Entrega']}</td>
 <td style="text-align:center">{item['Cantidad']}</td>
-<td style="text-align:right">${item['Precio Base']:,.2f}</td>
+<td style="text-align:right">${item['Precio Unitario (c/IVA)']:,.2f}</td>
 <td style="text-align:right">${item['Importe Total']:,.2f}</td>
 </tr>"""
     
@@ -588,10 +598,10 @@ if st.session_state.ver_preview and st.session_state.carrito:
 <th style="width:12%">CÓDIGO</th>
 <th style="width:35%">DESCRIPCIÓN</th>
 <th>PRIORIDAD</th>
-<th>ABASTO</th>
+<th>ESTATUS</th>
 <th>T.ENT</th>
 <th style="text-align:center">CANT</th>
-<th style="text-align:right">P. UNIT</th>
+<th style="text-align:right">PRECIO UNITARIO (CON IVA)</th>
 <th style="text-align:right">TOTAL</th>
 </tr>
 </thead>
