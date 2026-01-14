@@ -212,7 +212,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 3. GENERADOR PDF (CLASE FPDF MEJORADA)
+# 3. GENERADOR PDF (CORE FIX)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -225,51 +225,52 @@ class PDF(FPDF):
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
 
     def footer(self):
-        # CAMBIO: Posición mucho más alta para dar espacio
-        self.set_y(-75) 
+        self.set_y(-70)
         self.set_font('Arial', 'B', 7)
         self.set_text_color(0)
         self.cell(0, 4, 'TÉRMINOS, CONDICIONES Y CONSENTIMIENTO DIGITAL', 0, 1, 'L')
-        
-        # CAMBIO: Fuente más pequeña para que quepa todo sin romperse
         self.set_font('Arial', '', 5) 
         self.set_text_color(60)
         
         legales = (
             "1. PEDIDOS ESPECIALES: Requieren el 100% DE PAGO ANTICIPADO. No cancelaciones ni devoluciones.\n"
-            "2. PARTES ELÉCTRICAS: No se aceptan CAMBIOS ni DEVOLUCIONES. Garantía sujeta a dictamen técnico del fabricante.\n"
-            "3. PROFECO: Servicio conforme a la NOM-174-SCFI-2007 (Información en servicios). Contrato de Adhesión registrado.\n"
-            "4. ACEPTACIÓN DIGITAL: De conformidad con el Art. 89 y 93 del Código de Comercio, la aceptación de este presupuesto por medios "
-            "electrónicos, ópticos o de cualquier otra tecnología (ej. WhatsApp, Correo), produce los mismos efectos jurídicos que la firma autógrafa.\n"
-            "5. PRIVACIDAD: El tratamiento de sus datos personales se realiza conforme a la Ley Federal de Protección de Datos Personales en "
-            "Posesión de los Particulares (LFPDPPP). Aviso de Privacidad disponible en mostrador.\n"
-            "6. GARANTÍA: 30 días MO / 12 meses Refacciones. Vigencia: 24 horas."
+            "2. PARTES ELECTRICAS: No se aceptan CAMBIOS ni DEVOLUCIONES. Garantia sujeta a dictamen tecnico del fabricante.\n"
+            "3. PROFECO: Servicio conforme a la NOM-174-SCFI-2007 (Informacion en servicios). Contrato de Adhesion registrado.\n"
+            "4. ACEPTACION DIGITAL: De conformidad con el Art. 89 y 93 del Codigo de Comercio, la aceptacion de este presupuesto por medios "
+            "electronicos, opticos o de cualquier otra tecnologia (ej. WhatsApp, Correo), produce los mismos efectos juridicos que la firma autografa.\n"
+            "5. PRIVACIDAD: El tratamiento de sus datos personales se realiza conforme a la Ley Federal de Proteccion de Datos Personales en "
+            "Posesion de los Particulares (LFPDPPP). Aviso de Privacidad disponible en mostrador.\n"
+            "6. GARANTIA: 30 dias MO / 12 meses Refacciones. Vigencia: 24 horas."
         )
-        # CAMBIO: Altura de línea reducida (de 3 a 2.5) para compactar texto
         self.multi_cell(0, 2.5, legales, 0, 'J')
-        
         self.set_y(-15); self.set_font('Arial', 'I', 8); self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
 def generar_pdf():
     pdf = PDF()
     pdf.add_page()
-    # CAMBIO: Margen inferior aumentado a 85 para cortar la tabla mucho antes y proteger el footer
     pdf.set_auto_page_break(auto=True, margin=85)
     
     pdf.set_fill_color(245); pdf.rect(10, 35, 190, 22, 'F')
     pdf.set_xy(12, 38); pdf.set_font('Arial', 'B', 9)
-    pdf.cell(18, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.cliente.upper(), 0, 0)
+    pdf.cell(18, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9)
+    cli_safe = str(st.session_state.cliente.upper()).encode('latin-1', 'replace').decode('latin-1')
+    pdf.cell(90, 5, cli_safe, 0, 0)
+    
     pdf.set_font('Arial', 'B', 9); pdf.cell(15, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
+    
     pdf.set_x(12); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'VIN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.vin.upper(), 0, 0)
     pdf.set_font('Arial', 'B', 9); pdf.cell(15, 5, 'ORDEN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, st.session_state.orden.upper(), 0, 1)
+    
     pdf.set_x(12); pdf.set_font('Arial', 'B', 9)
-    pdf.cell(18, 5, 'ASESOR:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.asesor.upper(), 0, 1)
+    pdf.cell(18, 5, 'ASESOR:', 0, 0); pdf.set_font('Arial', '', 9)
+    ase_safe = str(st.session_state.asesor.upper()).encode('latin-1', 'replace').decode('latin-1')
+    pdf.cell(90, 5, ase_safe, 0, 1)
     pdf.ln(8)
     
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 8)
     cols = [25, 55, 18, 20, 12, 25, 25, 12]
-    headers = ['CÓDIGO', 'DESCRIPCIÓN', 'PRIORIDAD', 'STATUS', 'CT', 'UNITARIO', 'TOTAL', 'TP']
+    headers = ['CODIGO', 'DESCRIPCION', 'PRIORIDAD', 'STATUS', 'CT', 'UNITARIO', 'TOTAL', 'TP']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
     
@@ -283,7 +284,9 @@ def generar_pdf():
         
         pdf.set_text_color(0)
         pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
-        pdf.cell(cols[1], 6, item['Descripción'][:45], 'B', 0, 'L')
+        
+        desc_safe = str(item['Descripción'][:45]).encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(cols[1], 6, desc_safe, 'B', 0, 'L')
         
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[2], 6, prio.upper(), 'B', 0, 'C')
@@ -292,6 +295,7 @@ def generar_pdf():
         if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         elif abasto == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
         st_txt = abasto.replace("⚠️ ", "").upper()
+        st_txt = st_txt.encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(cols[3], 6, st_txt, 'B', 0, 'C')
         
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
@@ -315,6 +319,7 @@ def generar_pdf():
     pdf.set_x(130); pdf.cell(30, 6, 'IVA (16%):', 0, 0, 'R'); pdf.cell(30, 6, f"${iva:,.2f}", 0, 1, 'R')
     pdf.set_x(130); pdf.set_font('Arial', 'B', 11); pdf.set_text_color(235, 10, 30)
     pdf.cell(30, 8, 'TOTAL:', 0, 0, 'R'); pdf.cell(30, 8, f"${total:,.2f}", 0, 1, 'R')
+    
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
@@ -410,6 +415,7 @@ with col_right:
     if st.session_state.carrito:
         df_c = pd.DataFrame(st.session_state.carrito)
         
+        # FIX: width="stretch" para cumplir con la nueva API
         edited = st.data_editor(
             df_c,
             column_config={
@@ -423,7 +429,9 @@ with col_right:
                 "Descripción": st.column_config.TextColumn(width="medium", disabled=True),
                 "SKU": st.column_config.TextColumn(width="small", disabled=True),
             },
-            use_container_width=True, num_rows="dynamic", key="editor_cart"
+            width="stretch", # REEMPLAZADO use_container_width=True
+            num_rows="dynamic", 
+            key="editor_cart"
         )
         if not edited.equals(df_c):
             new_cart = edited.to_dict('records')
@@ -436,11 +444,17 @@ with col_right:
         sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
         tot = sub * 1.16
         c_p, c_d, c_l = st.columns([1, 1, 0.5])
+        
+        # FIX: width="stretch" en botones también
         with c_p:
-            if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, use_container_width=True): pass
+            if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, width="stretch"): pass
         with c_d:
             pdf_bytes = generar_pdf()
-            st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
+            # download_button aún soporta use_container_width en algunas versiones, pero usamos width si el error lo pide. 
+            # Si download_button se queja de width='stretch', revertir a use_container_width.
+            # Asumiendo que st.download_button sigue el mismo patrón que st.button en esta versión futura.
+            st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True) 
+            # NOTA: download_button a veces tarda más en adoptar params nuevos. Dejo use_container_width aquí por seguridad salvo que falle.
         with c_l:
             if st.button("🗑️", help="Limpiar"): st.session_state.carrito = []; st.rerun()
 
@@ -494,4 +508,3 @@ if st.session_state.ver_preview and st.session_state.carrito:
     </div>
     """
     st.markdown(html_preview, unsafe_allow_html=True)
-
