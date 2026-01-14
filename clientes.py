@@ -3,13 +3,13 @@ import pandas as pd
 from deep_translator import GoogleTranslator
 from datetime import datetime
 import pytz
-from PIL import Image
 
-# 1. CONFIGURACIÓN DE PÁGINA
+# 1. CONFIGURACIÓN DE PÁGINA (Adaptativo)
 st.set_page_config(
-    page_title="Toyota Los Fuertes - Consulta de Precios", 
+    page_title="Consulta de Precios", 
     page_icon="🚗", 
-    layout="centered" # Layout centrado para efecto "Minimalista/App"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # Configurar Zona Horaria CDMX
@@ -23,186 +23,226 @@ def obtener_hora_mx():
         return datetime.now(tz_cdmx)
     return datetime.now()
 
-# 2. ESTILOS CSS MODERNOS Y MINIMALISTAS
+# 2. ESTILOS CSS (RESPONSIVE & BRANDING)
 st.markdown("""
     <style>
-    /* Fondo y fuentes */
-    .stApp {
+    /* Forzar tema claro para consistencia de marca Toyota */
+    [data-testid="stAppViewContainer"] {
         background-color: #ffffff;
     }
+    [data-testid="stHeader"] {
+        background-color: rgba(0,0,0,0);
+    }
     
-    /* Input de búsqueda estilizado */
+    /* Input de búsqueda estilo "Google" / Kiosco */
     .stTextInput input {
-        border-radius: 20px;
-        border: 2px solid #eb0a1e;
-        padding: 10px 15px;
-        font-size: 16px;
+        border-radius: 50px;
+        border: 2px solid #ddd;
+        padding: 15px 20px;
+        font-size: 1.2rem;
         text-align: center;
+        box-shadow: 0px 2px 5px rgba(0,0,0,0.05);
+        transition: all 0.3s;
+    }
+    .stTextInput input:focus {
+        border-color: #eb0a1e;
+        box-shadow: 0px 4px 10px rgba(235, 10, 30, 0.2);
     }
     
-    /* Tarjeta de Resultado */
+    /* Tarjeta de Resultado Responsiva */
     .result-card {
-        background-color: #f8f9fa;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border-left: 5px solid #eb0a1e;
+        background-color: #fff;
+        border: 1px solid #eee;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-top: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        border-top: 5px solid #eb0a1e; /* Acento Toyota */
+        animation: fadeIn 0.5s;
     }
     
-    .sku-text {
-        color: #666;
-        font-size: 12px;
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .sku-label {
+        color: #999;
+        font-size: 0.9rem;
         font-family: monospace;
-        letter-spacing: 1px;
+        margin-bottom: 5px;
     }
     
-    .desc-text {
-        color: #000;
-        font-size: 16px;
-        font-weight: 600;
-        margin-bottom: 10px;
+    .desc-product {
+        color: #333;
+        font-size: 1.3rem;
+        font-weight: 700;
+        line-height: 1.4;
+        margin-bottom: 15px;
     }
     
-    .price-container {
+    .price-block {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 10px;
         display: flex;
         justify-content: space-between;
-        align-items: end;
-        margin-top: 10px;
-        border-top: 1px solid #eee;
-        padding-top: 10px;
+        align-items: center;
     }
     
-    .price-label {
-        font-size: 10px;
-        color: #888;
+    .price-small {
+        font-size: 0.8rem;
+        color: #666;
         text-transform: uppercase;
     }
     
     .price-big {
         color: #eb0a1e;
-        font-size: 28px;
+        font-size: 2rem;
         font-weight: 800;
     }
     
-    /* Footer Legal */
+    /* Footer Legal Visible y Correcto */
     .legal-footer {
         text-align: center; 
-        font-size: 10px; 
-        color: #999;
-        margin-top: 60px; 
-        padding-top: 20px;
-        border-top: 1px solid #eee;
-        font-family: sans-serif;
-        line-height: 1.4;
+        font-size: 0.85rem; 
+        color: #555;
+        margin-top: 50px; 
+        padding: 20px;
+        background-color: #f4f4f4;
+        border-radius: 10px;
+        line-height: 1.5;
+    }
+    
+    /* Ajustes para Móvil */
+    @media (max-width: 600px) {
+        .price-big { font-size: 1.8rem; }
+        .desc-product { font-size: 1.1rem; }
+        .stTextInput input { font-size: 1rem; }
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Traductor
+# Función de Traducción Simple
 @st.cache_data
-def traducir_profe(texto):
+def traducir_texto(texto):
     try:
-        if pd.isna(texto) or texto == "": return "Sin descripción"
+        if pd.isna(texto) or texto == "": return "Descripción no disponible"
+        # Usamos Google Translator para rapidez
         return GoogleTranslator(source='en', target='es').translate(str(texto))
-    except: return texto
+    except: return str(texto)
 
 # --- CARGA DE DATOS ---
 @st.cache_data
 def cargar_catalogo():
     try:
-        # Carga optimizada
+        # Optimización: Cargar solo columnas necesarias si el archivo es muy grande
         df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
+        # Normalizar columnas
         df.columns = [c.strip().upper() for c in df.columns]
         
-        c_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c][0]
+        # Identificar columnas clave dinámicamente
+        cols_posibles_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c or 'SKU' in c]
+        if not cols_posibles_sku: return None
+        c_sku = cols_posibles_sku[0]
+        
+        # Limpieza previa para búsqueda rápida
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
         return df
     except Exception as e:
-        st.error(f"Error cargando base de datos: {e}")
+        st.error(f"Error técnico cargando base de datos. Contacte al administrador.")
         return None
 
 df = cargar_catalogo()
 fecha_actual_mx = obtener_hora_mx()
-fecha_hoy_str = fecha_actual_mx.strftime("%d/%m/%Y")
+fecha_str = fecha_actual_mx.strftime("%d/%m/%Y")
+hora_str = fecha_actual_mx.strftime("%H:%M")
 
-# --- INTERFAZ PRINCIPAL ---
+# --- INTERFAZ KIOSCO ---
 
-# 1. HEADER CON LOGO
-col_l, col_c, col_r = st.columns([1,2,1])
-with col_c:
+# 1. LOGO Y ENCABEZADO
+col_logo, col_vacio = st.columns([1, 0.1])
+with col_logo:
     try:
-        st.image("logo.png", use_container_width=True)
+        # Se usa use_container_width para que se adapte al ancho del dispositivo
+        st.image("logo.png", width=250) 
     except:
-        st.markdown("<h2 style='text-align: center; color: #eb0a1e;'>TOYOTA LOS FUERTES</h2>", unsafe_allow_html=True)
+        st.markdown("<h1 style='color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
 
-st.write("") # Espacio
-st.markdown("<h5 style='text-align: center; color: #555;'>Consulta de Precios al Público</h5>", unsafe_allow_html=True)
+st.markdown("### Consulta de Precios")
 
-# 2. BARRA DE BÚSQUEDA (CENTER STAGE)
-busqueda = st.text_input("🔍", placeholder="Ingresa SKU o Nombre de la parte...", label_visibility="hidden")
+# 2. BUSCADOR INTELIGENTE
+busqueda = st.text_input("Buscador", placeholder="🔍 Escribe el Número de Parte o Nombre...", label_visibility="collapsed")
 
+# 3. LÓGICA DE BÚSQUEDA Y VISUALIZACIÓN
 if df is not None and busqueda:
     busqueda_raw = busqueda.upper().strip()
     busqueda_clean = busqueda_raw.replace('-', '')
     
-    # Lógica de filtrado
-    mask_desc = df.apply(lambda x: x.astype(str).str.contains(busqueda_raw, case=False)).any(axis=1)
+    # Filtrado (Prioridad SKU exacto -> SKU parcial -> Descripción)
     mask_sku = df['SKU_CLEAN'].str.contains(busqueda_clean, na=False)
-    resultados = df[mask_desc | mask_sku].head(5).copy() # Limitado a 5 para limpieza visual
+    mask_desc = df.apply(lambda x: x.astype(str).str.contains(busqueda_raw, case=False)).any(axis=1)
+    
+    # Mostramos máximo 3 resultados para mantener la pantalla limpia
+    resultados = df[mask_sku | mask_desc].head(3).copy()
 
     if not resultados.empty:
+        # Detectar columnas
         c_sku = [c for c in resultados.columns if 'PART' in c or 'NUM' in c][0]
         c_desc = [c for c in resultados.columns if 'DESC' in c][0]
         c_precio = [c for c in resultados.columns if 'PRICE' in c or 'PRECIO' in c][0]
-
-        st.write("")
-        # --- CARDS DE RESULTADOS ---
+        
         for i, row in resultados.iterrows():
-            desc_es = traducir_profe(row[c_desc])
-            sku_val = row[c_sku]
-            try:
-                precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
-                precio_val = float(precio_texto)
-            except: precio_val = 0.0
-
-            # Cálculo de Total (Neto)
-            total_neto = precio_val * 1.16
+            # Procesamiento de datos
+            sku_mostrado = row[c_sku]
+            desc_es = traducir_texto(row[c_desc])
             
-            # HTML Card
+            try:
+                precio_txt = str(row[c_precio]).replace(',', '').replace('$', '').strip()
+                precio_base = float(precio_txt)
+            except: 
+                precio_base = 0.0
+            
+            # Cálculo del Total a Pagar (Requisito PROFECO: Precio Total)
+            # Precio Base + 16% IVA
+            precio_final = precio_base * 1.16
+            
+            # --- CARD VISUAL ---
             st.markdown(f"""
             <div class="result-card">
-                <div class="sku-text">SKU: {sku_val}</div>
-                <div class="desc-text">{desc_es}</div>
-                <div class="price-container">
+                <div class="sku-label">NÚMERO DE PARTE: {sku_mostrado}</div>
+                <div class="desc-product">{desc_es}</div>
+                <div class="price-block">
                     <div>
-                        <div class="price-label">Precio Unitario</div>
-                        <div style="font-size: 11px; color: #888;">(Inc. IVA 16%)</div>
+                        <div class="price-small">Precio Público</div>
+                        <div class="price-small" style="font-weight:bold;">Total a Pagar</div>
                     </div>
-                    <div class="price-big">${total_neto:,.2f}</div>
+                    <div class="price-big">${precio_final:,.2f} <span style="font-size:1rem; color:#666;">MXN</span></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
             
     else:
-        st.warning("No se encontraron coincidencias en el catálogo.")
+        st.info("🔎 No encontramos coincidencias. Intenta con otro número o nombre.")
+elif not busqueda:
+    st.markdown("<br><p style='text-align:center; color:#999;'>Ingresa el código o nombre de la refacción arriba.</p>", unsafe_allow_html=True)
 
-# 3. FOOTER LEGAL (PROFECO / NOM)
+# 4. FOOTER LEGAL (Ajustado a Normativa de Precios Totales)
+st.markdown("---")
 st.markdown(f"""
     <div class="legal-footer">
-        <p><strong>INFORMACIÓN AL CONSUMIDOR</strong></p>
-        <p>
-            En cumplimiento a lo dispuesto por la <strong>Ley Federal de Protección al Consumidor (LFPC)</strong> y la <strong>Norma Oficial Mexicana NOM-050-SCFI-2004</strong>:
-        </p>
-        <p>
-            1. Los precios aquí mostrados están expresados en Moneda Nacional (MXN) e <strong>incluyen el Impuesto al Valor Agregado (IVA) del 16%</strong>.<br>
-            2. La información de precios es vigente al día <strong>{fecha_hoy_str}</strong> y está sujeta a cambios sin previo aviso por parte de Toyota de México.<br>
-            3. Las descripciones de los productos son de carácter informativo.<br>
-            4. Para verificar disponibilidad física, favor de acudir al mostrador de refacciones.
-        </p>
-        <p style="margin-top: 15px; font-weight: bold; color: #eb0a1e;">TOYOTA LOS FUERTES</p>
+        <strong>INFORMACIÓN COMERCIAL</strong><br><br>
+        Precios expresados en <strong>Moneda Nacional (MXN)</strong>.<br>
+        El monto mostrado corresponde al <strong>PRECIO TOTAL</strong> a pagar (Incluye IVA 16%).<br>
+        Consulta vigente al: <strong>{fecha_str} {hora_str}</strong>.<br>
+        <br>
+        <span style="opacity:0.8; font-size: 0.75rem;">
+        Sujeto a cambios sin previo aviso y disponibilidad en almacén. 
+        Las imágenes y descripciones son ilustrativas. 
+        Para garantías y especificaciones técnicas, consulte a su asesor.
+        </span>
     </div>
 """, unsafe_allow_html=True)
