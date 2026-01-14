@@ -1,4 +1,4 @@
-850import streamlit as st
+import streamlit as st
 import pandas as pd
 from deep_translator import GoogleTranslator
 from datetime import datetime
