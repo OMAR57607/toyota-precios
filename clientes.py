@@ -4,7 +4,7 @@ from deep_translator import GoogleTranslator
 from datetime import datetime
 import pytz
 
-# 1. CONFIGURACIÓN DE PÁGINA (Adaptativo)
+# 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
     page_title="Consulta de Precios", 
     page_icon="🚗", 
@@ -23,7 +23,7 @@ def obtener_hora_mx():
         return datetime.now(tz_cdmx)
     return datetime.now()
 
-# 2. ESTILOS CSS (RESPONSIVE & BRANDING)
+# 2. ESTILOS CSS
 st.markdown("""
     <style>
     /* Input de búsqueda estilo "Google" / Kiosco */
@@ -83,7 +83,7 @@ st.markdown("""
         align-items: center;
     }
     
-    /* Estilos para Subtotal e IVA (Discretos) */
+    /* Estilos para Desglose */
     .breakdown-container {
         text-align: right;
         margin-right: 15px;
@@ -104,7 +104,7 @@ st.markdown("""
         text-align: right;
     }
     
-    /* Footer Legal Visible y Correcto */
+    /* Footer Legal */
     .legal-footer {
         text-align: justify; 
         font-size: 0.70rem; 
@@ -118,7 +118,6 @@ st.markdown("""
         border-top: 1px solid #ddd;
     }
     
-    /* Ajustes para Móvil */
     @media (max-width: 600px) {
         .price-big { font-size: 1.5rem; }
         .desc-product { font-size: 1.1rem; }
@@ -202,18 +201,19 @@ if df is not None and busqueda:
             iva_monto = precio_base_subtotal * 0.16
             precio_total_final = precio_base_subtotal + iva_monto
             
-            # --- CARD VISUAL CORREGIDA (Sin espacios al inicio del HTML) ---
+            # --- CARD VISUAL AJUSTADA ---
+            # Se usa "Precio Lista Unitario" y "1 Unidad" para cubrir Piezas, Kits o Juegos.
             st.markdown(f"""
 <div class="result-card">
     <div class="sku-label">NÚMERO DE PARTE: {sku_mostrado}</div>
     <div class="desc-product">{desc_es}</div>
     <div class="price-block">
         <div class="breakdown-container">
-            <div class="price-sub">Subtotal: ${precio_base_subtotal:,.2f}</div>
+            <div class="price-sub">Precio Lista Unitario: ${precio_base_subtotal:,.2f}</div>
             <div class="price-sub">IVA (16%): ${iva_monto:,.2f}</div>
         </div>
         <div>
-            <div style="font-size:0.8rem; text-align:right; color:#888;">Total a Pagar</div>
+            <div style="font-size:0.8rem; text-align:right; color:#888;">Total a Pagar (1 Unidad)</div>
             <div class="price-big">${precio_total_final:,.2f} <span style="font-size:1rem; color:var(--text-color); opacity:0.5;">MXN</span></div>
         </div>
     </div>
@@ -225,20 +225,19 @@ if df is not None and busqueda:
 elif not busqueda:
     st.markdown("<br><p style='text-align:center; opacity:0.6;'>Ingresa el código o nombre de la refacción arriba.</p>", unsafe_allow_html=True)
 
-# 4. FOOTER LEGAL ACTUALIZADO (PROFECO/NOM/LFPC)
+# 4. FOOTER LEGAL (Aclarando Kits/Juegos/Piezas)
 st.markdown("---")
-# Usamos f-string para insertar fecha real y evitar cláusulas abusivas
 st.markdown(f"""
 <div class="legal-footer">
     <strong>AVISO DE PRIVACIDAD Y TÉRMINOS COMERCIALES</strong><br>
-    La presente información cumple con la <strong>Ley Federal de Protección al Consumidor (LFPC)</strong> y las Normas Oficiales Mexicanas aplicables.
+    La presente información cumple con la <strong>Ley Federal de Protección al Consumidor (LFPC)</strong>.
     <br><br>
     <ul>
-        <li><strong>Precios Totales (LFPC Art. 7 y 7 Bis):</strong> Los precios aquí mostrados son finales, incluyen IVA (16%) y están expresados en Moneda Nacional (MXN/M.N.) conforme a la NOM-008-SCFI-2002.</li>
-        <li><strong>Vigencia de la Oferta (LFPC Art. 12):</strong> Los precios son válidos y respetados en el momento exacto de esta consulta: <strong>{fecha_str} a las {hora_str} horas</strong>.</li>
-        <li><strong>Información Comercial (NOM-050-SCFI-2004):</strong> La descripción y etiquetado de los productos atiende a las disposiciones generales de información comercial.</li>
-        <li><strong>Garantías (LFPC Art. 77):</strong> Todos los productos cuentan con garantía de fábrica conforme a las políticas de Toyota de México. Consulte términos específicos en mostrador.</li>
+        <li><strong>Precios Unitarios (LFPC Art. 7):</strong> El precio exhibido corresponde a una sola unidad de venta comercial. Dependiendo de la descripción, la "Unidad" puede referirse a una <strong>Pieza individual, un Juego, un Kit o un Paquete</strong>.</li>
+        <li><strong>Montos Totales:</strong> Los precios incluyen IVA (16%) y están expresados en Moneda Nacional (MXN).</li>
+        <li><strong>Vigencia (LFPC Art. 12):</strong> Precios válidos al momento de la consulta: <strong>{fecha_str} {hora_str}</strong>.</li>
+        <li><strong>Garantías:</strong> Aplican garantías de fábrica Toyota según la naturaleza de la parte (eléctrica, desgaste o mecánica).</li>
     </ul>
-    <em>Nota: La disponibilidad física (stock) puede variar al momento de procesar la orden en ventanilla ("Salvo venta previa").</em>
+    <em>Nota: Disponibilidad sujeta a inventario en almacén ("Salvo venta previa").</em>
 </div>
 """, unsafe_allow_html=True)
