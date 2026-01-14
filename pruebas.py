@@ -293,7 +293,7 @@ def generar_pdf():
         desc_safe = str(item['Descripción'][:38]).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(cols[1], 6, desc_safe, 'B', 0, 'L')
         
-        prio = item.get('Prioridad', 'Medio')
+        prio = item.get('Prioridad', 'Medio', 'Bajo')
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         pdf.cell(cols[2], 6, prio[:1].upper(), 'B', 0, 'C')
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
