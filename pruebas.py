@@ -361,7 +361,7 @@ with st.sidebar:
             except Exception as e: st.error(f"Error: {e}")
 
 # --- MAIN ---
-st.title("Cotizador Los Fuertes")
+st.title("Cotizador Toyota Los Fuertes")
 col_left, col_right = st.columns([1.2, 2])
 
 with col_left:
