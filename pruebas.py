@@ -42,7 +42,7 @@ def limpiar_todo():
     st.session_state.cliente = ""
     st.session_state.vin = ""
     st.session_state.orden = ""
-    # Mantenemos el asesor para no reescribirlo cada vez
+    # Mantenemos el asesor
     st.session_state.temp_sku = ""
     st.session_state.temp_desc = ""
     st.session_state.temp_precio = 0.0
@@ -51,7 +51,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (RESPONSIVE & THEME ADAPTIVE)
+# 2. ESTILOS CSS (RESPONSIVE & ADAPTATIVO)
 # ==========================================
 st.markdown("""
     <style>
@@ -70,20 +70,20 @@ st.markdown("""
 
     /* VISTA PREVIA (SIMULACIÓN PAPEL) */
     .preview-container {
-        background-color: #525659; /* Fondo gris oscuro neutro para contraste */
+        background-color: #525659;
         padding: 20px;
         border-radius: 8px;
         display: flex;
         justify-content: center;
         margin-top: 20px;
-        overflow-x: auto; /* Scroll horizontal en móviles */
+        overflow-x: auto;
     }
     .preview-paper {
-        background-color: white !important; /* Siempre blanco (Papel) */
-        color: black !important; /* Texto siempre negro */
+        background-color: white !important;
+        color: black !important;
         width: 100%;
-        max-width: 900px; /* Ancho A4 aprox */
-        min-width: 600px; /* Mínimo para que la tabla no se rompa */
+        max-width: 900px;
+        min-width: 600px;
         padding: 40px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         font-family: 'Helvetica', 'Arial', sans-serif;
@@ -108,19 +108,17 @@ st.markdown("""
     /* Totales */
     .total-box { margin-left: auto; width: 300px; }
     .total-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; color: #333; }
-    .total-final { font-size: 20px; font-weight: 800; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 8px; margin-top: 8px; }
+    .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
 
-    /* Etiquetas y Status */
+    /* Etiquetas */
     .badge-urg { background: #d32f2f; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     .status-disp { color: #2e7d32; background: #e8f5e9; border: 1px solid #2e7d32; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     .status-ped { color: #e65100; background: #fff3e0; border: 1px solid #e65100; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     .status-bo { color: #fff; background: #000; border: 1px solid #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
     
-    /* Media Query para Móviles */
     @media only screen and (max-width: 600px) {
         .preview-paper { padding: 15px; min-width: 100%; }
-        .preview-title { font-size: 18px; }
         .info-grid { grid-template-columns: 1fr; gap: 10px; }
         .total-box { width: 100%; }
     }
@@ -149,11 +147,9 @@ def cargar_catalogo():
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
-# --- LÓGICA DE ANALIZADOR INTELIGENTE ---
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
-    
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
     patron_orden_8 = r'\b\d{8}\b'
     patron_sku_fmt = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
@@ -187,9 +183,8 @@ def analizador_inteligente_archivos(df_raw):
                 cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val).strip()
                 if len(cont)>4: metadata['CLIENTE'] = cont
                 else:
-                    try: 
-                        vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
-                        if len(vec)>4: metadata['CLIENTE'] = vec
+                    try: vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip(); 
+                    if len(vec)>4: metadata['CLIENTE'] = vec
                     except: pass
             es_sku = False; sku_det = None
             if re.match(patron_sku_fmt, val): sku_det = val; es_sku = True
@@ -215,8 +210,7 @@ def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", 
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
         "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto,
-        "Tiempo Entrega": "",
-        "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
+        "Tiempo Entrega": "", "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
         "Importe Total": (precio * cant) + iva, "Estatus": "Disponible", "Tipo": tipo
     })
 
@@ -229,7 +223,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF (FORMATO TABLA FORMAL)
+# 4. GENERADOR PDF (NORMATIVIDAD APLICADA)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -242,37 +236,49 @@ class PDF(FPDF):
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
 
     def footer(self):
-        self.set_y(-65)
-        self.set_font('Arial', 'B', 7)
-        self.set_text_color(0)
-        self.cell(0, 4, 'TÉRMINOS, CONDICIONES Y CONSENTIMIENTO DIGITAL', 0, 1, 'L')
-        self.set_font('Arial', '', 5) 
-        self.set_text_color(60)
+        self.set_y(-75)
+        self.set_font('Arial', 'B', 7); self.set_text_color(0)
+        self.cell(0, 4, 'CONTRATO DE ADHESIÓN Y TÉRMINOS LEGALES (NOM-174-SCFI-2007)', 0, 1, 'L')
+        self.set_font('Arial', '', 5); self.set_text_color(60)
+        
+        # LEYENDAS LEGALES CON FUNDAMENTO (No abusivas)
         legales = (
-            "1. PEDIDOS ESPECIALES: Requieren el 100% DE PAGO ANTICIPADO. No cancelaciones ni devoluciones.\n"
-            "2. PARTES ELECTRICAS: No se aceptan CAMBIOS ni DEVOLUCIONES. Garantia sujeta a dictamen tecnico del fabricante.\n"
-            "3. ACEPTACION DIGITAL: De conformidad con el Art. 89 y 93 del Codigo de Comercio, la aceptacion de este presupuesto por medios "
-            "electronicos, opticos o de cualquier otra tecnologia (ej. WhatsApp, Correo), produce los mismos efectos juridicos que la firma autografa.\n"
-            "4. GARANTIA: 30 dias MO / 12 meses Refacciones. Vigencia de cotización: 24 horas."
+            "1. VIGENCIA Y PRECIOS: Presupuesto válido por 24 horas. Precios en MXN incluyen IVA. Sujetos a cambio sin previo aviso por actualización del fabricante.\n"
+            "2. PEDIDOS ESPECIALES: Para partes no disponibles en stock, se requiere un anticipo del 100%. En caso de cancelación por causas imputables al consumidor, "
+            "se aplicará una pena convencional del 20% sobre el anticipo por gastos administrativos (Art. 92 LFPC).\n"
+            "3. GARANTÍA: 12 meses en refacciones genuinas Toyota y 30 días en mano de obra. La garantía de partes eléctricas está sujeta a diagnóstico técnico "
+            "para descartar daños por instalación externa o manipulación indebida (Art. 77 LFPC). Las partes eléctricas no admiten devolución si se encuentran en buen estado funcional.\n"
+            "4. CONSENTIMIENTO DIGITAL: De conformidad con los Art. 89 bis y 93 del Código de Comercio, la aceptación de este presupuesto a través de medios electrónicos "
+            "(WhatsApp, Correo, SMS) produce los mismos efectos jurídicos que la firma autógrafa, perfeccionando el contrato de servicios.\n"
+            "5. PRIVACIDAD: Sus datos personales son tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares. Aviso de privacidad disponible en recepción."
         )
         self.multi_cell(0, 2.5, legales, 0, 'J')
-        self.set_y(-15); self.set_font('Arial', 'I', 8); self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
+        
+        # Área de firmas
+        self.ln(5)
+        y_firma = self.get_y()
+        self.line(10, y_firma, 80, y_firma); self.line(110, y_firma, 190, y_firma)
+        self.set_font('Arial', 'B', 6)
+        self.cell(90, 3, "TOYOTA LOS FUERTES (ASESOR)", 0, 0, 'C')
+        self.cell(90, 3, "NOMBRE Y FIRMA DE CONFORMIDAD DEL CLIENTE", 0, 1, 'C')
+        
+        self.set_y(-12); self.set_font('Arial', 'I', 8); self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
 def generar_pdf():
     pdf = PDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=70)
+    pdf.set_auto_page_break(auto=True, margin=80)
     
     # Info Header
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9)
     cli_safe = str(st.session_state.cliente.upper()).encode('latin-1', 'replace').decode('latin-1')
     pdf.cell(100, 5, cli_safe, 0, 0)
-    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(0, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
+    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
     
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'VIN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(100, 5, str(st.session_state.vin.upper()), 0, 0)
-    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(0, 5, str(st.session_state.orden.upper()), 0, 1)
+    pdf.set_font('Arial', 'B', 9); pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(40, 5, str(st.session_state.orden.upper()), 0, 1)
     
     pdf.set_x(10); pdf.set_font('Arial', 'B', 9)
     pdf.cell(20, 5, 'ASESOR:', 0, 0); pdf.set_font('Arial', '', 9)
@@ -326,14 +332,14 @@ def generar_pdf():
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
-        pdf.cell(60, 5, "** REQUIERE 100% ANTICIPO **", 0, 1, 'R')
+        pdf.cell(60, 5, "** REQUIERE ANTICIPO **", 0, 1, 'R')
 
     pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
     pdf.cell(30, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
     pdf.set_x(130)
     pdf.cell(30, 5, 'IVA 16%:', 0, 0, 'R'); pdf.cell(30, 5, f"${iva_total:,.2f}", 0, 1, 'R')
     pdf.set_x(130); pdf.set_font('Arial', 'B', 11); pdf.set_text_color(235, 10, 30)
-    pdf.cell(30, 7, 'TOTAL:', 0, 0, 'R'); pdf.cell(30, 7, f"${total:,.2f}", 0, 1, 'R')
+    pdf.cell(30, 7, 'GRAN TOTAL:', 0, 0, 'R'); pdf.cell(30, 7, f"${total:,.2f}", 0, 1, 'R')
     
     return pdf.output(dest='S').encode('latin-1')
 
@@ -344,7 +350,6 @@ if df_db is None: st.error("Falta lista_precios.zip"); st.stop()
 
 # --- SIDEBAR ---
 with st.sidebar:
-    # --- CAMBIO 1: LOGO MINIMALISTA ---
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     st.divider()
@@ -388,7 +393,6 @@ with st.sidebar:
 st.title("Toyota Los Fuertes")
 st.caption("Sistema de Cotización de Servicios y Refacciones")
 
-# Búsqueda y Agregado
 with st.expander("🔎 Búsqueda y Agregado Manual", expanded=True):
     col_l, col_r = st.columns([1.2, 1])
     with col_l:
@@ -416,7 +420,6 @@ with st.expander("🔎 Búsqueda y Agregado Manual", expanded=True):
 
 st.divider()
 
-# --- TABLA Y ACCIONES ---
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
@@ -460,7 +463,6 @@ if st.session_state.carrito:
         st.download_button("📄 Descargar PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
 
     with c3:
-        # --- CAMBIO 2: WHATSAPP FORMAL TOYOTA LOS FUERTES ---
         items_wa = ""
         for i in st.session_state.carrito:
             items_wa += f"▪️ {i['Cantidad']}x {i['Descripción']} (${i['Precio Base']:,.2f} c/u)\n"
@@ -485,7 +487,7 @@ if st.session_state.carrito:
         msg_enc = urllib.parse.quote(msg_raw)
         st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
-# --- VISTA PREVIA ---
+# --- VISTA PREVIA LIMPIA (SIN SUBTOTALES NI LEGALES) ---
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
@@ -496,58 +498,49 @@ if st.session_state.ver_preview and st.session_state.carrito:
         if "Pedido" in a_val or "Back" in a_val: hay_pedido_prev = True
         
         rows_html += f"""<tr>
-            <td>{item['SKU']}</td>
-            <td>{item['Descripción']}</td>
-            <td><span class="{p_style}">{item['Prioridad']}</span></td>
-            <td><span class="{a_style}">{a_val}</span></td>
-            <td>{item['Tiempo Entrega']}</td>
-            <td style="text-align:center">{item['Cantidad']}</td>
-            <td style="text-align:right">${item['Precio Base']:,.2f}</td>
-            <td style="text-align:right">${item['Importe Total']:,.2f}</td>
-        </tr>"""
+<td>{item['SKU']}</td>
+<td>{item['Descripción']}</td>
+<td><span class="{p_style}">{item['Prioridad']}</span></td>
+<td><span class="{a_style}">{a_val}</span></td>
+<td>{item['Tiempo Entrega']}</td>
+<td style="text-align:center">{item['Cantidad']}</td>
+<td style="text-align:right">${item['Precio Base']:,.2f}</td>
+<td style="text-align:right">${item['Importe Total']:,.2f}</td>
+</tr>"""
     
-    anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO o BACK ORDER. Se requiere el 100% de anticipo.</div>' if hay_pedido_prev else ''
+    anticipo_html = '<div class="anticipo-warning">⚠️ REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL</div>' if hay_pedido_prev else ''
 
     html_preview = f"""<div class="preview-container">
 <div class="preview-paper">
 <div class="preview-header">
-    <div>
-        <h1 class="preview-title">TOYOTA LOS FUERTES</h1>
-        <div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div>
-    </div>
-    <div style="text-align:right">
-        <div style="font-size:24px; font-weight:bold; color:#eb0a1e;">${total_gral:,.2f}</div>
-        <div style="font-size:10px; color:#666;">MXN (IVA INCLUIDO)</div>
-    </div>
+<div>
+<h1 class="preview-title">TOYOTA LOS FUERTES</h1>
+<div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div>
+</div>
 </div>
 <div class="info-grid">
-    <div>
-        <div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div>
-        <div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div>
-    </div>
-    <div>
-        <div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div>
-        <div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div>
-        <div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div>
-    </div>
+<div>
+<div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div>
+<div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div>
+</div>
+<div>
+<div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div>
+<div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div>
+<div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div>
+</div>
 </div>
 <table class="custom-table">
-    <thead>
-        <tr>
-            <th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>ABASTO</th><th>T.ENT</th>
-            <th style="text-align:center">CANT</th><th style="text-align:right">P. UNIT</th><th style="text-align:right">TOTAL</th>
-        </tr>
-    </thead>
-    <tbody>{rows_html}</tbody>
+<thead>
+<tr>
+<th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>ABASTO</th><th>T.ENT</th>
+<th style="text-align:center">CANT</th><th style="text-align:right">P. UNIT</th><th style="text-align:right">TOTAL</th>
+</tr>
+</thead>
+<tbody>{rows_html}</tbody>
 </table>
 <div class="total-box">
-    <div class="total-row"><span>Subtotal:</span><span>${subtotal:,.2f}</span></div>
-    <div class="total-row"><span>IVA (16%):</span><span>${subtotal*0.16:,.2f}</span></div>
-    <div class="total-row total-final"><span>TOTAL:</span><span>${total_gral:,.2f}</span></div>
-    {anticipo_html}
-</div>
-<div style="margin-top:30px; font-size:8px; color:#777; border-top:1px solid #eee; padding-top:10px;">
-    Términos y condiciones disponibles en mostrador. Precios sujetos a cambio sin previo aviso. Partes eléctricas no tienen devolución.
+<div class="total-final">TOTAL: ${total_gral:,.2f}</div>
+{anticipo_html}
 </div>
 </div>
 </div>"""
