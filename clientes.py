@@ -163,16 +163,20 @@ hora_str = fecha_actual_mx.strftime("%H:%M")
 
 # --- INTERFAZ KIOSCO ---
 
-# 1. LOGO Y ENCABEZADO
-col_logo, col_vacio = st.columns([1, 0.1])
-with col_logo:
-    try:
-        # Se usa use_container_width para que se adapte al ancho del dispositivo
-        st.image("logo.png", width=250) 
-    except:
-        st.markdown("<h1 style='color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
+# 1. LOGO Y ENCABEZADO (CENTRADO)
+# Usamos 3 columnas para centrar el contenido en la del medio
+c_left, c_center, c_right = st.columns([1, 2, 1])
 
-st.markdown("### Consulta de Precios")
+with c_center:
+    try:
+        # use_container_width hará que se adapte al ancho de la columna central
+        st.image("logo.png", use_container_width=True) 
+    except:
+        # Si no carga la imagen, texto centrado como respaldo
+        st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
+
+# Subtítulo también centrado con CSS inline
+st.markdown("<h3 style='text-align: center;'>Consulta de Precios</h3>", unsafe_allow_html=True)
 
 # 2. BUSCADOR INTELIGENTE
 busqueda = st.text_input("Buscador", placeholder="🔍 Escribe el Número de Parte o Nombre...", label_visibility="collapsed")
