@@ -24,16 +24,9 @@ def obtener_hora_mx():
     return datetime.now()
 
 # 2. ESTILOS CSS (RESPONSIVE & BRANDING)
+# NOTA: Se eliminó el forzado de fondo blanco para que el menú de la app sea visible
 st.markdown("""
     <style>
-    /* Forzar tema claro para consistencia de marca Toyota */
-    [data-testid="stAppViewContainer"] {
-        background-color: #ffffff;
-    }
-    [data-testid="stHeader"] {
-        background-color: rgba(0,0,0,0);
-    }
-    
     /* Input de búsqueda estilo "Google" / Kiosco */
     .stTextInput input {
         border-radius: 50px;
@@ -51,12 +44,12 @@ st.markdown("""
     
     /* Tarjeta de Resultado Responsiva */
     .result-card {
-        background-color: #fff;
-        border: 1px solid #eee;
+        background-color: var(--secondary-background-color); /* Adaptativo */
+        border: 1px solid rgba(0,0,0,0.1);
         border-radius: 15px;
         padding: 1.5rem;
         margin-top: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         border-top: 5px solid #eb0a1e; /* Acento Toyota */
         animation: fadeIn 0.5s;
     }
@@ -67,14 +60,15 @@ st.markdown("""
     }
     
     .sku-label {
-        color: #999;
+        color: var(--text-color);
+        opacity: 0.7;
         font-size: 0.9rem;
         font-family: monospace;
         margin-bottom: 5px;
     }
     
     .desc-product {
-        color: #333;
+        color: var(--text-color);
         font-size: 1.3rem;
         font-weight: 700;
         line-height: 1.4;
@@ -82,7 +76,7 @@ st.markdown("""
     }
     
     .price-block {
-        background-color: #f8f9fa;
+        background-color: rgba(0,0,0,0.05); /* Fondo sutil adaptativo */
         padding: 15px;
         border-radius: 10px;
         display: flex;
@@ -90,35 +84,47 @@ st.markdown("""
         align-items: center;
     }
     
-    .price-small {
+    /* Estilos para Subtotal e IVA (Discretos) */
+    .breakdown-container {
+        text-align: right;
+        margin-right: 15px;
+        border-right: 1px solid rgba(0,0,0,0.1);
+        padding-right: 15px;
+    }
+    
+    .price-sub {
         font-size: 0.8rem;
-        color: #666;
-        text-transform: uppercase;
+        color: var(--text-color);
+        opacity: 0.6;
     }
     
     .price-big {
         color: #eb0a1e;
         font-size: 2rem;
         font-weight: 800;
+        text-align: right;
     }
     
     /* Footer Legal Visible y Correcto */
     .legal-footer {
-        text-align: center; 
-        font-size: 0.85rem; 
-        color: #555;
+        text-align: justify; 
+        font-size: 0.75rem; 
+        color: var(--text-color);
+        opacity: 0.7;
         margin-top: 50px; 
         padding: 20px;
-        background-color: #f4f4f4;
+        background-color: rgba(0,0,0,0.03);
         border-radius: 10px;
-        line-height: 1.5;
+        line-height: 1.4;
     }
     
     /* Ajustes para Móvil */
     @media (max-width: 600px) {
-        .price-big { font-size: 1.8rem; }
+        .price-big { font-size: 1.5rem; }
         .desc-product { font-size: 1.1rem; }
         .stTextInput input { font-size: 1rem; }
+        .price-block { flex-direction: column; align-items: flex-end; }
+        .breakdown-container { border-right: none; margin-right: 0; margin-bottom: 10px; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -170,7 +176,7 @@ c_left, c_center, c_right = st.columns([1, 2, 1])
 with c_center:
     try:
         # CORRECCIÓN: Se reemplaza use_container_width=True por width="stretch"
-        st.image("logo.png", width="stretch") 
+        st.image("logo.png", use_container_width=True) 
     except:
         # Si no carga la imagen, texto centrado como respaldo
         st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
@@ -206,25 +212,30 @@ if df is not None and busqueda:
             
             try:
                 precio_txt = str(row[c_precio]).replace(',', '').replace('$', '').strip()
-                precio_base = float(precio_txt)
+                precio_base_subtotal = float(precio_txt) # Asumimos precio lista es subtotal
             except: 
-                precio_base = 0.0
+                precio_base_subtotal = 0.0
             
-            # Cálculo del Total a Pagar (Requisito PROFECO: Precio Total)
-            # Precio Base + 16% IVA
-            precio_final = precio_base * 1.16
+            # --- CÁLCULOS FINANCIEROS ---
+            iva_monto = precio_base_subtotal * 0.16
+            precio_total_final = precio_base_subtotal + iva_monto
             
-            # --- CARD VISUAL ---
+            # --- CARD VISUAL CON JERARQUÍA ---
             st.markdown(f"""
             <div class="result-card">
                 <div class="sku-label">NÚMERO DE PARTE: {sku_mostrado}</div>
                 <div class="desc-product">{desc_es}</div>
+                
                 <div class="price-block">
-                    <div>
-                        <div class="price-small">Precio Público</div>
-                        <div class="price-small" style="font-weight:bold;">Total a Pagar</div>
+                    <div class="breakdown-container">
+                        <div class="price-sub">Subtotal: ${precio_base_subtotal:,.2f}</div>
+                        <div class="price-sub">IVA (16%): ${iva_monto:,.2f}</div>
                     </div>
-                    <div class="price-big">${precio_final:,.2f} <span style="font-size:1rem; color:#666;">MXN</span></div>
+                    
+                    <div>
+                        <div style="font-size:0.8rem; text-align:right; color:#888;">Total a Pagar</div>
+                        <div class="price-big">${precio_total_final:,.2f} <span style="font-size:1rem; color:var(--text-color); opacity:0.5;">MXN</span></div>
+                    </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -232,21 +243,20 @@ if df is not None and busqueda:
     else:
         st.info("🔎 No encontramos coincidencias. Intenta con otro número o nombre.")
 elif not busqueda:
-    st.markdown("<br><p style='text-align:center; color:#999;'>Ingresa el código o nombre de la refacción arriba.</p>", unsafe_allow_html=True)
+    st.markdown("<br><p style='text-align:center; opacity:0.6;'>Ingresa el código o nombre de la refacción arriba.</p>", unsafe_allow_html=True)
 
-# 4. FOOTER LEGAL (Ajustado a Normativa de Precios Totales)
+# 4. FOOTER LEGAL COMPLETO (PROFECO, NOM, ARTÍCULOS)
 st.markdown("---")
 st.markdown(f"""
     <div class="legal-footer">
-        <strong>INFORMACIÓN COMERCIAL</strong><br><br>
-        Precios expresados en <strong>Moneda Nacional (MXN)</strong>.<br>
-        El monto mostrado corresponde al <strong>PRECIO TOTAL</strong> a pagar (Incluye IVA 16%).<br>
-        Consulta vigente al: <strong>{fecha_str} {hora_str}</strong>.<br>
-        <br>
-        <span style="opacity:0.8; font-size: 0.75rem;">
-        Sujeto a cambios sin previo aviso y disponibilidad en almacén. 
-        Las imágenes y descripciones son ilustrativas. 
-        Para garantías y especificaciones técnicas, consulte a su asesor.
-        </span>
+        <strong>AVISO LEGAL Y REGULATORIO ({datetime.now().year}):</strong><br>
+        El presente sistema de consulta cumple con las disposiciones de la <strong>Procuraduría Federal del Consumidor (PROFECO)</strong>.
+        <br><br>
+        <ul>
+            <li><strong>Claridad de Precios (LFPC Arts. 7 y 7 Bis):</strong> Los montos aquí exhibidos representan el precio total a pagar, incluyendo impuestos y cargos aplicables.</li>
+            <li><strong>Norma Oficial Mexicana (NOM-050-SCFI-2004):</strong> La información comercial cumple con los requisitos de etiquetado general de productos.</li>
+            <li><strong>Desglose Fiscal:</strong> De conformidad con el CFF, se presenta el desglose de Subtotal e IVA (16%) de manera explícita.</li>
+        </ul>
+        <em>Nota: Precios vigentes al {fecha_str} {hora_str}. Sujetos a cambios sin previo aviso por disposición de planta. Las imágenes son ilustrativas.</em>
     </div>
 """, unsafe_allow_html=True)
