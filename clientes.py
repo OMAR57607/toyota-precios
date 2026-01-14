@@ -169,8 +169,8 @@ c_left, c_center, c_right = st.columns([1, 2, 1])
 
 with c_center:
     try:
-        # use_container_width hará que se adapte al ancho de la columna central
-        st.image("logo.png", use_container_width=True) 
+        # CORRECCIÓN: Se reemplaza use_container_width=True por width="stretch"
+        st.image("logo.png", width="stretch") 
     except:
         # Si no carga la imagen, texto centrado como respaldo
         st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
