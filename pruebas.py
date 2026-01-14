@@ -52,7 +52,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (MEJORADO CON COLORES)
+# 2. ESTILOS CSS (PALETA DE ALTO CONTRASTE)
 # ==========================================
 st.markdown("""
     <style>
@@ -67,7 +67,7 @@ st.markdown("""
     }
     .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); }
 
-    /* VISTA PREVIA */
+    /* VISTA PREVIA CONTAINER */
     .preview-container { background-color: #525659; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; }
     .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Helvetica', 'Arial', sans-serif; }
     
@@ -97,22 +97,24 @@ st.markdown("""
     .total-box { margin-left: auto; width: 300px; }
     .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
     
-    /* COLORES BADGES PRIORIDAD */
+    /* --- PALETA NUEVA: PRIORIDAD --- */
     .badge-base { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; color: white; }
-    .badge-urg { background: #d32f2f; } /* Rojo */
-    .badge-med { background: #f57c00; } /* Naranja */
-    .badge-baj { background: #0288d1; } /* Azul */
+    
+    .badge-urg { background: #d32f2f; }  /* ROJO (Igual) */
+    .badge-med { background: #1976D2; }  /* AZUL REY (Nuevo: Distinto al naranja) */
+    .badge-baj { background: #757575; }  /* GRIS (Nuevo: Neutro) */
 
-    /* COLORES BADGES ESTATUS */
+    /* --- PALETA NUEVA: ESTATUS --- */
     .status-base { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
-    .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; }
-    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }
-    .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }
-    .status-rev { color: #b71c1c; background: #ffcdd2; border: 1px solid #b71c1c; }
+    
+    .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; } /* Verde */
+    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }  /* Naranja (Único naranja ahora) */
+    .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }   /* Negro */
+    .status-rev { color: #880E4F; background: #f8bbd0; border: 1px solid #880E4F; }  /* Magenta/Vino (Distinto al rojo urgente) */
 
-    /* ALERTAS EN PREVIEW */
+    /* ALERTAS */
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
-    .revisar-warning { color: #b71c1c; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #b71c1c; padding: 5px; border-radius: 4px; background-color: #ffcdd2; }
+    .revisar-warning { color: #880E4F; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #880E4F; padding: 5px; border-radius: 4px; background-color: #f8bbd0; }
     
     @media only screen and (max-width: 600px) {
         .preview-paper { padding: 15px; min-width: 100%; }
@@ -216,11 +218,8 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
     else:
         desc = str(desc_raw)
     
-    # Cálculos internos
     iva_monto = (precio_base * cant) * 0.16
     total_linea = (precio_base * cant) + iva_monto
-    
-    # Precio Unitario CON IVA para visualización
     precio_unitario_con_iva = precio_base * 1.16
     
     st.session_state.carrito.append({
@@ -247,7 +246,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF (LÓGICA ACTUALIZADA)
+# 4. GENERADOR PDF (LÓGICA COLOR ACTUALIZADA)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -264,7 +263,6 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 7); self.set_text_color(0)
         self.cell(0, 4, 'CONTRATO DE ADHESIÓN Y TÉRMINOS LEGALES (NOM-174-SCFI-2007)', 0, 1, 'L')
         self.set_font('Arial', '', 5); self.set_text_color(60)
-        
         legales = (
             "1. VIGENCIA Y PRECIOS: Presupuesto válido por 24 horas. Precios en MXN incluyen IVA. Sujetos a cambio sin previo aviso.\n"
             "2. PEDIDOS ESPECIALES: Para partes no disponibles en stock, se requiere un anticipo del 100%. En caso de cancelación por causas imputables al consumidor, "
@@ -276,7 +274,6 @@ class PDF(FPDF):
             "5. PRIVACIDAD: Sus datos personales son tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares."
         )
         self.multi_cell(0, 2.5, legales, 0, 'J')
-        
         self.ln(5)
         y_firma = self.get_y()
         self.line(10, y_firma, 80, y_firma); self.line(110, y_firma, 190, y_firma)
@@ -318,14 +315,13 @@ def generar_pdf():
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     sub = 0; iva_total = 0
     hay_pedido = False
-    hay_backorder = False # Flag para Back Order
+    hay_backorder = False
 
     for item in st.session_state.carrito:
         sub += item['Precio Base'] * item['Cantidad']
         iva_total += item['IVA']
         abasto = item.get('Abasto', '⚠️ REVISAR')
         
-        # Lógica de banderas para alertas
         if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
         if "Back" in abasto: hay_backorder = True
 
@@ -362,15 +358,15 @@ def generar_pdf():
         pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
         pdf.set_xy(x_desc + cols[1], y_desc)
         
-        # --- COLOREADO PRIORIDAD (FONDO) ---
+        # --- COLOREADO PRIORIDAD (FONDO) - NUEVA PALETA ---
         if prio == 'Urgente':
-            pdf.set_fill_color(211, 47, 47) 
+            pdf.set_fill_color(211, 47, 47) # ROJO
             pdf.set_text_color(255, 255, 255)
         elif prio == 'Medio':
-            pdf.set_fill_color(245, 124, 0)
+            pdf.set_fill_color(25, 118, 210) # AZUL REY (Distinto a Naranja)
             pdf.set_text_color(255, 255, 255)
         else: # Bajo
-            pdf.set_fill_color(2, 136, 209)
+            pdf.set_fill_color(117, 117, 117) # GRIS (Neutro)
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True)
@@ -379,18 +375,18 @@ def generar_pdf():
         pdf.set_fill_color(255, 255, 255)
         pdf.set_text_color(0, 0, 0)
         
-        # --- COLOREADO ESTATUS (FONDO) ---
+        # --- COLOREADO ESTATUS (FONDO) - NUEVA PALETA ---
         if "Disponible" in abasto:
-            pdf.set_fill_color(46, 125, 50) # Verde
+            pdf.set_fill_color(56, 142, 60) # Verde
             pdf.set_text_color(255, 255, 255)
         elif "Pedido" in abasto:
-            pdf.set_fill_color(239, 108, 0) # Naranja
+            pdf.set_fill_color(245, 124, 0) # Naranja (Único naranja)
             pdf.set_text_color(255, 255, 255)
         elif "Back" in abasto:
             pdf.set_fill_color(33, 33, 33) # Negro
             pdf.set_text_color(255, 255, 255)
         else: # Revisar
-            pdf.set_fill_color(198, 40, 40) # Rojo
+            pdf.set_fill_color(136, 14, 79) # Magenta/Vino (Distinto a Rojo Urgente)
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True)
@@ -409,7 +405,6 @@ def generar_pdf():
     pdf.ln(5)
     total = sub + iva_total
     
-    # ALERTAS ESPECIALES EN PDF
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
@@ -530,6 +525,9 @@ st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 if st.session_state.carrito:
     df_c = pd.DataFrame(st.session_state.carrito)
     
+    # NOTA: El data_editor de Streamlit es estándar y no permite colorear el fondo
+    # de los selectbox al editar. Sin embargo, hemos configurado los selectbox
+    # para que al elegir, se refleje la lógica correcta en el PDF y Preview.
     edited = st.data_editor(
         df_c,
         column_config={
@@ -598,7 +596,7 @@ if st.session_state.carrito:
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
-    hay_revisar_prev = False # Flag para items en revisión
+    hay_revisar_prev = False
 
     for item in st.session_state.carrito:
         # Lógica colores Prioridad
