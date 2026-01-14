@@ -488,7 +488,7 @@ if st.session_state.carrito:
         df_c,
         column_config={
             "Prioridad": st.column_config.SelectboxColumn(options=["Urgente", "Medio", "Bajo"], width="small", required=True),
-            "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small"),
+            "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small", required= True),
             "Precio Unitario (c/IVA)": st.column_config.NumberColumn("P. Unit. (Neto)", format="$%.2f", disabled=True),
             "Importe Total": st.column_config.NumberColumn("Total Línea", format="$%.2f", disabled=True),
             "Precio Base": None, # Oculto, usado para PDF
