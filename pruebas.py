@@ -38,14 +38,13 @@ def init_session():
         if key not in st.session_state:
             st.session_state[key] = value
 
-# --- CORRECCIÓN 2: Limpieza Total ---
 def limpiar_todo():
     st.session_state.carrito = []
     st.session_state.errores_carga = []
     st.session_state.cliente = ""
     st.session_state.vin = ""
     st.session_state.orden = ""
-    st.session_state.asesor = "" # Ahora sí borra el asesor
+    st.session_state.asesor = ""
     st.session_state.temp_sku = ""
     st.session_state.temp_desc = ""
     st.session_state.temp_precio = 0.0
@@ -54,7 +53,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS
+# 2. ESTILOS CSS (MEJORADO CON COLORES)
 # ==========================================
 st.markdown("""
     <style>
@@ -99,10 +98,19 @@ st.markdown("""
     .total-box { margin-left: auto; width: 300px; }
     .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
     
-    .badge-urg { background: #d32f2f; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
-    .status-disp { color: #2e7d32; background: #e8f5e9; border: 1px solid #2e7d32; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
-    .status-ped { color: #e65100; background: #fff3e0; border: 1px solid #e65100; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
-    .status-bo { color: #fff; background: #000; border: 1px solid #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
+    /* COLORES BADGES PRIORIDAD */
+    .badge-base { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; color: white; }
+    .badge-urg { background: #d32f2f; } /* Rojo */
+    .badge-med { background: #f57c00; } /* Naranja */
+    .badge-baj { background: #0288d1; } /* Azul */
+
+    /* COLORES BADGES ESTATUS */
+    .status-base { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
+    .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; }
+    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }
+    .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }
+    .status-rev { color: #b71c1c; background: #ffcdd2; border: 1px solid #b71c1c; }
+
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
     
     @media only screen and (max-width: 600px) {
@@ -200,9 +208,7 @@ def analizador_inteligente_archivos(df_raw):
             
     return hallazgos, metadata
 
-# --- CORRECCIÓN 1: Lógica de traducción condicional ---
 def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR", traducir=True):
-    # Si traducir es True, intentamos traducir. Si es False, usamos el texto directo.
     if traducir:
         try: desc = GoogleTranslator(source='en', target='es').translate(str(desc_raw))
         except: desc = str(desc_raw)
@@ -240,7 +246,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF
+# 4. GENERADOR PDF (LOGICA DE COLOR APLICADA)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -341,23 +347,55 @@ def generar_pdf():
         y_start = pdf.get_y()
         x_start = pdf.get_x()
 
+        # SKU
         pdf.cell(cols[0], row_height, sku_txt, 1, 0, 'C')
         
+        # Descripcion
         x_desc = pdf.get_x()
         y_desc = pdf.get_y()
         pdf.rect(x_desc, y_desc, cols[1], row_height)
         pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
         pdf.set_xy(x_desc + cols[1], y_desc)
         
-        if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
-        pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C')
-        pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
+        # --- COLOREADO PRIORIDAD (FONDO) ---
+        # Definir colores RGB para fondo y texto
+        if prio == 'Urgente':
+            pdf.set_fill_color(211, 47, 47) # Rojo
+            pdf.set_text_color(255, 255, 255)
+        elif prio == 'Medio':
+            pdf.set_fill_color(245, 124, 0) # Naranja
+            pdf.set_text_color(255, 255, 255)
+        else: # Bajo
+            pdf.set_fill_color(2, 136, 209) # Azul
+            pdf.set_text_color(255, 255, 255)
+
+        pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True) # Fill=True
         
-        if "REVISAR" in abasto: pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
-        elif "Pedido" in abasto or "Back" in abasto: pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
-        pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C')
-        pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
+        # Reset color
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(0, 0, 0)
         
+        # --- COLOREADO ESTATUS (FONDO) ---
+        if "Disponible" in abasto:
+            pdf.set_fill_color(46, 125, 50) # Verde
+            pdf.set_text_color(255, 255, 255)
+        elif "Pedido" in abasto:
+            pdf.set_fill_color(239, 108, 0) # Naranja Pedido
+            pdf.set_text_color(255, 255, 255)
+        elif "Back" in abasto:
+            pdf.set_fill_color(33, 33, 33) # Negro/Gris Oscuro
+            pdf.set_text_color(255, 255, 255)
+        else: # Revisar
+            pdf.set_fill_color(198, 40, 40) # Rojo Revisar
+            pdf.set_text_color(255, 255, 255)
+
+        pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True) # Fill=True
+
+        # Reset Color
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(0, 0, 0)
+        
+        # Resto Columnas
         pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
         pdf.cell(cols[5], row_height, str(item['Cantidad']), 1, 0, 'C')
         pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R') 
@@ -416,7 +454,6 @@ with st.sidebar:
                     match = df_db[df_db['SKU_CLEAN'] == clean]
                     if not match.empty:
                         row = match.iloc[0]
-                        # Aquí mantenemos traducir=True (por defecto)
                         agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR", traducir=True)
                         exitos += 1
                     else: fallos.append(it['sku'])
@@ -425,7 +462,6 @@ with st.sidebar:
             except Exception as e: st.error(f"Error: {e}")
 
     st.divider()
-    # Botón de limpieza total actualizado
     if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", use_container_width=True):
         limpiar_todo()
         st.rerun()
@@ -450,7 +486,6 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                     c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
                     if c2.button("✏️", key=f"ed_{sku_db}"):
                         cargar_en_manual(sku_db, row[col_desc_db], pr_db); st.rerun()
-                    # Agregado desde BD: Usamos traducción automática
                     c3.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
         with col_r:
             with st.form("manual"):
@@ -460,7 +495,6 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                 m_pr = c_p.number_input("Precio Base", 0.0, value=float(st.session_state.temp_precio))
                 m_desc = st.text_input("Descripción", value=st.session_state.temp_desc)
                 if st.form_submit_button("Agregar Manual"):
-                    # MANUAL: No traducir
                     agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR", traducir=False)
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.rerun()
@@ -470,11 +504,10 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
             c1, c2, c3 = st.columns([2, 1, 1])
             mo_desc = c1.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Diagnóstico...")
             mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
-            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=600.0, step=50.0) 
+            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0) 
             if st.form_submit_button("Agregar Servicio 🛠️"):
                 total_mo = mo_hrs * mo_cost
                 desc_final = f"{mo_desc} ({mo_hrs} hrs)"
-                # MANO DE OBRA: No traducir
                 agregar_item_callback("MO-TALLER", desc_final, total_mo, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
                 st.toast("Mano de Obra Agregada", icon="✅")
                 st.rerun()
@@ -550,21 +583,26 @@ if st.session_state.carrito:
         msg_enc = urllib.parse.quote(msg_raw)
         st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
-# --- VISTA PREVIA ADAPTATIVA ---
+# --- VISTA PREVIA ADAPTATIVA (CON COLORES COMPLETOS) ---
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
     for item in st.session_state.carrito:
-        p_style = "badge-urg" if item['Prioridad'] == "Urgente" else ""
+        # Lógica colores Prioridad
+        p = item['Prioridad']
+        p_class = "badge-base " + ("badge-urg" if p == "Urgente" else ("badge-med" if p == "Medio" else "badge-baj"))
+        
+        # Lógica colores Estatus
         a_val = item.get('Abasto', '⚠️ REVISAR')
-        a_style = "status-disp" if a_val == "Disponible" else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev"))
+        a_class = "status-base " + ("status-disp" if "Disponible" in a_val else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev")))
+        
         if "Pedido" in a_val or "Back" in a_val: hay_pedido_prev = True
         
         rows_html += f"""<tr>
 <td>{item['SKU']}</td>
 <td style="max-width: 280px;">{item['Descripción']}</td>
-<td><span class="{p_style}">{item['Prioridad']}</span></td>
-<td><span class="{a_style}">{a_val}</span></td>
+<td><span class="{p_class}">{p}</span></td>
+<td><span class="{a_class}">{a_val}</span></td>
 <td>{item['Tiempo Entrega']}</td>
 <td style="text-align:center">{item['Cantidad']}</td>
 <td style="text-align:right">${item['Precio Unitario (c/IVA)']:,.2f}</td>
@@ -613,4 +651,4 @@ if st.session_state.ver_preview and st.session_state.carrito:
 </div>
 </div>
 </div>"""
-    st.markdown(html_preview, unsafe_allow_html=True)
+    st.markdown(html_preview, unsafe_allow_html=T
