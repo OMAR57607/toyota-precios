@@ -10,3 +10,5 @@ numpy
 requests
 openpyxl
 opencv-python-headless
+pdfplumber
+pytesseract
