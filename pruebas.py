@@ -335,6 +335,7 @@ def generar_pdf():
         
         iva_unit = (item['Precio Base'] * 0.16) * item['Cantidad']
         pdf.cell(cols[7], 6, f"${iva_unit:,.2f}", 'B', 0, 'R')
+        
         pdf.cell(cols[8], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
         pdf.cell(cols[9], 6, "MO" if "MO" in item['SKU'] else "REF", 'B', 1, 'C')
 
@@ -397,8 +398,7 @@ with st.sidebar:
             except Exception as e: st.error(f"Error: {e}")
     
     st.divider()
-    # BOTÓN DE LIMPIEZA TOTAL
-    if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", use_container_width=True):
+    if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", width="stretch"):
         limpiar_todo()
         st.rerun()
 
@@ -436,7 +436,6 @@ with col_left:
                 m_desc = st.text_input("Descripción", value=val_desc)
                 if st.form_submit_button("Agregar Manual"):
                     agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR")
-                    # Limpieza parcial solo de campos manuales
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.toast("Agregado", icon="✅")
                     st.rerun()
@@ -461,8 +460,8 @@ with col_right:
                 "Prioridad": st.column_config.SelectboxColumn("Prioridad", options=["Urgente", "Medio", "Bajo"], required=True, width="small"),
                 "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], required=True, width="small"),
                 "Tiempo Entrega": st.column_config.TextColumn("Tiempo Entrega", width="medium"),
-                "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
-                "IVA": None, 
+                "Precio Base": None, # OCULTO
+                "IVA": None, # OCULTO
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "Estatus": None, "Tipo": None, 
                 "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
@@ -489,7 +488,6 @@ with col_right:
             pdf_bytes = generar_pdf()
             st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
         
-        # BOTÓN WHATSAPP
         with c_w:
             msg_wa = f"Hola *{st.session_state.cliente}*, adjunto cotización para VIN *{st.session_state.vin}*.\n\nTotal: *${tot:,.2f}*.\nOrden: {st.session_state.orden}.\n\nAtte: {st.session_state.asesor}"
             msg_enc = urllib.parse.quote(msg_wa)
@@ -519,4 +517,3 @@ if st.session_state.ver_preview and st.session_state.carrito:
 
     html_preview = f"""<div class="preview-container"><div class="preview-paper"><div class="preview-header"><div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div><div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div></div><div class="info-grid"><div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div><div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div></div><table class="custom-table"><thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th>T.ENT</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">IVA</th><th style="text-align:right">TOTAL</th></tr></thead><tbody>{rows}</tbody></table><div class="total-box"><div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div><div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div><div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>{anticipo_html}</div></div></div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
-
