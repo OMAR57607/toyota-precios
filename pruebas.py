@@ -10,6 +10,10 @@ import base64
 import urllib.parse
 import math
 
+# NUEVAS LIBRERIAS PARA PDF E IMAGENES
+import pdfplumber
+import pytesseract
+from PIL import Image
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -358,7 +362,6 @@ def generar_pdf():
         pdf.set_xy(x_desc + cols[1], y_desc)
         
         # --- COLOREADO PRIORIDAD (FONDO) ---
-        # Definir colores RGB para fondo y texto
         if prio == 'Urgente':
             pdf.set_fill_color(211, 47, 47) # Rojo
             pdf.set_text_color(255, 255, 255)
@@ -407,7 +410,7 @@ def generar_pdf():
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
-        pdf.cell(60, 5, "**  REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL **", 0, 1, 'R')
+        pdf.cell(60, 5, "** REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL **", 0, 1, 'R')
 
     pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
     pdf.cell(30, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
@@ -437,29 +440,58 @@ with st.sidebar:
     
     st.divider()
     st.markdown("### 🤖 Carga Inteligente")
-    uploaded_file = st.file_uploader("Excel / CSV", type=['xlsx', 'csv'], label_visibility="collapsed")
+    # MODIFICADO PARA ACEPTAR PDF Y IMAGENES
+    uploaded_file = st.file_uploader("Excel / CSV / PDF / IMG", type=['xlsx', 'csv', 'pdf', 'png', 'jpg', 'jpeg'], label_visibility="collapsed")
     if uploaded_file and st.button("Analizar Archivo", type="primary"):
         with st.status("Procesando...", expanded=False) as status:
             try:
-                df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-                items, meta = analizador_inteligente_archivos(df_up)
-                if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
-                if 'VIN' in meta: st.session_state.vin = meta['VIN']
-                if 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
-                if 'ASESOR' in meta: st.session_state.asesor = meta['ASESOR']
+                df_up = None
                 
-                exitos, fallos = 0, []
-                for it in items:
-                    clean = str(it['sku']).upper().replace('-', '').strip()
-                    match = df_db[df_db['SKU_CLEAN'] == clean]
-                    if not match.empty:
-                        row = match.iloc[0]
-                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR", traducir=True)
-                        exitos += 1
-                    else: fallos.append(it['sku'])
-                status.update(label=f"✅ {exitos} items importados", state="complete")
-                st.rerun()
-            except Exception as e: st.error(f"Error: {e}")
+                # LÓGICA DE DETECCIÓN DE TIPO DE ARCHIVO
+                if uploaded_file.name.lower().endswith('.csv'):
+                    df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
+                elif uploaded_file.name.lower().endswith('.xlsx'):
+                    df_up = pd.read_excel(uploaded_file)
+                elif uploaded_file.name.lower().endswith('.pdf'):
+                    # Lógica lectura PDF
+                    text_content = []
+                    with pdfplumber.open(uploaded_file) as pdf:
+                        for page in pdf.pages:
+                            text_content.append(page.extract_text())
+                    # Convertimos todo el texto a una columna para que el analizador lo lea
+                    full_text = "\n".join(filter(None, text_content))
+                    lines = full_text.split('\n')
+                    df_up = pd.DataFrame(lines, columns=['Content'])
+                elif uploaded_file.name.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    # Lógica lectura Imágenes (OCR)
+                    image = Image.open(uploaded_file)
+                    text = pytesseract.image_to_string(image)
+                    lines = text.split('\n')
+                    df_up = pd.DataFrame(lines, columns=['Content'])
+
+                # PROCESAMIENTO
+                if df_up is not None:
+                    items, meta = analizador_inteligente_archivos(df_up)
+                    if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
+                    if 'VIN' in meta: st.session_state.vin = meta['VIN']
+                    if 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
+                    if 'ASESOR' in meta: st.session_state.asesor = meta['ASESOR']
+                    
+                    exitos, fallos = 0, []
+                    for it in items:
+                        clean = str(it['sku']).upper().replace('-', '').strip()
+                        match = df_db[df_db['SKU_CLEAN'] == clean]
+                        if not match.empty:
+                            row = match.iloc[0]
+                            agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción", "Medio", "⚠️ REVISAR", traducir=True)
+                            exitos += 1
+                        else: fallos.append(it['sku'])
+                    status.update(label=f"✅ {exitos} items importados", state="complete")
+                    st.rerun()
+                else:
+                    st.error("Formato no soportado o error al leer.")
+
+            except Exception as e: st.error(f"Error: {e}. (Nota: Para imágenes, requiere Tesseract OCR instalado en el sistema).")
 
     st.divider()
     if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", use_container_width=True):
