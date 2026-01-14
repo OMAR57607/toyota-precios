@@ -212,7 +212,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 3. GENERADOR PDF
+# 3. GENERADOR PDF (CLASE FPDF MEJORADA)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -225,14 +225,16 @@ class PDF(FPDF):
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
 
     def footer(self):
-        self.set_y(-60) # Aumentamos espacio para textos legales
+        # CAMBIO: Posición mucho más alta para dar espacio
+        self.set_y(-75) 
         self.set_font('Arial', 'B', 7)
         self.set_text_color(0)
-        self.cell(0, 4, 'TÉRMINOS Y CONDICIONES Y CONSENTIMIENTO DIGITAL', 0, 1, 'L')
-        self.set_font('Arial', '', 5) # Letra ligeramente más pequeña para que quepa todo
+        self.cell(0, 4, 'TÉRMINOS, CONDICIONES Y CONSENTIMIENTO DIGITAL', 0, 1, 'L')
+        
+        # CAMBIO: Fuente más pequeña para que quepa todo sin romperse
+        self.set_font('Arial', '', 5) 
         self.set_text_color(60)
         
-        # TEXTO LEGAL BLINDADO
         legales = (
             "1. PEDIDOS ESPECIALES: Requieren el 100% DE PAGO ANTICIPADO. No cancelaciones ni devoluciones.\n"
             "2. PARTES ELÉCTRICAS: No se aceptan CAMBIOS ni DEVOLUCIONES. Garantía sujeta a dictamen técnico del fabricante.\n"
@@ -243,11 +245,17 @@ class PDF(FPDF):
             "Posesión de los Particulares (LFPDPPP). Aviso de Privacidad disponible en mostrador.\n"
             "6. GARANTÍA: 30 días MO / 12 meses Refacciones. Vigencia: 24 horas."
         )
-        self.multi_cell(0, 3, legales, 0, 'J')
+        # CAMBIO: Altura de línea reducida (de 3 a 2.5) para compactar texto
+        self.multi_cell(0, 2.5, legales, 0, 'J')
+        
         self.set_y(-15); self.set_font('Arial', 'I', 8); self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
 
 def generar_pdf():
-    pdf = PDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=65)
+    pdf = PDF()
+    pdf.add_page()
+    # CAMBIO: Margen inferior aumentado a 85 para cortar la tabla mucho antes y proteger el footer
+    pdf.set_auto_page_break(auto=True, margin=85)
+    
     pdf.set_fill_color(245); pdf.rect(10, 35, 190, 22, 'F')
     pdf.set_xy(12, 38); pdf.set_font('Arial', 'B', 9)
     pdf.cell(18, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 9); pdf.cell(90, 5, st.session_state.cliente.upper(), 0, 0)
@@ -486,3 +494,4 @@ if st.session_state.ver_preview and st.session_state.carrito:
     </div>
     """
     st.markdown(html_preview, unsafe_allow_html=True)
+
