@@ -7,6 +7,7 @@ import pytz
 import re
 import os
 import base64
+import urllib.parse
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -17,14 +18,22 @@ st.set_page_config(page_title="Toyota Asesores AI", page_icon="🤖", layout="wi
 tz_cdmx = pytz.timezone('America/Mexico_City') if 'America/Mexico_City' in pytz.all_timezones else None
 def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now()
 
-# Inicializar Sesión
-defaults = {
-    'carrito': [], 'errores_carga': [], 'cliente': "", 'vin': "", 'orden': "", 'asesor': "",
-    'temp_sku': "", 'temp_desc': "", 'temp_precio': 0.0, 
-    'ver_preview': False
-}
-for k, v in defaults.items():
-    if k not in st.session_state: st.session_state[k] = v
+# Función para Resetear TODO
+def limpiar_todo():
+    keys_to_reset = ['carrito', 'errores_carga', 'cliente', 'vin', 'orden', 'asesor', 'temp_sku', 'temp_desc', 'temp_precio', 'ver_preview']
+    for key in keys_to_reset:
+        if key in st.session_state:
+            if key == 'carrito' or key == 'errores_carga':
+                st.session_state[key] = []
+            elif key == 'temp_precio':
+                st.session_state[key] = 0.0
+            elif key == 'ver_preview':
+                st.session_state[key] = False
+            else:
+                st.session_state[key] = ""
+
+# Inicializar Sesión (si no existen)
+if 'carrito' not in st.session_state: limpiar_todo()
 
 # Estilos CSS
 st.markdown("""
@@ -33,6 +42,24 @@ st.markdown("""
     h1, h2, h3 { font-family: 'Helvetica', sans-serif; font-weight: 700; color: #333; }
     .stButton button { width: 100%; border-radius: 6px; font-weight: 600; }
     
+    /* Botón WhatsApp Personalizado */
+    .wa-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #25D366;
+        color: white !important;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        width: 100%;
+        margin-top: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: background-color 0.3s;
+    }
+    .wa-btn:hover { background-color: #128C7E; color: white !important; }
+
     /* VISTA PREVIA */
     .preview-container {
         font-family: Arial, sans-serif;
@@ -46,7 +73,7 @@ st.markdown("""
     .preview-paper {
         background-color: white !important;
         width: 100%;
-        max-width: 950px; /* Un poco más ancho para la nueva columna */
+        max-width: 950px;
         padding: 40px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         color: #000 !important;
@@ -94,9 +121,8 @@ st.markdown("""
     /* Status */
     .status-disp { color: #2e7d32; font-weight: bold; border: 1px solid #2e7d32; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
     .status-ped { color: white; background-color: #ef6c00; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; }
-    .status-bo { color: white; background-color: #000000; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; } /* Back Order negro */
+    .status-bo { color: white; background-color: #000000; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; }
     .status-rev { color: white; background-color: #d32f2f; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; animation: blink 2s infinite; }
-    
     @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
     
     .anticipo-warning {
@@ -199,16 +225,10 @@ def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", 
     except: desc = str(desc_raw)
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
-        "SKU": sku, 
-        "Descripción": desc, 
-        "Prioridad": prioridad, 
-        "Abasto": abasto,
-        "Tiempo Entrega": "", # NUEVA VARIABLE VACÍA
-        "Cantidad": cant, 
-        "Precio Base": precio, 
-        "IVA": iva, 
-        "Importe Total": (precio * cant) + iva, 
-        "Tipo": tipo
+        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto,
+        "Tiempo Entrega": "",
+        "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
+        "Importe Total": (precio * cant) + iva, "Estatus": "Disponible", "Tipo": tipo
     })
 
 def cargar_en_manual(sku, desc, precio):
@@ -275,8 +295,7 @@ def generar_pdf():
     pdf.ln(8)
     
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 8)
-    # AJUSTE DE COLUMNAS PARA T.ENTREGA
-    cols = [22, 40, 12, 15, 20, 8, 18, 18, 18, 12] # [Code, Desc, Prio, Stat, T.Ent, Cant, Unit, IVA, Total, Type]
+    cols = [22, 40, 12, 15, 20, 8, 18, 18, 18, 12]
     headers = ['CODIGO', 'DESCRIPCION', 'PRIOR', 'STAT', 'T.ENT', 'CT', 'UNIT', 'IVA', 'TOTAL', 'TP']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
@@ -288,8 +307,6 @@ def generar_pdf():
         prio = item.get('Prioridad', 'Medio')
         abasto = item.get('Abasto', '⚠️ REVISAR')
         t_ent = item.get('Tiempo Entrega', '')
-        
-        # Detectar si hay pedidos o Back Order
         if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
         
         pdf.set_text_color(0)
@@ -303,24 +320,21 @@ def generar_pdf():
         
         if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         elif abasto == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
-        elif abasto == "Back Order": pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7) # BO Negritas
+        elif abasto == "Back Order": pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
         
         st_txt = abasto.replace("⚠️ ", "").upper()
         st_txt = st_txt.replace("POR PEDIDO", "PED").replace("DISPONIBLE", "DISP").replace("BACK ORDER", "BO")
         st_txt = st_txt.encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(cols[3], 6, st_txt, 'B', 0, 'C')
         
-        # COLUMNA TIEMPO ENTREGA
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
         te_safe = str(t_ent[:12]).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(cols[4], 6, te_safe, 'B', 0, 'C')
-        
         pdf.cell(cols[5], 6, str(item['Cantidad']), 'B', 0, 'C')
         pdf.cell(cols[6], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
         
         iva_unit = (item['Precio Base'] * 0.16) * item['Cantidad']
         pdf.cell(cols[7], 6, f"${iva_unit:,.2f}", 'B', 0, 'R')
-        
         pdf.cell(cols[8], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
         pdf.cell(cols[9], 6, "MO" if "MO" in item['SKU'] else "REF", 'B', 1, 'C')
 
@@ -381,9 +395,15 @@ with st.sidebar:
                 if fallos: st.warning(f"{len(fallos)} códigos no encontrados")
                 st.rerun()
             except Exception as e: st.error(f"Error: {e}")
+    
+    st.divider()
+    # BOTÓN DE LIMPIEZA TOTAL
+    if st.button("🗑️ Limpieza Total (Nuevo Cliente)", type="secondary", use_container_width=True):
+        limpiar_todo()
+        st.rerun()
 
 # --- MAIN ---
-st.title("Cotizador Toyota Los Fuertes")
+st.title("Cotizador Los Fuertes")
 col_left, col_right = st.columns([1.2, 2])
 
 with col_left:
@@ -416,6 +436,7 @@ with col_left:
                 m_desc = st.text_input("Descripción", value=val_desc)
                 if st.form_submit_button("Agregar Manual"):
                     agregar_item_callback(m_sku.upper(), m_desc, m_pr, 1, "Refacción", "Medio", "⚠️ REVISAR")
+                    # Limpieza parcial solo de campos manuales
                     st.session_state.temp_sku = ""; st.session_state.temp_desc = ""; st.session_state.temp_precio = 0.0
                     st.toast("Agregado", icon="✅")
                     st.rerun()
@@ -439,7 +460,7 @@ with col_right:
             column_config={
                 "Prioridad": st.column_config.SelectboxColumn("Prioridad", options=["Urgente", "Medio", "Bajo"], required=True, width="small"),
                 "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], required=True, width="small"),
-                "Tiempo Entrega": st.column_config.TextColumn("Tiempo Entrega", width="medium"), # NUEVA COLUMNA EDITABLE
+                "Tiempo Entrega": st.column_config.TextColumn("Tiempo Entrega", width="medium"),
                 "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
                 "IVA": None, 
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
@@ -461,14 +482,19 @@ with col_right:
 
         sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
         tot = sub * 1.16
-        c_p, c_d, c_l = st.columns([1, 1, 0.5])
+        c_p, c_d, c_w = st.columns([1, 1, 1])
         with c_p:
             if st.button("👁️ Vista Previa" if not st.session_state.ver_preview else "🚫 Cerrar", on_click=toggle_preview, width="stretch"): pass
         with c_d:
             pdf_bytes = generar_pdf()
             st.download_button("📄 PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
-        with c_l:
-            if st.button("🗑️", help="Limpiar"): st.session_state.carrito = []; st.rerun()
+        
+        # BOTÓN WHATSAPP
+        with c_w:
+            msg_wa = f"Hola *{st.session_state.cliente}*, adjunto cotización para VIN *{st.session_state.vin}*.\n\nTotal: *${tot:,.2f}*.\nOrden: {st.session_state.orden}.\n\nAtte: {st.session_state.asesor}"
+            msg_enc = urllib.parse.quote(msg_wa)
+            wa_link = f"https://wa.me/?text={msg_enc}"
+            st.markdown(f'<a href="{wa_link}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
 
     else: st.info("Carrito vacío.")
 
@@ -480,16 +506,13 @@ if st.session_state.ver_preview and st.session_state.carrito:
     hay_pedido_prev = False
     for item in st.session_state.carrito:
         p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
-        
         s_val = item.get('Abasto', '⚠️ REVISAR')
         if s_val == "Disponible": s_cl = "status-disp"
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
-        elif s_val == "Back Order": s_cl = "status-bo"; hay_pedido_prev = True # Back Order tambien dispara alerta
+        elif s_val == "Back Order": s_cl = "status-bo"; hay_pedido_prev = True
         else: s_cl = "status-rev"
-        
         te_val = item.get('Tiempo Entrega', '')
         iva_linea = (item['Precio Base'] * 0.16) * item['Cantidad']
-        
         rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td>{te_val}</td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${iva_linea:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
 
     anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO o BACK ORDER. Se requiere el 100% de anticipo.</div>' if hay_pedido_prev else ''
