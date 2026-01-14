@@ -519,27 +519,31 @@ if st.session_state.ver_preview and st.session_state.carrito:
 
     anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO o BACK ORDER. Se requiere el 100% de anticipo.</div>' if hay_pedido_prev else ''
 
-    html_preview = f"""
-    <div class="preview-container">
-        <div class="preview-paper">
-            <div class="preview-header">
-                <div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div>
-                <div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div>
-                </div>
-            <div class="info-grid">
-                <div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div>
-                <div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div>
-            </div>
-            <table class="custom-table">
-                <thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th>T.ENT</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">IVA</th><th style="text-align:right">TOTAL</th></tr></thead>
-                <tbody>{rows}</tbody>
-            </table>
-            <div class="total-box">
-                <div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div>
-                <div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div>
-                <div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>
-                {anticipo_html}
-            </div>
-        </div>
-    </div>"""
+    # --- VISTA PREVIA RENDERIZADA ---
+    # Corrección: El HTML debe estar pegado a la izquierda para evitar 
+    # que Streamlit piense que es código por la identación.
+    
+    html_preview = f"""<div class="preview-container">
+<div class="preview-paper">
+<div class="preview-header">
+    <div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div>
+    <div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div>
+</div>
+<div class="info-grid">
+    <div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div>
+    <div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div>
+</div>
+<table class="custom-table">
+    <thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th>T.ENT</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">IVA</th><th style="text-align:right">TOTAL</th></tr></thead>
+    <tbody>{rows}</tbody>
+</table>
+<div class="total-box">
+    <div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div>
+    <div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div>
+    <div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>
+    {anticipo_html}
+</div>
+</div>
+</div>"""
+    
     st.markdown(html_preview, unsafe_allow_html=True)
