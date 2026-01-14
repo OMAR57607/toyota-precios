@@ -46,7 +46,7 @@ st.markdown("""
     .preview-paper {
         background-color: white !important;
         width: 100%;
-        max-width: 900px;
+        max-width: 950px; /* Un poco más ancho para la nueva columna */
         padding: 40px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         color: #000 !important;
@@ -75,7 +75,7 @@ st.markdown("""
     .info-item { font-size: 12px; margin-bottom: 4px; color: #333; }
     .info-label { font-weight: bold; color: #555; width: 70px; display: inline-block; }
 
-    table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; }
+    table.custom-table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 20px; }
     table.custom-table th { background-color: #eb0a1e !important; color: white !important; padding: 8px; text-align: left; }
     table.custom-table td { border-bottom: 1px solid #ddd; padding: 8px; color: #333 !important; }
     
@@ -94,7 +94,9 @@ st.markdown("""
     /* Status */
     .status-disp { color: #2e7d32; font-weight: bold; border: 1px solid #2e7d32; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
     .status-ped { color: white; background-color: #ef6c00; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; }
+    .status-bo { color: white; background-color: #000000; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; } /* Back Order negro */
     .status-rev { color: white; background-color: #d32f2f; font-weight: bold; padding: 2px 5px; border-radius: 3px; font-size: 9px; animation: blink 2s infinite; }
+    
     @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
     
     .anticipo-warning {
@@ -197,10 +199,16 @@ def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", 
     except: desc = str(desc_raw)
     iva = (precio * cant) * 0.16
     st.session_state.carrito.append({
-        "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto,
-        "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
-        "Importe Total": (precio * cant) + iva, "Tipo": tipo
-        # 'Estatus' ELIMINADO
+        "SKU": sku, 
+        "Descripción": desc, 
+        "Prioridad": prioridad, 
+        "Abasto": abasto,
+        "Tiempo Entrega": "", # NUEVA VARIABLE VACÍA
+        "Cantidad": cant, 
+        "Precio Base": precio, 
+        "IVA": iva, 
+        "Importe Total": (precio * cant) + iva, 
+        "Tipo": tipo
     })
 
 def cargar_en_manual(sku, desc, precio):
@@ -267,8 +275,9 @@ def generar_pdf():
     pdf.ln(8)
     
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 8)
-    cols = [22, 45, 15, 15, 10, 20, 20, 20, 12]
-    headers = ['CODIGO', 'DESCRIPCION', 'PRIORIDAD', 'STATUS', 'CT', 'UNIT', 'IVA', 'TOTAL', 'TP']
+    # AJUSTE DE COLUMNAS PARA T.ENTREGA
+    cols = [22, 40, 12, 15, 20, 8, 18, 18, 18, 12] # [Code, Desc, Prio, Stat, T.Ent, Cant, Unit, IVA, Total, Type]
+    headers = ['CODIGO', 'DESCRIPCION', 'PRIOR', 'STAT', 'T.ENT', 'CT', 'UNIT', 'IVA', 'TOTAL', 'TP']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
     
@@ -278,11 +287,14 @@ def generar_pdf():
     for item in st.session_state.carrito:
         prio = item.get('Prioridad', 'Medio')
         abasto = item.get('Abasto', '⚠️ REVISAR')
-        if abasto == "Por Pedido": hay_pedido = True
+        t_ent = item.get('Tiempo Entrega', '')
+        
+        # Detectar si hay pedidos o Back Order
+        if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
         
         pdf.set_text_color(0)
         pdf.cell(cols[0], 6, item['SKU'][:15], 'B', 0, 'C')
-        desc_safe = str(item['Descripción'][:45]).encode('latin-1', 'replace').decode('latin-1')
+        desc_safe = str(item['Descripción'][:40]).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(cols[1], 6, desc_safe, 'B', 0, 'L')
         
         if prio == 'Urgente': pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
@@ -291,18 +303,26 @@ def generar_pdf():
         
         if abasto == "⚠️ REVISAR": pdf.set_text_color(200, 0, 0); pdf.set_font('Arial', 'B', 7)
         elif abasto == "Por Pedido": pdf.set_text_color(230, 100, 0); pdf.set_font('Arial', 'B', 7)
-        st_txt = abasto.replace("⚠️ ", "").upper().encode('latin-1', 'replace').decode('latin-1')
+        elif abasto == "Back Order": pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7) # BO Negritas
+        
+        st_txt = abasto.replace("⚠️ ", "").upper()
+        st_txt = st_txt.replace("POR PEDIDO", "PED").replace("DISPONIBLE", "DISP").replace("BACK ORDER", "BO")
+        st_txt = st_txt.encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(cols[3], 6, st_txt, 'B', 0, 'C')
         
+        # COLUMNA TIEMPO ENTREGA
         pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
-        pdf.cell(cols[4], 6, str(item['Cantidad']), 'B', 0, 'C')
-        pdf.cell(cols[5], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
+        te_safe = str(t_ent[:12]).encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(cols[4], 6, te_safe, 'B', 0, 'C')
+        
+        pdf.cell(cols[5], 6, str(item['Cantidad']), 'B', 0, 'C')
+        pdf.cell(cols[6], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
         
         iva_unit = (item['Precio Base'] * 0.16) * item['Cantidad']
-        pdf.cell(cols[6], 6, f"${iva_unit:,.2f}", 'B', 0, 'R')
+        pdf.cell(cols[7], 6, f"${iva_unit:,.2f}", 'B', 0, 'R')
         
-        pdf.cell(cols[7], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
-        pdf.cell(cols[8], 6, "MO" if "MO" in item['SKU'] else "REF", 'B', 1, 'C')
+        pdf.cell(cols[8], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
+        pdf.cell(cols[9], 6, "MO" if "MO" in item['SKU'] else "REF", 'B', 1, 'C')
 
     pdf.ln(5)
     sub = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
@@ -418,12 +438,12 @@ with col_right:
             df_c,
             column_config={
                 "Prioridad": st.column_config.SelectboxColumn("Prioridad", options=["Urgente", "Medio", "Bajo"], required=True, width="small"),
-                "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "⚠️ REVISAR"], required=True, width="small"),
+                "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], required=True, width="small"),
+                "Tiempo Entrega": st.column_config.TextColumn("Tiempo Entrega", width="medium"), # NUEVA COLUMNA EDITABLE
                 "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
-                "IVA": None, # OCULTO EN PANTALLA
+                "IVA": None, 
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
-                "Estatus": None, # OCULTO (Columna eliminada logicamente pero oculto por seguridad si queda cache)
-                "Tipo": None, # OCULTO EN PANTALLA (Solo PDF)
+                "Estatus": None, "Tipo": None, 
                 "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
                 "Descripción": st.column_config.TextColumn(width="medium", disabled=True),
                 "SKU": st.column_config.TextColumn(width="small", disabled=True),
@@ -452,7 +472,7 @@ with col_right:
 
     else: st.info("Carrito vacío.")
 
-# --- VISTA PREVIA LIMPIA (SIN LEGALES, CON IVA) ---
+# --- VISTA PREVIA LIMPIA ---
 if st.session_state.ver_preview and st.session_state.carrito:
     sub = sum(x['Precio Base'] * x['Cantidad'] for x in st.session_state.carrito)
     tot = sub * 1.16
@@ -460,18 +480,20 @@ if st.session_state.ver_preview and st.session_state.carrito:
     hay_pedido_prev = False
     for item in st.session_state.carrito:
         p_cl = "badge-urg" if item['Prioridad'] == "Urgente" else ("badge-med" if item['Prioridad'] == "Medio" else "badge-baj")
+        
         s_val = item.get('Abasto', '⚠️ REVISAR')
         if s_val == "Disponible": s_cl = "status-disp"
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
+        elif s_val == "Back Order": s_cl = "status-bo"; hay_pedido_prev = True # Back Order tambien dispara alerta
         else: s_cl = "status-rev"
         
-        # CALCULO IVA LINEA (Solo visualización)
+        te_val = item.get('Tiempo Entrega', '')
         iva_linea = (item['Precio Base'] * 0.16) * item['Cantidad']
         
-        rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${iva_linea:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+        rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td>{te_val}</td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${iva_linea:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
 
-    anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO. Se requiere el 100% de anticipo para procesar la orden.</div>' if hay_pedido_prev else ''
+    anticipo_html = '<div class="anticipo-warning">⚠️ ATENCIÓN: Esta cotización incluye piezas BAJO PEDIDO o BACK ORDER. Se requiere el 100% de anticipo.</div>' if hay_pedido_prev else ''
 
-    html_preview = f"""<div class="preview-container"><div class="preview-paper"><div class="preview-header"><div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div><div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div></div><div class="info-grid"><div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div><div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div></div><table class="custom-table"><thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">IVA</th><th style="text-align:right">TOTAL</th></tr></thead><tbody>{rows}</tbody></table><div class="total-box"><div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div><div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div><div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>{anticipo_html}</div></div></div>"""
+    html_preview = f"""<div class="preview-container"><div class="preview-paper"><div class="preview-header"><div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div><div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div></div><div class="info-grid"><div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div><div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div></div><table class="custom-table"><thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th>T.ENT</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">IVA</th><th style="text-align:right">TOTAL</th></tr></thead><tbody>{rows}</tbody></table><div class="total-box"><div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div><div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div><div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>{anticipo_html}</div></div></div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
 
