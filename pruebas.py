@@ -10,7 +10,6 @@ import base64
 import urllib.parse
 import math
 
-
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
 # ==========================================
@@ -23,15 +22,15 @@ def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now
 # Inicialización de Sesión
 def init_session():
     defaults = {
-        'carrito': [], 
-        'errores_carga': [], 
-        'cliente': "", 
-        'vin': "", 
-        'orden': "", 
+        'carrito': [],
+        'errores_carga': [],
+        'cliente': "",
+        'vin': "",
+        'orden': "",
         'asesor': "",
-        'temp_sku': "", 
-        'temp_desc': "", 
-        'temp_precio': 0.0, 
+        'temp_sku': "",
+        'temp_desc': "",
+        'temp_precio': 0.0,
         'ver_preview': False
     }
     for key, value in defaults.items():
@@ -81,12 +80,12 @@ st.markdown("""
     .info-label { font-weight: 700; color: #555; display: inline-block; width: 70px; }
     
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; table-layout: fixed; }
-    table.custom-table th { 
-        background-color: #eb0a1e !important; 
-        color: white !important; 
-        padding: 10px 8px; 
-        text-align: left; 
-        font-weight: bold; 
+    table.custom-table th {
+        background-color: #eb0a1e !important;
+        color: white !important;
+        padding: 10px 8px;
+        text-align: left;
+        font-weight: bold;
         text-transform: uppercase;
         white-space: nowrap;
         overflow: hidden;
@@ -111,7 +110,9 @@ st.markdown("""
     .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }
     .status-rev { color: #b71c1c; background: #ffcdd2; border: 1px solid #b71c1c; }
 
+    /* ALERTAS EN PREVIEW */
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
+    .revisar-warning { color: #b71c1c; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #b71c1c; padding: 5px; border-radius: 4px; background-color: #ffcdd2; }
     
     @media only screen and (max-width: 600px) {
         .preview-paper { padding: 15px; min-width: 100%; }
@@ -182,7 +183,7 @@ def analizador_inteligente_archivos(df_raw):
                 cont = re.sub(r'(?:CLIENTE|ATTN|NOMBRE)[\:\.\-\s]*', '', val).strip()
                 if len(cont)>4: metadata['CLIENTE'] = cont
                 else:
-                    try: 
+                    try:
                         vec = str(df.iloc[r_idx, df.columns.get_loc(c_idx)+1]).strip()
                         if len(vec)>4: metadata['CLIENTE'] = vec
                     except: pass
@@ -193,7 +194,7 @@ def analizador_inteligente_archivos(df_raw):
             
             if es_sku:
                 cant = 1
-                try: 
+                try:
                     vecino = df.iloc[r_idx, df.columns.get_loc(c_idx)+1].replace('.0', '')
                     if vecino.isdigit(): cant = int(vecino)
                 except: pass
@@ -223,17 +224,17 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
     precio_unitario_con_iva = precio_base * 1.16
     
     st.session_state.carrito.append({
-        "SKU": sku, 
-        "Descripción": desc, 
-        "Prioridad": prioridad, 
+        "SKU": sku,
+        "Descripción": desc,
+        "Prioridad": prioridad,
         "Abasto": abasto,
-        "Tiempo Entrega": "", 
-        "Cantidad": cant, 
-        "Precio Base": precio_base, 
-        "Precio Unitario (c/IVA)": precio_unitario_con_iva, 
-        "IVA": iva_monto, 
-        "Importe Total": total_linea, 
-        "Estatus": "Disponible", 
+        "Tiempo Entrega": "",
+        "Cantidad": cant,
+        "Precio Base": precio_base,
+        "Precio Unitario (c/IVA)": precio_unitario_con_iva,
+        "IVA": iva_monto,
+        "Importe Total": total_linea,
+        "Estatus": "Disponible",
         "Tipo": tipo
     })
 
@@ -246,11 +247,11 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF (LOGICA DE COLOR APLICADA)
+# 4. GENERADOR PDF (LÓGICA ACTUALIZADA)
 # ==========================================
 class PDF(FPDF):
     def header(self):
-        if os.path.exists("logo.png"): 
+        if os.path.exists("logo.png"):
             try: self.image("logo.png", 10, 8, 33)
             except: pass
         self.set_font('Arial', 'B', 16); self.set_text_color(235, 10, 30)
@@ -308,7 +309,7 @@ def generar_pdf():
 
     # Tabla Header
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 6)
-    cols = [20, 45, 15, 18, 25, 10, 20, 17, 20] 
+    cols = [20, 45, 15, 18, 25, 10, 20, 17, 20]
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'PRIORIDAD', 'ESTATUS', 'TIEMPO ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
@@ -317,12 +318,16 @@ def generar_pdf():
     pdf.set_text_color(0); pdf.set_font('Arial', '', 7)
     sub = 0; iva_total = 0
     hay_pedido = False
-    
+    hay_backorder = False # Flag para Back Order
+
     for item in st.session_state.carrito:
         sub += item['Precio Base'] * item['Cantidad']
         iva_total += item['IVA']
         abasto = item.get('Abasto', '⚠️ REVISAR')
+        
+        # Lógica de banderas para alertas
         if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
+        if "Back" in abasto: hay_backorder = True
 
         sku_txt = item['SKU'][:15]
         desc_txt = str(item['Descripción']).encode('latin-1', 'replace').decode('latin-1')
@@ -331,11 +336,11 @@ def generar_pdf():
         te_txt = str(item['Tiempo Entrega'])[:12]
         
         text_width = pdf.get_string_width(desc_txt)
-        col_width = cols[1] - 2 
+        col_width = cols[1] - 2
         lines = int(math.ceil(text_width / col_width))
         if lines < 1: lines = 1
-        line_height = 4 
-        row_height = max(6, lines * line_height) 
+        line_height = 4
+        row_height = max(6, lines * line_height)
         
         if pdf.get_y() + row_height > 260:
             pdf.add_page()
@@ -358,18 +363,17 @@ def generar_pdf():
         pdf.set_xy(x_desc + cols[1], y_desc)
         
         # --- COLOREADO PRIORIDAD (FONDO) ---
-        # Definir colores RGB para fondo y texto
         if prio == 'Urgente':
-            pdf.set_fill_color(211, 47, 47) # Rojo
+            pdf.set_fill_color(211, 47, 47) 
             pdf.set_text_color(255, 255, 255)
         elif prio == 'Medio':
-            pdf.set_fill_color(245, 124, 0) # Naranja
+            pdf.set_fill_color(245, 124, 0)
             pdf.set_text_color(255, 255, 255)
         else: # Bajo
-            pdf.set_fill_color(2, 136, 209) # Azul
+            pdf.set_fill_color(2, 136, 209)
             pdf.set_text_color(255, 255, 255)
 
-        pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True) # Fill=True
+        pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True)
         
         # Reset color
         pdf.set_fill_color(255, 255, 255)
@@ -380,16 +384,16 @@ def generar_pdf():
             pdf.set_fill_color(46, 125, 50) # Verde
             pdf.set_text_color(255, 255, 255)
         elif "Pedido" in abasto:
-            pdf.set_fill_color(239, 108, 0) # Naranja Pedido
+            pdf.set_fill_color(239, 108, 0) # Naranja
             pdf.set_text_color(255, 255, 255)
         elif "Back" in abasto:
-            pdf.set_fill_color(33, 33, 33) # Negro/Gris Oscuro
+            pdf.set_fill_color(33, 33, 33) # Negro
             pdf.set_text_color(255, 255, 255)
         else: # Revisar
-            pdf.set_fill_color(198, 40, 40) # Rojo Revisar
+            pdf.set_fill_color(198, 40, 40) # Rojo
             pdf.set_text_color(255, 255, 255)
 
-        pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True) # Fill=True
+        pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True)
 
         # Reset Color
         pdf.set_fill_color(255, 255, 255)
@@ -398,16 +402,23 @@ def generar_pdf():
         # Resto Columnas
         pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
         pdf.cell(cols[5], row_height, str(item['Cantidad']), 1, 0, 'C')
-        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R') 
-        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R') 
-        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R') 
+        pdf.cell(cols[6], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
+        pdf.cell(cols[7], row_height, f"${item['IVA'] / item['Cantidad']:,.2f}", 1, 0, 'R')
+        pdf.cell(cols[8], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
 
     pdf.ln(5)
     total = sub + iva_total
+    
+    # ALERTAS ESPECIALES EN PDF
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
-        pdf.cell(60, 5, "** REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL **", 0, 1, 'R')
+        pdf.cell(60, 4, "** REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL **", 0, 1, 'R')
+
+    if hay_backorder:
+        pdf.set_x(110)
+        pdf.set_font('Arial', 'B', 7); pdf.set_text_color(50, 50, 50)
+        pdf.cell(80, 4, "** NOTA: REVISAR CON SU ASESOR EL TIEMPO DE ENTREGA (BACK ORDER) **", 0, 1, 'R')
 
     pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
     pdf.cell(30, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
@@ -504,7 +515,7 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
             c1, c2, c3 = st.columns([2, 1, 1])
             mo_desc = c1.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Diagnóstico...")
             mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
-            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0) 
+            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0)
             if st.form_submit_button("Agregar Servicio 🛠️"):
                 total_mo = mo_hrs * mo_cost
                 desc_final = f"{mo_desc} ({mo_hrs} hrs)"
@@ -526,8 +537,8 @@ if st.session_state.carrito:
             "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small", required= True),
             "Precio Unitario (c/IVA)": st.column_config.NumberColumn("P. Unit. (Neto)", format="$%.2f", disabled=True),
             "Importe Total": st.column_config.NumberColumn("Total Línea", format="$%.2f", disabled=True),
-            "Precio Base": None, 
-            "IVA": None, 
+            "Precio Base": None,
+            "IVA": None,
             "Tipo": None, "Estatus": None,
             "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
             "Descripción": st.column_config.TextColumn(width="medium"),
@@ -587,6 +598,8 @@ if st.session_state.carrito:
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
+    hay_revisar_prev = False # Flag para items en revisión
+
     for item in st.session_state.carrito:
         # Lógica colores Prioridad
         p = item['Prioridad']
@@ -597,6 +610,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
         a_class = "status-base " + ("status-disp" if "Disponible" in a_val else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev")))
         
         if "Pedido" in a_val or "Back" in a_val: hay_pedido_prev = True
+        if "REVISAR" in a_val: hay_revisar_prev = True
         
         rows_html += f"""<tr>
 <td>{item['SKU']}</td>
@@ -608,8 +622,9 @@ if st.session_state.ver_preview and st.session_state.carrito:
 <td style="text-align:right">${item['Precio Unitario (c/IVA)']:,.2f}</td>
 <td style="text-align:right">${item['Importe Total']:,.2f}</td>
 </tr>"""
-    
+
     anticipo_html = '<div class="anticipo-warning">⚠️ REQUIERE ANTICIPO DEL 100% POR PEDIDO ESPECIAL</div>' if hay_pedido_prev else ''
+    revisar_html = '<div class="revisar-warning">⚠️ ATENCIÓN: EXISTEN PARTES PENDIENTES DE VALIDAR PRECIO/DISPONIBILIDAD</div>' if hay_revisar_prev else ''
 
     html_preview = f"""<div class="preview-container">
 <div class="preview-paper">
@@ -648,6 +663,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
 <div class="total-box">
 <div class="total-final">TOTAL: ${total_gral:,.2f}</div>
 {anticipo_html}
+{revisar_html}
 </div>
 </div>
 </div>"""
