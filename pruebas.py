@@ -372,7 +372,7 @@ def generar_pdf():
     if hay_pedido:
         pdf.set_x(130)
         pdf.set_font('Arial', 'B', 8); pdf.set_text_color(230, 100, 0)
-        pdf.cell(60, 5, "** REQUIERE ANTICIPO **", 0, 1, 'R')
+        pdf.cell(60, 5, "** REQUIERE PAGO DEL 100% **", 0, 1, 'R')
 
     pdf.set_x(130); pdf.set_font('Arial', '', 9); pdf.set_text_color(0)
     pdf.cell(30, 5, 'SUBTOTAL:', 0, 0, 'R'); pdf.cell(30, 5, f"${sub:,.2f}", 0, 1, 'R')
