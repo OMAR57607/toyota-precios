@@ -225,14 +225,12 @@ if df is not None and busqueda:
             <div class="result-card">
                 <div class="sku-label">NÚMERO DE PARTE: {sku_mostrado}</div>
                 <div class="desc-product">{desc_es}</div>
-                
                 <div class="price-block">
                     <div class="breakdown-container">
                         <div class="price-sub">Subtotal: ${precio_base_subtotal:,.2f}</div>
                         <div class="price-sub">IVA (16%): ${iva_monto:,.2f}</div>
                     </div>
-                    
-                    <div>
+                     <div>
                         <div style="font-size:0.8rem; text-align:right; color:#888;">Total a Pagar</div>
                         <div class="price-big">${precio_total_final:,.2f} <span style="font-size:1rem; color:var(--text-color); opacity:0.5;">MXN</span></div>
                     </div>
