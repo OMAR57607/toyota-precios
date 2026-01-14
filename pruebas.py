@@ -199,7 +199,8 @@ def agregar_item_callback(sku, desc_raw, precio, cant, tipo, prioridad="Medio", 
     st.session_state.carrito.append({
         "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto,
         "Cantidad": cant, "Precio Base": precio, "IVA": iva, 
-        "Importe Total": (precio * cant) + iva, "Estatus": "Disponible", "Tipo": tipo
+        "Importe Total": (precio * cant) + iva, "Tipo": tipo
+        # 'Estatus' ELIMINADO
     })
 
 def cargar_en_manual(sku, desc, precio):
@@ -211,7 +212,7 @@ def cargar_en_manual(sku, desc, precio):
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 3. GENERADOR PDF (CON COLUMNA IVA)
+# 3. GENERADOR PDF
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -266,9 +267,8 @@ def generar_pdf():
     pdf.ln(8)
     
     pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255); pdf.set_font('Arial', 'B', 8)
-    # CONFIGURACIÓN DE COLUMNAS CON IVA
-    cols = [22, 45, 15, 15, 10, 20, 20, 20, 12] # Anchos ajustados
-    headers = ['CODIGO', 'DESCRIP', 'PRIOR', 'STAT', 'CT', 'UNIT', 'IVA', 'TOTAL', 'TP']
+    cols = [22, 45, 15, 15, 10, 20, 20, 20, 12]
+    headers = ['CODIGO', 'DESCRIPCION', 'PRIORIDAD', 'STATUS', 'CT', 'UNIT', 'IVA', 'TOTAL', 'TP']
     for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 0, 0, 'C', True)
     pdf.ln()
     
@@ -298,8 +298,7 @@ def generar_pdf():
         pdf.cell(cols[4], 6, str(item['Cantidad']), 'B', 0, 'C')
         pdf.cell(cols[5], 6, f"${item['Precio Base']:,.2f}", 'B', 0, 'R')
         
-        # COLUMNA IVA (NUEVA)
-        iva_unit = (item['Precio Base'] * 0.16) * item['Cantidad'] # IVA total de la línea
+        iva_unit = (item['Precio Base'] * 0.16) * item['Cantidad']
         pdf.cell(cols[6], 6, f"${iva_unit:,.2f}", 'B', 0, 'R')
         
         pdf.cell(cols[7], 6, f"${item['Importe Total']:,.2f}", 'B', 0, 'R')
@@ -415,16 +414,16 @@ with col_right:
     if st.session_state.carrito:
         df_c = pd.DataFrame(st.session_state.carrito)
         
-        # EDITOR (IVA OCULTO AQUI)
         edited = st.data_editor(
             df_c,
             column_config={
                 "Prioridad": st.column_config.SelectboxColumn("Prioridad", options=["Urgente", "Medio", "Bajo"], required=True, width="small"),
                 "Abasto": st.column_config.SelectboxColumn("Abasto", options=["Disponible", "Por Pedido", "⚠️ REVISAR"], required=True, width="small"),
                 "Precio Base": st.column_config.NumberColumn(format="$%.2f", disabled=True),
-                "IVA": None, # OCULTO EN LA UI
+                "IVA": None, # OCULTO EN PANTALLA
                 "Importe Total": st.column_config.NumberColumn(format="$%.2f", disabled=True),
-                "Estatus": None, "Tipo": None, 
+                "Estatus": None, # OCULTO (Columna eliminada logicamente pero oculto por seguridad si queda cache)
+                "Tipo": None, # OCULTO EN PANTALLA (Solo PDF)
                 "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
                 "Descripción": st.column_config.TextColumn(width="medium", disabled=True),
                 "SKU": st.column_config.TextColumn(width="small", disabled=True),
@@ -466,7 +465,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
         elif s_val == "Por Pedido": s_cl = "status-ped"; hay_pedido_prev = True
         else: s_cl = "status-rev"
         
-        # CALCULO IVA LINEA
+        # CALCULO IVA LINEA (Solo visualización)
         iva_linea = (item['Precio Base'] * 0.16) * item['Cantidad']
         
         rows += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='{p_cl}'>{item['Prioridad'].upper()}</span></td><td><span class='{s_cl}'>{s_val.upper()}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Precio Base']:,.2f}</td><td style='text-align:right'>${iva_linea:,.2f}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
@@ -475,3 +474,4 @@ if st.session_state.ver_preview and st.session_state.carrito:
 
     html_preview = f"""<div class="preview-container"><div class="preview-paper"><div class="preview-header"><div><h1 class="preview-title">TOYOTA LOS FUERTES</h1><div class="preview-subtitle">Presupuesto de Servicios y Refacciones</div></div><div style="text-align:right;"><div style="font-size:24px; font-weight:bold; color:#eb0a1e;">MXN ${tot:,.2f}</div><div style="font-size:11px; color:#666;">TOTAL ESTIMADO</div></div></div><div class="info-grid"><div><div class="info-item"><span class="info-label">CLIENTE:</span> {st.session_state.cliente}</div><div class="info-item"><span class="info-label">VIN:</span> {st.session_state.vin}</div></div><div><div class="info-item"><span class="info-label">FECHA:</span> {obtener_hora_mx().strftime("%d/%m/%Y")}</div><div class="info-item"><span class="info-label">ORDEN:</span> {st.session_state.orden}</div><div class="info-item"><span class="info-label">ASESOR:</span> {st.session_state.asesor}</div></div></div><table class="custom-table"><thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>PRIORIDAD</th><th>STATUS</th><th style="text-align:center">CANT</th><th style="text-align:right">UNITARIO</th><th style="text-align:right">IVA</th><th style="text-align:right">TOTAL</th></tr></thead><tbody>{rows}</tbody></table><div class="total-box"><div class="total-row"><span>Subtotal:</span><span>${sub:,.2f}</span></div><div class="total-row"><span>IVA (16%):</span><span>${sub*0.16:,.2f}</span></div><div class="total-row total-final"><span>TOTAL:</span><span>${tot:,.2f}</span></div>{anticipo_html}</div></div></div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
+
