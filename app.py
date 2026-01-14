@@ -11,7 +11,7 @@ import easyocr
 import numpy as np
 
 # 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="Toyota Los Fuertes", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="Toyota Los Fuertes - Verificador", page_icon="🚗", layout="wide")
 
 # Configurar Zona Horaria CDMX
 try:
@@ -37,6 +37,20 @@ st.markdown("""
     <style>
     h1 { color: #eb0a1e !important; text-align: center; }
     .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
+    
+    /* Estilo para el Precio Total Grande */
+    .precio-total {
+        font-size: 24px;
+        font-weight: bold;
+        color: #eb0a1e;
+        text-align: right;
+    }
+    .desglose-impuestos {
+        font-size: 12px;
+        color: #666;
+        text-align: right;
+    }
+    
     .legal-footer {
         text-align: center; font-size: 11px; opacity: 0.7;
         margin-top: 50px; padding-top: 20px;
@@ -208,7 +222,7 @@ hora_hoy_str = fecha_actual_mx.strftime("%H:%M")
 # --- INTERFAZ PRINCIPAL ---
 
 st.title("TOYOTA LOS FUERTES")
-st.markdown("<h4 style='text-align: center; opacity: 0.6;'>Sistema de Cotización y Consulta de Precios</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; opacity: 0.6;'>Verificador de Precios y Cotizador</h4>", unsafe_allow_html=True)
 st.write("---")
 
 # 0. DATOS DEL CLIENTE
@@ -273,8 +287,7 @@ if df is not None:
 
             st.success(f"Resultados encontrados:")
             
-            # --- SIN ENCABEZADOS DE TABLA (SOLICITUD CUMPLIDA) ---
-
+            # --- LOOP DE RESULTADOS ---
             for i, row in resultados.iterrows():
                 desc_es = traducir_profe(row[c_desc])
                 sku_val = row[c_sku]
@@ -283,31 +296,40 @@ if df is not None:
                     precio_val = float(precio_texto)
                 except: precio_val = 0.0
 
+                # Cálculos de Totales Unitarios
+                iva_unitario = precio_val * 0.16
+                total_unitario = precio_val + iva_unitario
+
                 with st.container():
-                    c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+                    # Nueva distribución: Solo Info, Precio Total y Acción
+                    c1, c2, c3 = st.columns([3, 1.5, 1])
+                    
                     with c1:
                         st.markdown(f"**{desc_es}**")
-                        st.caption(f"SKU: {sku_val} | Unitario: ${precio_val:,.2f}")
+                        st.caption(f"SKU: {sku_val}")
+                    
                     with c2:
-                        cantidad = st.number_input("Cant", min_value=1, value=1, key=f"cant_{i}", label_visibility="collapsed")
+                        # Mostrar el precio TOTAL con mayor importancia
+                        st.markdown(f'<div class="precio-total">${total_unitario:,.2f}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="desglose-impuestos">Base: ${precio_val:,.2f} | IVA: ${iva_unitario:,.2f}</div>', unsafe_allow_html=True)
+                    
                     with c3:
-                        estatus = st.selectbox("Disp.", ["Disponible", "No Disponible", "Back Order"], key=f"st_{i}", label_visibility="collapsed")
-                    with c4:
-                        if st.button("Añadir ➕", key=f"add_{i}"):
-                            monto_base = precio_val 
-                            monto_iva = (monto_base * cantidad) * 0.16
-                            monto_total = (monto_base * cantidad) + monto_iva
-                            
+                        estatus = st.selectbox("Estatus", ["Disponible", "No Disponible", "Back Order"], key=f"st_{i}", label_visibility="collapsed")
+                        # Botón sin cantidad (siempre 1)
+                        if st.button("Agregar ➕", key=f"add_{i}"):
+                            # Siempre agrega 1 unidad
+                            cantidad = 1 
                             st.session_state.carrito.append({
                                 "SKU": sku_val,
                                 "Descripción": desc_es,
                                 "Cantidad": cantidad,
                                 "Precio Base": precio_val,
-                                "IVA": monto_iva,
-                                "Importe Total": monto_total,
+                                "IVA": iva_unitario,
+                                "Importe Total": total_unitario,
                                 "Estatus": estatus
                             })
-                            st.toast("✅ Agregado")
+                            st.toast("✅ Agregado al carrito")
+                    
                     st.divider() 
         else:
             st.warning("No se encontraron resultados.")
@@ -315,8 +337,7 @@ if df is not None:
 # 2. SECCIÓN DE SERVICIOS
 st.markdown("### 🛠️ Agregar Servicios / Mano de Obra")
 with st.expander("Clic aquí para agregar servicios", expanded=False):
-    st.info("💡 Ingresa precio sin IVA.")
-    # --- MODIFICACIÓN: SE REMOVIÓ EL SELECTBOX DE ESTATUS EN SERVICIOS ---
+    st.info("💡 Ingresa el precio base, el sistema agregará el IVA automáticamente.")
     ce1, ce2, ce3 = st.columns([3, 1, 1])
     
     with ce1:
@@ -324,21 +345,23 @@ with st.expander("Clic aquí para agregar servicios", expanded=False):
         tipo = st.selectbox("Tipo:", opciones)
         desc_final = st.text_input("Descripción:", value="Servicio General") if tipo == "Otro" else tipo
     with ce2:
-        precio_manual = st.number_input("Costo (Unitario):", min_value=0.0, format="%.2f")
+        precio_manual = st.number_input("Costo Base (Sin IVA):", min_value=0.0, format="%.2f")
+        if precio_manual > 0:
+             iva_manual = precio_manual * 0.16
+             total_manual = precio_manual + iva_manual
+             st.markdown(f"**Total c/IVA: ${total_manual:,.2f}**")
     with ce3:
         st.write("")
         st.write("")
         if st.button("Agregar 🔧"):
             if precio_manual > 0:
-                cant_serv = 1
                 iva_serv = precio_manual * 0.16
                 total_serv = precio_manual + iva_serv
                 
-                # Por defecto, el servicio es "Disponible"
                 st.session_state.carrito.append({
                     "SKU": "SERV",
                     "Descripción": desc_final,
-                    "Cantidad": cant_serv,
+                    "Cantidad": 1,
                     "Precio Base": precio_manual,
                     "IVA": iva_serv,
                     "Importe Total": total_serv,
@@ -349,22 +372,38 @@ with st.expander("Clic aquí para agregar servicios", expanded=False):
 # 3. CARRITO DE COMPRAS
 if st.session_state.carrito:
     st.write("---")
-    st.subheader(f"🛒 Carrito de Cotización")
+    st.subheader(f"🛒 Resumen de Cotización")
     
     df_carro = pd.DataFrame(st.session_state.carrito)
     
-    columnas_orden = ["SKU", "Descripción", "Cantidad", "Precio Base", "IVA", "Importe Total", "Estatus"]
-    st.dataframe(df_carro[columnas_orden], hide_index=True, use_container_width=True)
+    # Mostramos la tabla simplificada, enfocada en el importe total
+    st.dataframe(
+        df_carro[["SKU", "Descripción", "Importe Total", "Estatus"]], 
+        hide_index=True, 
+        use_container_width=True,
+        column_config={
+            "Importe Total": st.column_config.NumberColumn(
+                "Total (Neto)",
+                format="$%.2f"
+            )
+        }
+    )
     
-    subtotal_g = df_carro['Precio Base'].values * df_carro['Cantidad'].values
-    subtotal_sum = subtotal_g.sum()
+    subtotal_sum = df_carro['Precio Base'].sum()
     iva_sum = df_carro['IVA'].sum()
     gran_total = df_carro['Importe Total'].sum()
 
-    c_sub, c_iva, c_tot = st.columns(3)
-    c_sub.metric("Subtotal", f"${subtotal_sum:,.2f}")
-    c_iva.metric("IVA (16%)", f"${iva_sum:,.2f}")
-    c_tot.metric("TOTAL NETO", f"${gran_total:,.2f}")
+    # Bloque de Totales Grande
+    st.markdown(f"""
+    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; border: 1px solid #ddd; text-align: right;">
+        <span style="font-size: 16px;">Subtotal: ${subtotal_sum:,.2f}</span><br>
+        <span style="font-size: 16px;">IVA (16%): ${iva_sum:,.2f}</span><br>
+        <hr style="margin: 10px 0;">
+        <span style="font-size: 32px; font-weight: bold; color: #eb0a1e;">TOTAL NETO: ${gran_total:,.2f}</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("")
 
     col_pdf, col_del, col_wa = st.columns([1, 1, 2])
     
@@ -384,7 +423,7 @@ if st.session_state.carrito:
         except Exception as e: st.error(f"Error PDF: {e}")
 
     with col_del:
-        if st.button("🗑️ Vaciar"):
+        if st.button("🗑️ Nueva Consulta"):
             st.session_state.carrito = []
             st.rerun()
             
@@ -392,27 +431,26 @@ if st.session_state.carrito:
         msg = f"*COTIZACIÓN TOYOTA LOS FUERTES*\n📅 {fecha_hoy_str} {hora_hoy_str}\n"
         if cliente_input: msg += f"👤 Cliente: {cliente_input}\n"
         if vin_input: msg += f"🚗 VIN: {vin_input}\n"
-        if orden_input: msg += f"📄 Orden: {orden_input}\n"
-        msg += "\n*DETALLE DE PIEZAS:*\n"
+        msg += "\n*PIEZAS (Precios Netos):*\n"
         
         for _, row in df_carro.iterrows():
             estatus_icon = "✅" if row['Estatus'] == "Disponible" else ("⏳" if "Back" in row['Estatus'] else "❌")
-            msg += f"{estatus_icon} *{row['SKU']}* | {row['Descripción']}\n"
-            msg += f"   Cant: {row['Cantidad']} | P.Base: ${row['Precio Base']:,.2f} | Total: ${row['Importe Total']:,.2f}\n"
+            # En WhatsApp enviamos directo el precio con IVA para evitar confusiones
+            msg += f"{estatus_icon} *{row['SKU']}* | ${row['Importe Total']:,.2f}\n"
+            msg += f"   {row['Descripción']}\n"
             
-        msg += f"\nSubtotal: ${subtotal_sum:,.2f}\nIVA: ${iva_sum:,.2f}\n*TOTAL: ${gran_total:,.2f}*"
+        msg += f"\n*TOTAL A PAGAR: ${gran_total:,.2f}* (Incluye IVA)"
         msg += "\n\n_Vigencia: 24 horas_"
         link = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-        st.link_button("📲 Enviar WhatsApp", link)
+        st.link_button("📲 Enviar Resumen WhatsApp", link)
 
 # FOOTER
 st.markdown(f"""
     <div class="legal-footer">
         <strong>TOYOTA LOS FUERTES - INFORMACIÓN AL CONSUMIDOR</strong><br>
         1. Precios vigentes al día: <strong>{fecha_hoy_str}</strong> (Hora CDMX).<br>
-        2. Todos los montos incluyen IVA (16%).<br>
+        2. Los precios mostrados en GRANDE ya incluyen IVA (16%).<br>
         3. Esta consulta cumple con la obligación de exhibición de precios conforme al <strong>Art. 7 de la LFPC</strong>.<br>
-        4. Las descripciones de productos cumplen con la <strong>NOM-050-SCFI-2004</strong>.<br>
-        5. <strong>IMPORTANTE:</strong> Esta cotización tiene una vigencia de <strong>24 horas</strong> a partir de su emisión.
+        4. <strong>IMPORTANTE:</strong> Esta cotización tiene una vigencia de <strong>24 horas</strong>.
     </div>
 """, unsafe_allow_html=True)
