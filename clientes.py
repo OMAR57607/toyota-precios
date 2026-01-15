@@ -9,6 +9,7 @@ import os
 import base64
 import urllib.parse
 import math
+import zipfile
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -172,22 +173,23 @@ if st.session_state.nieve_activa:
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. LÓGICA DE DATOS (MODO ROBUSTO)
+# 3. LÓGICA DE DATOS (A PRUEBA DE FALLOS)
 # ==========================================
 @st.cache_data
 def cargar_catalogo():
-    # NOMBRE ACTUALIZADO DEL ARCHIVO
-    ARCHIVO_DB = "lista_precios2.zip"
-    
+    ARCHIVO = "lista_precios2.zip"
     c_sku = 'PART_NO'
     c_desc = 'DESCRIPTION'
     c_precio = 'PRICE'
     
-    # 1. Intentamos cargar el archivo ZIP real
-    if os.path.exists(ARCHIVO_DB):
+    df = None
+
+    # LÓGICA DE INTENTOS
+    if os.path.exists(ARCHIVO):
+        # INTENTO 1: Leer como ZIP real
         try:
             df = pd.read_csv(
-                ARCHIVO_DB,
+                ARCHIVO,
                 compression='zip',
                 header=None,
                 names=[c_sku, c_desc, c_precio],
@@ -196,33 +198,41 @@ def cargar_catalogo():
                 sep=None,
                 engine='python'
             )
-        except Exception as e:
-            st.error(f"Error leyendo {ARCHIVO_DB}: {e}")
-            return None, None, None
+        except:
+            # INTENTO 2: El archivo se llama .zip pero es texto plano (Falso ZIP)
+            try:
+                df = pd.read_csv(
+                    ARCHIVO,
+                    compression=None, # Desactivamos descompresión
+                    header=None,
+                    names=[c_sku, c_desc, c_precio],
+                    dtype=str,
+                    encoding='latin-1',
+                    sep=None,
+                    engine='python'
+                )
+            except Exception as e:
+                st.error(f"El archivo está dañado o formato desconocido: {e}")
+                df = None
+
+    # Si después de los intentos no hay datos, cargamos DEMO
+    if df is None:
+        if not os.path.exists(ARCHIVO):
+            msg = f"⚠️ No se encontró '{ARCHIVO}'."
+        else:
+            msg = f"⚠️ Error leyendo '{ARCHIVO}' (Posible archivo corrupto)."
             
-    # 2. Si NO existe el archivo, creamos DATOS DE EJEMPLO (Modo Demo)
-    else:
-        st.warning(f"⚠️ No se encontró '{ARCHIVO_DB}'. Cargando MODO DEMO con datos de prueba.", icon="ℹ️")
+        st.warning(f"{msg} Cargando MODO DEMO.", icon="ℹ️")
+        
+        # DATOS DEMO
         data_demo = {
-            c_sku: [
-                "90915-YZZD1", "04465-02240", "90919-01253", "87139-50100", 
-                "04152-YZZA1", "52119-02987", "81110-02B50", "17801-21050",
-                "48510-80569", "04466-52140"
-            ],
-            c_desc: [
-                "FILTRO DE ACEITE", "BALATAS DELANTERAS", "BUJIA IRIDIUM", "FILTRO DE AIRE CABINA",
-                "FILTRO ELEMENTO ACEITE", "FASCIA DELANTERA", "FARO DERECHO", "FILTRO DE AIRE MOTOR",
-                "AMORTIGUADOR DEL", "BALATAS TRASERAS"
-            ],
-            c_precio: [
-                "185.00", "1450.50", "320.00", "450.00",
-                "190.00", "3500.00", "4200.00", "380.00",
-                "2100.00", "980.00"
-            ]
+            c_sku: ["90915-YZZD1", "04465-02240", "90919-01253", "87139-50100", "04152-YZZA1", "52119-02987"],
+            c_desc: ["FILTRO DE ACEITE", "BALATAS DELANTERAS", "BUJIA IRIDIUM", "FILTRO DE AIRE CABINA", "FILTRO ELEMENTO ACEITE", "FASCIA DELANTERA"],
+            c_precio: ["185.00", "1450.50", "320.00", "450.00", "190.00", "3500.00"]
         }
         df = pd.DataFrame(data_demo)
 
-    # --- LIMPIEZA Y PROCESAMIENTO ---
+    # --- LIMPIEZA FINAL ---
     try:
         df.dropna(how='all', inplace=True)
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
@@ -231,17 +241,15 @@ def cargar_catalogo():
         def limpiar_precio_num(x):
             try:
                 s = str(x).replace('$', '').replace(',', '').strip()
-                if s.replace('.', '', 1).isdigit():
-                    return float(s)
+                if s.replace('.', '', 1).isdigit(): return float(s)
                 return 0.0
-            except:
-                return 0.0
+            except: return 0.0
 
         df['PRECIO_NUM'] = df[c_precio].apply(limpiar_precio_num)
         return df, c_sku, c_desc
 
     except Exception as e:
-        st.error(f"Error procesando datos: {e}")
+        st.error(f"Error procesando datos finales: {e}")
         return None, None, None
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
@@ -529,7 +537,6 @@ def generar_pdf():
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-# YA NO SE DETIENE SI FALTA EL ARCHIVO ZIP.
 
 # --- SIDEBAR ---
 with st.sidebar:
