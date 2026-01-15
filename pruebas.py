@@ -9,7 +9,6 @@ import os
 import base64
 import urllib.parse
 import math
-import zipfile
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -55,7 +54,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS
+# 2. ESTILOS CSS (PALETA DE ALTO CONTRASTE Y NIEVE)
 # ==========================================
 st.markdown("""
     <style>
@@ -100,22 +99,24 @@ st.markdown("""
     .total-box { margin-left: auto; width: 300px; }
     .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
     
-    /* PALETAS Y BADGES */
+    /* --- PALETA NUEVA: PRIORIDAD --- */
     .badge-base { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; color: white; }
-    .badge-urg { background: #d32f2f; }
-    .badge-med { background: #1976D2; }
-    .badge-baj { background: #757575; }
+    .badge-urg { background: #d32f2f; }  /* ROJO */
+    .badge-med { background: #1976D2; }  /* AZUL REY */
+    .badge-baj { background: #757575; }  /* GRIS */
 
+    /* --- PALETA NUEVA: ESTATUS --- */
     .status-base { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
-    .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; }
-    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }
-    .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }
-    .status-rev { color: #880E4F; background: #f8bbd0; border: 1px solid #880E4F; }
+    .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; } /* Verde */
+    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }  /* Naranja */
+    .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }   /* Negro */
+    .status-rev { color: #880E4F; background: #f8bbd0; border: 1px solid #880E4F; }  /* Magenta */
 
+    /* ALERTAS */
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
     .revisar-warning { color: #880E4F; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #880E4F; padding: 5px; border-radius: 4px; background-color: #f8bbd0; }
     
-    /* EFECTO NIEVE */
+    /* --- EFECTO NIEVE PERSISTENTE --- */
     .snowflake {
         color: #fff;
         font-size: 1em;
@@ -128,14 +129,30 @@ st.markdown("""
         cursor: default;
         animation-name: snowflakes-fall, snowflakes-shake;
         animation-duration: 10s, 3s;
+        animation-timing-function: linear, ease-in-out;
         animation-iteration-count: infinite, infinite;
         animation-play-state: running, running;
     }
-    @keyframes snowflakes-fall { 0% { top: -10%; } 100% { top: 100%; } }
-    @keyframes snowflakes-shake { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(80px); } }
-    .snowflake:nth-of-type(0) { left: 1%; animation-delay: 0s, 0s; } .snowflake:nth-of-type(1) { left: 10%; animation-delay: 1s, 1s; } .snowflake:nth-of-type(2) { left: 20%; animation-delay: 6s, .5s; } .snowflake:nth-of-type(3) { left: 30%; animation-delay: 4s, 2s; }
-    .snowflake:nth-of-type(4) { left: 40%; animation-delay: 2s, 2s; } .snowflake:nth-of-type(5) { left: 50%; animation-delay: 8s, 3s; } .snowflake:nth-of-type(6) { left: 60%; animation-delay: 6s, 2s; } .snowflake:nth-of-type(7) { left: 70%; animation-delay: 2.5s, 1s; }
-    .snowflake:nth-of-type(8) { left: 80%; animation-delay: 1s, 0s; } .snowflake:nth-of-type(9) { left: 90%; animation-delay: 3s, 1.5s; }
+    @keyframes snowflakes-fall {
+        0% { top: -10%; }
+        100% { top: 100%; }
+    }
+    @keyframes snowflakes-shake {
+        0%, 100% { transform: translateX(0); }
+        50% { transform: translateX(80px); }
+    }
+    .snowflake:nth-of-type(0) { left: 1%; animation-delay: 0s, 0s; }
+    .snowflake:nth-of-type(1) { left: 10%; animation-delay: 1s, 1s; }
+    .snowflake:nth-of-type(2) { left: 20%; animation-delay: 6s, .5s; }
+    .snowflake:nth-of-type(3) { left: 30%; animation-delay: 4s, 2s; }
+    .snowflake:nth-of-type(4) { left: 40%; animation-delay: 2s, 2s; }
+    .snowflake:nth-of-type(5) { left: 50%; animation-delay: 8s, 3s; }
+    .snowflake:nth-of-type(6) { left: 60%; animation-delay: 6s, 2s; }
+    .snowflake:nth-of-type(7) { left: 70%; animation-delay: 2.5s, 1s; }
+    .snowflake:nth-of-type(8) { left: 80%; animation-delay: 1s, 0s; }
+    .snowflake:nth-of-type(9) { left: 90%; animation-delay: 3s, 1.5s; }
+    .snowflake:nth-of-type(10) { left: 25%; animation-delay: 2s, 0s; }
+    .snowflake:nth-of-type(11) { left: 65%; animation-delay: 4s, 2.5s; }
     
     @media only screen and (max-width: 600px) {
         .preview-paper { padding: 15px; min-width: 100%; }
@@ -147,59 +164,38 @@ st.markdown("""
 
 if st.session_state.nieve_activa:
     st.markdown("""
-    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
-    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
-    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. LÓGICA DE DATOS (CORREGIDA PARA XLSX)
+# 3. LÓGICA DE DATOS (ACTUALIZADO A lista_precios_3.zip)
 # ==========================================
 @st.cache_data
 def cargar_catalogo():
-    directorio_actual = os.path.dirname(os.path.abspath(__file__))
+    # --- CAMBIO: Nombre del archivo a lista_precios_3.zip ---
+    archivo_zip = "lista_precios_3.zip"
     
-    # Definimos las posibles rutas
-    ruta_excel = os.path.join(directorio_actual, "lista_precios.xlsx")
-    ruta_zip = os.path.join(directorio_actual, "lista_precios.zip")
-    
-    df = None
-    
+    if not os.path.exists(archivo_zip): return None, None, None
     try:
-        # 1. PRIORIDAD: Buscar archivo Excel directo
-        if os.path.exists(ruta_excel):
-            df = pd.read_excel(ruta_excel, dtype=str)
-        
-        # 2. SECUNDARIO: Buscar archivo ZIP si no hay Excel
-        elif os.path.exists(ruta_zip):
-            with zipfile.ZipFile(ruta_zip, "r") as z:
-                xlsx_files = [f for f in z.namelist() if f.endswith('.xlsx')]
-                if xlsx_files:
-                    with z.open(xlsx_files[0]) as f:
-                        df = pd.read_excel(f, dtype=str)
-        
-        # 3. FALLBACK: Buscar en el directorio de trabajo (si el script se ejecuta desde otro lado)
-        else:
-            if os.path.exists("lista_precios.xlsx"):
-                df = pd.read_excel("lista_precios.xlsx", dtype=str)
-            elif os.path.exists("lista_precios.zip"):
-                with zipfile.ZipFile("lista_precios.zip", "r") as z:
-                    xlsx_files = [f for f in z.namelist() if f.endswith('.xlsx')]
-                    if xlsx_files:
-                        with z.open(xlsx_files[0]) as f:
-                            df = pd.read_excel(f, dtype=str)
-
-        if df is None:
-            return None, None, None
-        
-        # --- PROCESAMIENTO DEL DATAFRAME ---
+        # Se asume que dentro del ZIP hay un CSV válido
+        df = pd.read_csv(archivo_zip, compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
         
-        # Detección inteligente de columnas
-        c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c or 'CODIGO' in c), None)
+        c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
         c_desc = next((c for c in df.columns if 'DESC' in c), None)
-        c_precio = next((c for c in df.columns if 'PRICE' in c or 'PRECIO' in c or 'TOTAL' in c), None)
+        c_precio = next((c for c in df.columns if 'PRICE' in c or 'PRECIO' in c), None)
         
         if not c_sku or not c_precio: return None, None, None
         
@@ -207,17 +203,12 @@ def cargar_catalogo():
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
         def clean_price(x):
-            try:
-                if isinstance(x, (int, float)): return float(x)
-                return float(str(x).replace('$','').replace(',','').strip())
-            except: return 0.0
+            s = str(x).replace('$','').replace(',','').strip()
+            return float(s) if s.replace('.','',1).isdigit() else 0.0
 
         df['PRECIO_NUM'] = df[c_precio].apply(clean_price)
         return df, c_sku, c_desc
-
-    except Exception as e: 
-        st.error(f"Error cargando catálogo: {e}")
-        return None, None, None
+    except: return None, None, None
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
@@ -317,19 +308,13 @@ def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_pr
 def toggle_nieve(): st.session_state.nieve_activa = not st.session_state.nieve_activa
 
 # ==========================================
-# 4. GENERADOR PDF
+# 4. GENERADOR PDF (LÓGICA COLOR ACTUALIZADA)
 # ==========================================
 class PDF(FPDF):
     def header(self):
-        # Intentar cargar logo con ruta relativa y absoluta por seguridad
-        logo_path = "logo.png"
-        if not os.path.exists(logo_path):
-            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
-            
-        if os.path.exists(logo_path):
-            try: self.image(logo_path, 10, 8, 33)
+        if os.path.exists("logo.png"):
+            try: self.image("logo.png", 10, 8, 33)
             except: pass
-            
         self.set_font('Arial', 'B', 16); self.set_text_color(235, 10, 30)
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
         self.set_font('Arial', '', 10); self.set_text_color(0)
@@ -435,38 +420,42 @@ def generar_pdf():
         pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
         pdf.set_xy(x_desc + cols[1], y_desc)
         
-        # --- COLOREADO PRIORIDAD ---
+        # --- COLOREADO PRIORIDAD (FONDO) - NUEVA PALETA ---
         if prio == 'Urgente':
-            pdf.set_fill_color(211, 47, 47) 
+            pdf.set_fill_color(211, 47, 47) # ROJO
             pdf.set_text_color(255, 255, 255)
         elif prio == 'Medio':
-            pdf.set_fill_color(25, 118, 210) 
+            pdf.set_fill_color(25, 118, 210) # AZUL REY
             pdf.set_text_color(255, 255, 255)
-        else: 
-            pdf.set_fill_color(117, 117, 117) 
+        else: # Bajo
+            pdf.set_fill_color(117, 117, 117) # GRIS
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True)
         
-        pdf.set_fill_color(255, 255, 255); pdf.set_text_color(0, 0, 0)
+        # Reset color
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(0, 0, 0)
         
-        # --- COLOREADO ESTATUS ---
+        # --- COLOREADO ESTATUS (FONDO) - NUEVA PALETA ---
         if "Disponible" in abasto:
-            pdf.set_fill_color(56, 142, 60)
+            pdf.set_fill_color(56, 142, 60) # Verde
             pdf.set_text_color(255, 255, 255)
         elif "Pedido" in abasto:
-            pdf.set_fill_color(245, 124, 0)
+            pdf.set_fill_color(245, 124, 0) # Naranja
             pdf.set_text_color(255, 255, 255)
         elif "Back" in abasto:
-            pdf.set_fill_color(33, 33, 33)
+            pdf.set_fill_color(33, 33, 33) # Negro
             pdf.set_text_color(255, 255, 255)
-        else:
-            pdf.set_fill_color(136, 14, 79)
+        else: # Revisar
+            pdf.set_fill_color(136, 14, 79) # Magenta/Vino
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True)
 
-        pdf.set_fill_color(255, 255, 255); pdf.set_text_color(0, 0, 0)
+        # Reset Color
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(0, 0, 0)
         
         # Resto Columnas
         pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
@@ -500,9 +489,7 @@ def generar_pdf():
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-if df_db is None: 
-    st.error("⚠️ No se encontró la lista de precios (lista_precios.xlsx o lista_precios.zip).")
-    st.stop()
+if df_db is None: st.error("⚠️ Falta lista_precios_3.zip en el directorio."); st.stop()
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -601,16 +588,19 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
 st.divider()
 
 # ==========================================
-# SECCIÓN CARRITO
+# SECCIÓN CARRITO (DISEÑO TARJETAS MINIMALISTAS)
 # ==========================================
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
     
+    # --- FUNCIONES DE ACCIÓN DEL CARRITO ---
     def actualizar_cantidad(idx, delta):
         nueva_cant = st.session_state.carrito[idx]['Cantidad'] + delta
         if nueva_cant < 1: nueva_cant = 1
         st.session_state.carrito[idx]['Cantidad'] = nueva_cant
+        
+        # Recalcular montos internos
         item = st.session_state.carrito[idx]
         item['IVA'] = (item['Precio Base'] * item['Cantidad']) * 0.16
         item['Importe Total'] = (item['Precio Base'] * item['Cantidad']) + item['IVA']
@@ -627,6 +617,7 @@ if st.session_state.carrito:
     def actualizar_tiempo_entrega(idx, key_widget):
         st.session_state.carrito[idx]['Tiempo Entrega'] = st.session_state[key_widget]
 
+    # --- ITERACIÓN DE ÍTEMS EN TARJETAS ---
     for i, item in enumerate(st.session_state.carrito):
         with st.container(border=True):
             top_col1, top_col2, top_col3 = st.columns([3, 1, 0.3])
@@ -639,7 +630,7 @@ if st.session_state.carrito:
                 st.markdown(f"<div style='text-align:right; color:#eb0a1e; font-weight:bold; font-size:1.1em;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
             
             with top_col3:
-                st.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="tertiary")
+                st.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="tertiary", help="Eliminar")
 
             c_prio, c_stat, c_time, c_qty = st.columns([1.3, 1.3, 1.5, 1.8])
             
@@ -648,7 +639,10 @@ if st.session_state.carrito:
             if item['Prioridad'] == "Urgente": idx_prio = 0
             elif item['Prioridad'] == "Bajo": idx_prio = 2
             
-            c_prio.selectbox("Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed", on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}"))
+            c_prio.selectbox(
+                "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
+                on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
+            )
 
             opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
             idx_abasto = 3
@@ -656,9 +650,15 @@ if st.session_state.carrito:
             elif "Pedido" in item['Abasto']: idx_abasto = 1
             elif "Back" in item['Abasto']: idx_abasto = 2
             
-            c_stat.selectbox("Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed", on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}"))
+            c_stat.selectbox(
+                "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
+                on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
+            )
 
-            c_time.text_input("Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed", on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}"))
+            c_time.text_input(
+                "Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed",
+                on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}")
+            )
 
             with c_qty:
                 sub_c1, sub_c2, sub_c3 = st.columns([1, 1, 1])
@@ -712,7 +712,7 @@ if st.session_state.carrito:
             msg_enc = urllib.parse.quote(msg_raw)
             st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
-# --- VISTA PREVIA ---
+# --- VISTA PREVIA ADAPTATIVA (CON COLORES COMPLETOS) ---
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
