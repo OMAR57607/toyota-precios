@@ -31,7 +31,8 @@ def init_session():
         'temp_sku': "",
         'temp_desc': "",
         'temp_precio': 0.0,
-        'ver_preview': False
+        'ver_preview': False,
+        'nieve_activa': False # Nuevo estado para la nieve
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -48,11 +49,12 @@ def limpiar_todo():
     st.session_state.temp_desc = ""
     st.session_state.temp_precio = 0.0
     st.session_state.ver_preview = False
+    st.session_state.nieve_activa = False
 
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (PALETA DE ALTO CONTRASTE Y MINIMALISTA)
+# 2. ESTILOS CSS (PALETA DE ALTO CONTRASTE Y NIEVE)
 # ==========================================
 st.markdown("""
     <style>
@@ -99,22 +101,58 @@ st.markdown("""
     
     /* --- PALETA NUEVA: PRIORIDAD --- */
     .badge-base { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; color: white; }
-    
-    .badge-urg { background: #d32f2f; }  /* ROJO (Igual) */
-    .badge-med { background: #1976D2; }  /* AZUL REY (Nuevo: Distinto al naranja) */
-    .badge-baj { background: #757575; }  /* GRIS (Nuevo: Neutro) */
+    .badge-urg { background: #d32f2f; }  /* ROJO */
+    .badge-med { background: #1976D2; }  /* AZUL REY */
+    .badge-baj { background: #757575; }  /* GRIS */
 
     /* --- PALETA NUEVA: ESTATUS --- */
     .status-base { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
-    
     .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; } /* Verde */
-    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }  /* Naranja (Único naranja ahora) */
+    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }  /* Naranja */
     .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }   /* Negro */
-    .status-rev { color: #880E4F; background: #f8bbd0; border: 1px solid #880E4F; }  /* Magenta/Vino (Distinto al rojo urgente) */
+    .status-rev { color: #880E4F; background: #f8bbd0; border: 1px solid #880E4F; }  /* Magenta */
 
     /* ALERTAS */
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
     .revisar-warning { color: #880E4F; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #880E4F; padding: 5px; border-radius: 4px; background-color: #f8bbd0; }
+    
+    /* --- EFECTO NIEVE PERSISTENTE --- */
+    .snowflake {
+        color: #fff;
+        font-size: 1em;
+        font-family: Arial, sans-serif;
+        text-shadow: 0 0 5px #000;
+        position: fixed;
+        top: -10%;
+        z-index: 9999;
+        user-select: none;
+        cursor: default;
+        animation-name: snowflakes-fall, snowflakes-shake;
+        animation-duration: 10s, 3s;
+        animation-timing-function: linear, ease-in-out;
+        animation-iteration-count: infinite, infinite;
+        animation-play-state: running, running;
+    }
+    @keyframes snowflakes-fall {
+        0% { top: -10%; }
+        100% { top: 100%; }
+    }
+    @keyframes snowflakes-shake {
+        0%, 100% { transform: translateX(0); }
+        50% { transform: translateX(80px); }
+    }
+    .snowflake:nth-of-type(0) { left: 1%; animation-delay: 0s, 0s; }
+    .snowflake:nth-of-type(1) { left: 10%; animation-delay: 1s, 1s; }
+    .snowflake:nth-of-type(2) { left: 20%; animation-delay: 6s, .5s; }
+    .snowflake:nth-of-type(3) { left: 30%; animation-delay: 4s, 2s; }
+    .snowflake:nth-of-type(4) { left: 40%; animation-delay: 2s, 2s; }
+    .snowflake:nth-of-type(5) { left: 50%; animation-delay: 8s, 3s; }
+    .snowflake:nth-of-type(6) { left: 60%; animation-delay: 6s, 2s; }
+    .snowflake:nth-of-type(7) { left: 70%; animation-delay: 2.5s, 1s; }
+    .snowflake:nth-of-type(8) { left: 80%; animation-delay: 1s, 0s; }
+    .snowflake:nth-of-type(9) { left: 90%; animation-delay: 3s, 1.5s; }
+    .snowflake:nth-of-type(10) { left: 25%; animation-delay: 2s, 0s; }
+    .snowflake:nth-of-type(11) { left: 65%; animation-delay: 4s, 2.5s; }
     
     @media only screen and (max-width: 600px) {
         .preview-paper { padding: 15px; min-width: 100%; }
@@ -122,6 +160,23 @@ st.markdown("""
         .total-box { width: 100%; }
     }
     </style>
+    """, unsafe_allow_html=True)
+
+# Lógica del Efecto Nieve
+if st.session_state.nieve_activa:
+    st.markdown("""
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div>
+    <div class="snowflake">❆</div>
     """, unsafe_allow_html=True)
 
 # ==========================================
@@ -244,6 +299,8 @@ def cargar_en_manual(sku, desc, precio):
     st.session_state.temp_precio = precio
 
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
+
+def toggle_nieve(): st.session_state.nieve_activa = not st.session_state.nieve_activa
 
 # ==========================================
 # 4. GENERADOR PDF (LÓGICA COLOR ACTUALIZADA)
@@ -434,9 +491,11 @@ with st.sidebar:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     
-    # --- MODIFICACIÓN: BOTÓN DE NIEVE ---
-    if st.button("❄️ Efecto Nieve", type="secondary", use_container_width=True):
-        st.snow()
+    # --- BOTÓN DE NIEVE (ON/OFF) ---
+    btn_txt = "⬜ Apagar Nieve" if st.session_state.nieve_activa else "❄️ Modo Ventisca"
+    if st.button(btn_txt, type="secondary", use_container_width=True):
+        toggle_nieve()
+        st.rerun()
     # ------------------------------------
 
     st.divider()
