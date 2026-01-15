@@ -59,7 +59,7 @@ st.markdown("""
 def cargar_catalogo_consulta():
     # LISTA DE ARCHIVOS QUE BUSCARÁ (EN ORDEN DE PREFERENCIA)
     POSIBLES_ARCHIVOS = [
-        "lista_precios.xlsx", 
+        "lista_precios_3.xls", 
         "lista_precios.xls", 
         "lista_precios2.zip", 
         "lista_precios.csv"
