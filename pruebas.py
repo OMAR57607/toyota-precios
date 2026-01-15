@@ -153,34 +153,51 @@ if st.session_state.nieve_activa:
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. LÓGICA DE DATOS (CON CORRECCIÓN DE RUTA)
+# 3. LÓGICA DE DATOS (CORREGIDA PARA XLSX)
 # ==========================================
 @st.cache_data
 def cargar_catalogo():
-    # --- CORRECCIÓN CLAVE: RUTA ABSOLUTA ---
-    # Esto busca el archivo en la carpeta EXACTA donde está este script .py
     directorio_actual = os.path.dirname(os.path.abspath(__file__))
+    
+    # Definimos las posibles rutas
+    ruta_excel = os.path.join(directorio_actual, "lista_precios.xlsx")
     ruta_zip = os.path.join(directorio_actual, "lista_precios.zip")
     
-    if not os.path.exists(ruta_zip):
-        # Fallback: intentar en directorio de trabajo por si acaso
-        if os.path.exists("lista_precios.zip"):
-            ruta_zip = "lista_precios.zip"
-        else:
-            return None, None, None
-            
+    df = None
+    
     try:
-        with zipfile.ZipFile(ruta_zip, "r") as z:
-            xlsx_files = [f for f in z.namelist() if f.endswith('.xlsx')]
-            if not xlsx_files:
-                return None, None, None
-            
-            with z.open(xlsx_files[0]) as f:
-                df = pd.read_excel(f, dtype=str)
+        # 1. PRIORIDAD: Buscar archivo Excel directo
+        if os.path.exists(ruta_excel):
+            df = pd.read_excel(ruta_excel, dtype=str)
         
+        # 2. SECUNDARIO: Buscar archivo ZIP si no hay Excel
+        elif os.path.exists(ruta_zip):
+            with zipfile.ZipFile(ruta_zip, "r") as z:
+                xlsx_files = [f for f in z.namelist() if f.endswith('.xlsx')]
+                if xlsx_files:
+                    with z.open(xlsx_files[0]) as f:
+                        df = pd.read_excel(f, dtype=str)
+        
+        # 3. FALLBACK: Buscar en el directorio de trabajo (si el script se ejecuta desde otro lado)
+        else:
+            if os.path.exists("lista_precios.xlsx"):
+                df = pd.read_excel("lista_precios.xlsx", dtype=str)
+            elif os.path.exists("lista_precios.zip"):
+                with zipfile.ZipFile("lista_precios.zip", "r") as z:
+                    xlsx_files = [f for f in z.namelist() if f.endswith('.xlsx')]
+                    if xlsx_files:
+                        with z.open(xlsx_files[0]) as f:
+                            df = pd.read_excel(f, dtype=str)
+
+        if df is None:
+            return None, None, None
+        
+        # --- PROCESAMIENTO DEL DATAFRAME ---
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
-        c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
+        
+        # Detección inteligente de columnas
+        c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c or 'CODIGO' in c), None)
         c_desc = next((c for c in df.columns if 'DESC' in c), None)
         c_precio = next((c for c in df.columns if 'PRICE' in c or 'PRECIO' in c or 'TOTAL' in c), None)
         
@@ -197,6 +214,7 @@ def cargar_catalogo():
 
         df['PRECIO_NUM'] = df[c_precio].apply(clean_price)
         return df, c_sku, c_desc
+
     except Exception as e: 
         st.error(f"Error cargando catálogo: {e}")
         return None, None, None
@@ -482,7 +500,9 @@ def generar_pdf():
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-if df_db is None: st.error("⚠️ Falta lista_precios.zip en el directorio del script."); st.stop()
+if df_db is None: 
+    st.error("⚠️ No se encontró la lista de precios (lista_precios.xlsx o lista_precios.zip).")
+    st.stop()
 
 # --- SIDEBAR ---
 with st.sidebar:
