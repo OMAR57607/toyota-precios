@@ -13,7 +13,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 1. CONFIGURACIÓN Y ESTILOS (SÓLO AQUÍ ESTÁ EL CAMBIO DE TAMAÑO) ---
+# --- 1. CONFIGURACIÓN Y ESTILOS (AQUÍ ESTÁN TUS CAMBIOS) ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -30,74 +30,72 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
    
-    /* --- CAMBIOS DE REDIMENSIONAMIENTO (RESPONSIVE) --- */
+    /* --- CAMBIOS PARA RESPONSIVE Y MODO OSCURO --- */
     
-    /* PRECIO: Se hace grande en PC y pequeño en celular automáticamente */
     .big-price {
-        font-size: clamp(40px, 12vw, 90px); 
+        /* Se adapta al tamaño de pantalla automáticamente */
+        font-size: clamp(40px, 15vw, 90px); 
         font-weight: 800;
-        color: #eb0a1e;
+        color: #eb0a1e; /* Rojo Toyota (Se ve bien en blanco y negro) */
         text-align: center;
         margin: 0;
         line-height: 1.1;
     }
    
-    /* ETIQUETAS: Se ajustan al ancho de pantalla */
     .price-label {
+        /* Tamaño adaptable */
         font-size: clamp(14px, 4vw, 20px);
-        color: #333;
+        /* SIN COLOR FIJO: Se adapta al tema del sistema (Blanco/Negro) */
         text-align: center;
         text-transform: uppercase;
         letter-spacing: 2px;
+        opacity: 0.8; 
     }
 
-    /* SKU Y DESCRIPCIÓN: Texto fluido */
     .sku-title {
-        font-size: clamp(18px, 5vw, 24px);
+        font-size: clamp(18px, 5vw, 26px);
         font-weight: bold;
-        color: #000;
+        /* SIN COLOR FIJO: Se adapta al tema */
         text-align: center;
     }
    
     .desc-text {
-        font-size: clamp(14px, 4vw, 18px);
-        color: #555;
+        font-size: clamp(16px, 4vw, 20px);
+        /* SIN COLOR FIJO */
         text-align: center;
         margin-bottom: 20px;
+        opacity: 0.9;
     }
 
-    /* INPUT: Se adapta al ancho */
+    /* Input adaptable */
     .stTextInput input {
         font-size: 20px;
         text-align: center;
         border: 2px solid #eb0a1e;
         border-radius: 10px;
-        width: 100%;
     }
 
-    /* FOOTER: Letra pequeña legible en móvil */
     .legal-footer {
         margin-top: 50px;
         padding-top: 20px;
-        border-top: 1px solid #ddd;
-        font-size: clamp(9px, 3vw, 11px); 
-        color: #777;
+        border-top: 1px solid #777; /* Borde visible en ambos modos */
+        font-size: clamp(9px, 2.5vw, 11px);
+        /* Color neutro que funciona en fondo blanco y negro */
+        color: #888; 
         text-align: justify;
         font-family: Arial, sans-serif;
     }
     
-    /* LOGO: Centrado y adaptable */
+    /* Centrar imágenes */
     div[data-testid="stImage"] {
         display: block;
         margin-left: auto;
         margin-right: auto;
-        width: 100%;
-        max-width: 200px; /* Tamaño máximo en PC */
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CARGA DE DATOS (LÓGICA ORIGINAL RESTAURADA) ---
+# --- 2. CARGA DE DATOS (NO SE MOVIÓ NADA) ---
 @st.cache_data
 def cargar_catalogo():
     archivo_objetivo = "lista_precios.zip"
@@ -139,19 +137,19 @@ def cargar_catalogo():
 df = cargar_catalogo()
 fecha_actual = obtener_hora_mx()
 
-# --- 3. HEADER (CON LOGO CENTRADO) ---
+# --- 3. HEADER (LOGO ADAPTABLE) ---
 col_vacia, col_logo, col_fecha = st.columns([1, 2, 1])
 
 with col_logo:
     if os.path.exists("logo.png"):
-        # use_column_width=True permite que el logo se redimensione según la pantalla
-        st.image("logo.png", use_column_width=True) 
+        # CAMBIO: use_container_width=True hace que el logo se ajuste al celular o PC
+        st.image("logo.png", use_container_width=True) 
     else:
         st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
 
 with col_fecha:
     st.markdown(f"""
-    <div style="text-align: right; color: #555; font-size: 10px;">
+    <div style="text-align: right; opacity: 0.7; font-size: 11px;">
         <strong>TOYOTA LOS FUERTES</strong><br>
         {fecha_actual.strftime("%d/%m/%Y")}<br>
         {fecha_actual.strftime("%H:%M")}
@@ -167,7 +165,7 @@ busqueda = st.text_input("Escanea o escribe el número de parte:",
                          placeholder="Ej. 90915-YZZD1",
                          help="Escribe el código y presiona Enter").strip()
 
-# --- 5. RESULTADOS (LÓGICA ORIGINAL) ---
+# --- 5. RESULTADOS (NO SE MOVIÓ NADA DE LA LÓGICA) ---
 if busqueda and df is not None:
     busqueda_clean = busqueda.upper().replace('-', '').replace(' ', '')
     mask = df['SKU_CLEAN'] == busqueda_clean
@@ -189,7 +187,6 @@ if busqueda and df is not None:
             try:
                 precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
                 precio_base = float(precio_texto)
-                # MULTIPLICADOR IVA ORIGINAL
                 precio_final = precio_base * 1.16 
             except:
                 precio_final = 0.0
@@ -209,7 +206,7 @@ if busqueda and df is not None:
 elif not busqueda:
     st.info("👋 Escanee el código de barras.")
 
-# --- 6. FOOTER LEGAL (TEXTO CORREGIDO CON NOMs) ---
+# --- 6. FOOTER LEGAL ---
 st.markdown("---")
 st.markdown(f"""
 <div class="legal-footer">
