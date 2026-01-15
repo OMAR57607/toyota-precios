@@ -91,8 +91,8 @@ def cargar_catalogo():
         # Se asume que el archivo sigue siendo el mismo
         if os.path.exists("lista_precios.zip"):
             df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
-        elif os.path.exists("lista_precios.csv"):
-            df = pd.read_csv("lista_precios.csv", dtype=str, encoding='latin-1')
+        elif os.path.exists("lista_precios_3.xls"):
+            df = pd.read_csv("lista_precios_3.xls", dtype=str, encoding='latin-1')
         else:
             return None
 
