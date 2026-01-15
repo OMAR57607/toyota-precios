@@ -510,7 +510,7 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
             c1, c2, c3 = st.columns([2, 1, 1])
             mo_desc = c1.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Diagnóstico...")
             mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
-            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=600.0, step=50.0)
+            mo_cost = c3.number_input("Costo por Hora", min_value=0.0, value=850.0, step=50.0)
             if st.form_submit_button("Agregar Servicio 🛠️"):
                 total_mo = mo_hrs * mo_cost
                 desc_final = f"{mo_desc} ({mo_hrs} hrs)"
@@ -520,76 +520,97 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
 
 st.divider()
 
+# ==========================================
+# SECCIÓN CARRITO (DISEÑO INTERACTIVO + / -)
+# ==========================================
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
-    # 1. Preparamos el DataFrame visual (CON EMOJIS)
-    cart_display = []
-    for item in st.session_state.carrito:
-        row = item.copy()
-        
-        # Mapeo Visual Prioridad (Acorde a nueva paleta)
-        if row['Prioridad'] == "Urgente": row['Prioridad'] = "🔴 Urgente"
-        elif row['Prioridad'] == "Medio": row['Prioridad'] = "🔵 Medio" 
-        elif row['Prioridad'] == "Bajo": row['Prioridad'] = "⚪ Bajo"
-        
-        # Mapeo Visual Abasto
-        if "Disponible" in row['Abasto']: row['Abasto'] = "✅ Disponible"
-        elif "Pedido" in row['Abasto']: row['Abasto'] = "📦 Por Pedido"
-        elif "Back" in row['Abasto']: row['Abasto'] = "⚫ Back Order"
-        else: row['Abasto'] = "⚠️ REVISAR"
-        
-        cart_display.append(row)
-
-    df_c = pd.DataFrame(cart_display)
     
-    # 2. El Editor muestra las opciones con Emojis
-    edited = st.data_editor(
-        df_c,
-        column_config={
-            "Prioridad": st.column_config.SelectboxColumn(
-                options=["🔴 Urgente", "🔵 Medio", "⚪ Bajo"],
-                width="small", required=True
-            ),
-            "Abasto": st.column_config.SelectboxColumn(
-                options=["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"],
-                width="small", required= True
-            ),
-            "Precio Unitario (c/IVA)": st.column_config.NumberColumn("P. Unit. (Neto)", format="$%.2f", disabled=True),
-            "Importe Total": st.column_config.NumberColumn("Total Línea", format="$%.2f", disabled=True),
-            "Precio Base": None, "IVA": None, "Tipo": None, "Estatus": None,
-            "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
-            "Descripción": st.column_config.TextColumn(width="medium"),
-            "SKU": st.column_config.TextColumn(width="small", disabled=True),
-        },
-        use_container_width=True,
-        num_rows="dynamic", key="editor_cart"
-    )
-
-    # 3. Lógica de Guardado (LIMPIEZA DE EMOJIS)
-    if not edited.equals(df_c):
-        new_cart_raw = edited.to_dict('records')
-        clean_cart = []
+    # --- FUNCIONES DE ACCIÓN DEL CARRITO ---
+    def actualizar_cantidad(idx, delta):
+        """Suma o resta cantidad asegurando que no baje de 1"""
+        nueva_cant = st.session_state.carrito[idx]['Cantidad'] + delta
+        if nueva_cant < 1: nueva_cant = 1
+        st.session_state.carrito[idx]['Cantidad'] = nueva_cant
         
-        for r in new_cart_raw:
-            # Limpiar Prioridad
-            p_clean = r['Prioridad'].replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")
-            # Limpiar Abasto
-            a_clean = r['Abasto'].replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
+        # Recalcular montos internos
+        item = st.session_state.carrito[idx]
+        item['IVA'] = (item['Precio Base'] * item['Cantidad']) * 0.16
+        item['Importe Total'] = (item['Precio Base'] * item['Cantidad']) + item['IVA']
+
+    def eliminar_item(idx):
+        """Elimina el ítem del carrito"""
+        st.session_state.carrito.pop(idx)
+
+    def actualizar_propiedad(idx, clave, valor):
+        """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
+        # Limpiamos los emojis para guardar el dato puro en el sistema
+        valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
+                            .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
+        st.session_state.carrito[idx][clave] = valor_limpio
+
+    # --- ENCABEZADOS DE LA LISTA ---
+    # Usamos columnas para simular una tabla, pero con widgets reales
+    h1, h2, h3, h4, h5, h6 = st.columns([0.5, 3, 1.2, 1.2, 1.5, 0.5])
+    h1.markdown("**#**")
+    h2.markdown("**Descripción / SKU**")
+    h3.markdown("**Prioridad**")
+    h4.markdown("**Abasto**")
+    h5.markdown("**Cant / Total**")
+    h6.markdown("**X**")
+    st.markdown("---")
+
+    # --- ITERACIÓN DE ÍTEMS (RENDERIZADO FILA POR FILA) ---
+    for i, item in enumerate(st.session_state.carrito):
+        
+        # Definimos el layout de la fila
+        c1, c2, c3, c4, c5, c6 = st.columns([0.5, 3, 1.2, 1.2, 1.5, 0.5])
+        
+        # 1. Índice
+        c1.write(f"{i+1}")
+        
+        # 2. Descripción y SKU
+        with c2:
+            st.markdown(f"**{item['Descripción']}**")
+            st.caption(f"SKU: {item['SKU']} | P.Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
+
+        # 3. Selector de Prioridad (Con Emojis)
+        opts_prio = ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"]
+        idx_prio = 1 # Default Medio
+        if item['Prioridad'] == "Urgente": idx_prio = 0
+        elif item['Prioridad'] == "Bajo": idx_prio = 2
+        
+        val_prio = c3.selectbox(
+            "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
+            on_change=actualizar_propiedad, args=(i, 'Prioridad', st.session_state[f"prio_{i}"])
+        )
+
+        # 4. Selector de Abasto (Con Emojis)
+        opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
+        idx_abasto = 3 # Default Revisar
+        if "Disponible" in item['Abasto']: idx_abasto = 0
+        elif "Pedido" in item['Abasto']: idx_abasto = 1
+        elif "Back" in item['Abasto']: idx_abasto = 2
+        
+        val_abasto = c4.selectbox(
+            "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
+            on_change=actualizar_propiedad, args=(i, 'Abasto', st.session_state[f"abasto_{i}"])
+        )
+
+        # 5. Botones de Acción (+ / -) y Total
+        with c5:
+            sc1, sc2, sc3 = st.columns([1, 1, 1])
+            sc1.button("➖", key=f"btn_rest_{i}", on_click=actualizar_cantidad, args=(i, -1), use_container_width=True)
+            sc2.markdown(f"<div style='text-align:center; font-weight:bold; font-size:18px; padding-top:5px;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
+            sc3.button("➕", key=f"btn_sum_{i}", on_click=actualizar_cantidad, args=(i, 1), use_container_width=True)
             
-            # Recalcular Precios
-            iva_new = (r['Precio Base'] * r['Cantidad']) * 0.16
-            total_new = (r['Precio Base'] * r['Cantidad']) + iva_new
-            
-            r['Prioridad'] = p_clean
-            r['Abasto'] = a_clean
-            r['IVA'] = iva_new
-            r['Importe Total'] = total_new
-            
-            clean_cart.append(r)
-            
-        st.session_state.carrito = clean_cart
-        st.rerun()
+            st.markdown(f"<div style='text-align:center; color:#eb0a1e; font-weight:bold;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
+
+        # 6. Botón Eliminar
+        c6.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="secondary")
+        
+        st.divider()
 
     # --- CALCULAMOS EL TOTAL AQUÍ (ANTES DE LA VALIDACIÓN) ---
     subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
@@ -604,7 +625,6 @@ if st.session_state.carrito:
 
     if pendientes:
         # --- CASO: HAY ERRORES -> BLOQUEAMOS TODO ---
-        st.divider()
         st.error(f"🛑 ACCIÓN REQUERIDA: Tienes {len(pendientes)} partida(s) con estatus '⚠️ REVISAR'.")
         
         st.markdown("""
@@ -622,8 +642,6 @@ if st.session_state.carrito:
         
     else:
         # --- CASO: TODO CORRECTO -> MOSTRAMOS BOTONES ---
-        # (El total ya se calculó arriba)
-
         c1, c2, c3 = st.columns(3)
         
         with c1:
