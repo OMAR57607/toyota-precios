@@ -543,9 +543,11 @@ if st.session_state.carrito:
         """Elimina el ítem del carrito"""
         st.session_state.carrito.pop(idx)
 
-    def actualizar_propiedad(idx, clave, valor):
+    def actualizar_propiedad(idx, clave, key_widget):
         """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
-        # Limpiamos los emojis para guardar el dato puro en el sistema
+        # Obtenemos el valor directamente del state usando la key
+        valor = st.session_state[key_widget]
+        # Limpiamos los emojis
         valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
                             .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
         st.session_state.carrito[idx][clave] = valor_limpio
@@ -581,9 +583,10 @@ if st.session_state.carrito:
         if item['Prioridad'] == "Urgente": idx_prio = 0
         elif item['Prioridad'] == "Bajo": idx_prio = 2
         
+        # CORRECCIÓN AQUÍ: Pasamos f"prio_{i}" (string) en vez del valor del state
         val_prio = c3.selectbox(
             "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
-            on_change=actualizar_propiedad, args=(i, 'Prioridad', st.session_state[f"prio_{i}"])
+            on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
         )
 
         # 4. Selector de Abasto (Con Emojis)
@@ -593,9 +596,10 @@ if st.session_state.carrito:
         elif "Pedido" in item['Abasto']: idx_abasto = 1
         elif "Back" in item['Abasto']: idx_abasto = 2
         
+        # CORRECCIÓN AQUÍ: Pasamos f"abasto_{i}" (string) en vez del valor del state
         val_abasto = c4.selectbox(
             "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
-            on_change=actualizar_propiedad, args=(i, 'Abasto', st.session_state[f"abasto_{i}"])
+            on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
         )
 
         # 5. Botones de Acción (+ / -) y Total
@@ -751,4 +755,3 @@ if st.session_state.ver_preview and st.session_state.carrito:
 </div>
 </div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
-
