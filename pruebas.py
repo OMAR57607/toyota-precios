@@ -9,7 +9,7 @@ import os
 import base64
 import urllib.parse
 import math
-import zipfile  # <--- NUEVA LIBRERÍA NECESARIA
+import zipfile
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -55,7 +55,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (PALETA DE ALTO CONTRASTE Y NIEVE)
+# 2. ESTILOS CSS
 # ==========================================
 st.markdown("""
     <style>
@@ -100,24 +100,22 @@ st.markdown("""
     .total-box { margin-left: auto; width: 300px; }
     .total-final { font-size: 24px; font-weight: 900; color: #eb0a1e; border-top: 2px solid #ccc; padding-top: 10px; margin-top: 10px; text-align: right; }
     
-    /* --- PALETA NUEVA: PRIORIDAD --- */
+    /* PALETAS Y BADGES */
     .badge-base { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; color: white; }
-    .badge-urg { background: #d32f2f; }  /* ROJO */
-    .badge-med { background: #1976D2; }  /* AZUL REY */
-    .badge-baj { background: #757575; }  /* GRIS */
+    .badge-urg { background: #d32f2f; }
+    .badge-med { background: #1976D2; }
+    .badge-baj { background: #757575; }
 
-    /* --- PALETA NUEVA: ESTATUS --- */
     .status-base { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-block; }
-    .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; } /* Verde */
-    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }  /* Naranja */
-    .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }   /* Negro */
-    .status-rev { color: #880E4F; background: #f8bbd0; border: 1px solid #880E4F; }  /* Magenta */
+    .status-disp { color: #1b5e20; background: #c8e6c9; border: 1px solid #1b5e20; }
+    .status-ped { color: #e65100; background: #ffe0b2; border: 1px solid #e65100; }
+    .status-bo { color: #ffffff; background: #212121; border: 1px solid #000000; }
+    .status-rev { color: #880E4F; background: #f8bbd0; border: 1px solid #880E4F; }
 
-    /* ALERTAS */
     .anticipo-warning { color: #ef6c00; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #ef6c00; padding: 5px; border-radius: 4px; background-color: #fff3e0; }
     .revisar-warning { color: #880E4F; font-weight: bold; font-size: 11px; text-align: right; margin-top: 5px; border: 1px dashed #880E4F; padding: 5px; border-radius: 4px; background-color: #f8bbd0; }
     
-    /* --- EFECTO NIEVE PERSISTENTE --- */
+    /* EFECTO NIEVE */
     .snowflake {
         color: #fff;
         font-size: 1em;
@@ -130,30 +128,14 @@ st.markdown("""
         cursor: default;
         animation-name: snowflakes-fall, snowflakes-shake;
         animation-duration: 10s, 3s;
-        animation-timing-function: linear, ease-in-out;
         animation-iteration-count: infinite, infinite;
         animation-play-state: running, running;
     }
-    @keyframes snowflakes-fall {
-        0% { top: -10%; }
-        100% { top: 100%; }
-    }
-    @keyframes snowflakes-shake {
-        0%, 100% { transform: translateX(0); }
-        50% { transform: translateX(80px); }
-    }
-    .snowflake:nth-of-type(0) { left: 1%; animation-delay: 0s, 0s; }
-    .snowflake:nth-of-type(1) { left: 10%; animation-delay: 1s, 1s; }
-    .snowflake:nth-of-type(2) { left: 20%; animation-delay: 6s, .5s; }
-    .snowflake:nth-of-type(3) { left: 30%; animation-delay: 4s, 2s; }
-    .snowflake:nth-of-type(4) { left: 40%; animation-delay: 2s, 2s; }
-    .snowflake:nth-of-type(5) { left: 50%; animation-delay: 8s, 3s; }
-    .snowflake:nth-of-type(6) { left: 60%; animation-delay: 6s, 2s; }
-    .snowflake:nth-of-type(7) { left: 70%; animation-delay: 2.5s, 1s; }
-    .snowflake:nth-of-type(8) { left: 80%; animation-delay: 1s, 0s; }
-    .snowflake:nth-of-type(9) { left: 90%; animation-delay: 3s, 1.5s; }
-    .snowflake:nth-of-type(10) { left: 25%; animation-delay: 2s, 0s; }
-    .snowflake:nth-of-type(11) { left: 65%; animation-delay: 4s, 2.5s; }
+    @keyframes snowflakes-fall { 0% { top: -10%; } 100% { top: 100%; } }
+    @keyframes snowflakes-shake { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(80px); } }
+    .snowflake:nth-of-type(0) { left: 1%; animation-delay: 0s, 0s; } .snowflake:nth-of-type(1) { left: 10%; animation-delay: 1s, 1s; } .snowflake:nth-of-type(2) { left: 20%; animation-delay: 6s, .5s; } .snowflake:nth-of-type(3) { left: 30%; animation-delay: 4s, 2s; }
+    .snowflake:nth-of-type(4) { left: 40%; animation-delay: 2s, 2s; } .snowflake:nth-of-type(5) { left: 50%; animation-delay: 8s, 3s; } .snowflake:nth-of-type(6) { left: 60%; animation-delay: 6s, 2s; } .snowflake:nth-of-type(7) { left: 70%; animation-delay: 2.5s, 1s; }
+    .snowflake:nth-of-type(8) { left: 80%; animation-delay: 1s, 0s; } .snowflake:nth-of-type(9) { left: 90%; animation-delay: 3s, 1.5s; }
     
     @media only screen and (max-width: 600px) {
         .preview-paper { padding: 15px; min-width: 100%; }
@@ -163,42 +145,39 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Lógica del Efecto Nieve
 if st.session_state.nieve_activa:
     st.markdown("""
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. LÓGICA DE DATOS
+# 3. LÓGICA DE DATOS (CON CORRECCIÓN DE RUTA)
 # ==========================================
 @st.cache_data
 def cargar_catalogo():
-    if not os.path.exists("lista_precios.zip"): return None, None, None
+    # --- CORRECCIÓN CLAVE: RUTA ABSOLUTA ---
+    # Esto busca el archivo en la carpeta EXACTA donde está este script .py
+    directorio_actual = os.path.dirname(os.path.abspath(__file__))
+    ruta_zip = os.path.join(directorio_actual, "lista_precios.zip")
+    
+    if not os.path.exists(ruta_zip):
+        # Fallback: intentar en directorio de trabajo por si acaso
+        if os.path.exists("lista_precios.zip"):
+            ruta_zip = "lista_precios.zip"
+        else:
+            return None, None, None
+            
     try:
-        # --- MODIFICACIÓN PARA LEER EXCEL DENTRO DEL ZIP ---
-        with zipfile.ZipFile("lista_precios.zip", "r") as z:
-            # Buscar el primer archivo que termine en .xlsx
+        with zipfile.ZipFile(ruta_zip, "r") as z:
             xlsx_files = [f for f in z.namelist() if f.endswith('.xlsx')]
             if not xlsx_files:
                 return None, None, None
             
-            # Leer el archivo excel detectado
             with z.open(xlsx_files[0]) as f:
-                df = pd.read_excel(f, dtype=str) # dtype=str para no perder ceros a la izquierda
+                df = pd.read_excel(f, dtype=str)
         
-        # --- PROCESAMIENTO ESTÁNDAR ---
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
         c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
@@ -210,22 +189,16 @@ def cargar_catalogo():
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
-        # Limpieza de precio robusta para Excel
         def clean_price(x):
             try:
-                # Si ya es numero en excel
-                if isinstance(x, (int, float)):
-                    return float(x)
-                # Si es string con simbolos
+                if isinstance(x, (int, float)): return float(x)
                 return float(str(x).replace('$','').replace(',','').strip())
-            except:
-                return 0.0
+            except: return 0.0
 
         df['PRECIO_NUM'] = df[c_precio].apply(clean_price)
-        
         return df, c_sku, c_desc
     except Exception as e: 
-        # st.error(f"Error: {e}") # Descomentar para debug
+        st.error(f"Error cargando catálogo: {e}")
         return None, None, None
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
@@ -321,24 +294,24 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
         "Tipo": tipo
     })
 
-def cargar_en_manual(sku, desc, precio):
-    st.session_state.temp_sku = sku
-    try: st.session_state.temp_desc = GoogleTranslator(source='en', target='es').translate(str(desc))
-    except: st.session_state.temp_desc = str(desc)
-    st.session_state.temp_precio = precio
-
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 def toggle_nieve(): st.session_state.nieve_activa = not st.session_state.nieve_activa
 
 # ==========================================
-# 4. GENERADOR PDF (LÓGICA COLOR ACTUALIZADA)
+# 4. GENERADOR PDF
 # ==========================================
 class PDF(FPDF):
     def header(self):
-        if os.path.exists("logo.png"):
-            try: self.image("logo.png", 10, 8, 33)
+        # Intentar cargar logo con ruta relativa y absoluta por seguridad
+        logo_path = "logo.png"
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
+            
+        if os.path.exists(logo_path):
+            try: self.image(logo_path, 10, 8, 33)
             except: pass
+            
         self.set_font('Arial', 'B', 16); self.set_text_color(235, 10, 30)
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
         self.set_font('Arial', '', 10); self.set_text_color(0)
@@ -444,42 +417,38 @@ def generar_pdf():
         pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
         pdf.set_xy(x_desc + cols[1], y_desc)
         
-        # --- COLOREADO PRIORIDAD (FONDO) - NUEVA PALETA ---
+        # --- COLOREADO PRIORIDAD ---
         if prio == 'Urgente':
-            pdf.set_fill_color(211, 47, 47) # ROJO
+            pdf.set_fill_color(211, 47, 47) 
             pdf.set_text_color(255, 255, 255)
         elif prio == 'Medio':
-            pdf.set_fill_color(25, 118, 210) # AZUL REY (Distinto a Naranja)
+            pdf.set_fill_color(25, 118, 210) 
             pdf.set_text_color(255, 255, 255)
-        else: # Bajo
-            pdf.set_fill_color(117, 117, 117) # GRIS (Neutro)
+        else: 
+            pdf.set_fill_color(117, 117, 117) 
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True)
         
-        # Reset color
-        pdf.set_fill_color(255, 255, 255)
-        pdf.set_text_color(0, 0, 0)
+        pdf.set_fill_color(255, 255, 255); pdf.set_text_color(0, 0, 0)
         
-        # --- COLOREADO ESTATUS (FONDO) - NUEVA PALETA ---
+        # --- COLOREADO ESTATUS ---
         if "Disponible" in abasto:
-            pdf.set_fill_color(56, 142, 60) # Verde
+            pdf.set_fill_color(56, 142, 60)
             pdf.set_text_color(255, 255, 255)
         elif "Pedido" in abasto:
-            pdf.set_fill_color(245, 124, 0) # Naranja (Único naranja)
+            pdf.set_fill_color(245, 124, 0)
             pdf.set_text_color(255, 255, 255)
         elif "Back" in abasto:
-            pdf.set_fill_color(33, 33, 33) # Negro
+            pdf.set_fill_color(33, 33, 33)
             pdf.set_text_color(255, 255, 255)
-        else: # Revisar
-            pdf.set_fill_color(136, 14, 79) # Magenta/Vino (Distinto a Rojo Urgente)
+        else:
+            pdf.set_fill_color(136, 14, 79)
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True)
 
-        # Reset Color
-        pdf.set_fill_color(255, 255, 255)
-        pdf.set_text_color(0, 0, 0)
+        pdf.set_fill_color(255, 255, 255); pdf.set_text_color(0, 0, 0)
         
         # Resto Columnas
         pdf.cell(cols[4], row_height, te_txt, 1, 0, 'C')
@@ -513,7 +482,7 @@ def generar_pdf():
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-if df_db is None: st.error("Falta lista_precios.zip"); st.stop()
+if df_db is None: st.error("⚠️ Falta lista_precios.zip en el directorio del script."); st.stop()
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -525,7 +494,6 @@ with st.sidebar:
     if st.button(btn_txt, type="secondary", use_container_width=True):
         toggle_nieve()
         st.rerun()
-    # ------------------------------------
 
     st.divider()
     
@@ -613,46 +581,34 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
 st.divider()
 
 # ==========================================
-# SECCIÓN CARRITO (DISEÑO TARJETAS MINIMALISTAS)
+# SECCIÓN CARRITO
 # ==========================================
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
     
-    # --- FUNCIONES DE ACCIÓN DEL CARRITO ---
     def actualizar_cantidad(idx, delta):
-        """Suma o resta cantidad asegurando que no baje de 1"""
         nueva_cant = st.session_state.carrito[idx]['Cantidad'] + delta
         if nueva_cant < 1: nueva_cant = 1
         st.session_state.carrito[idx]['Cantidad'] = nueva_cant
-        
-        # Recalcular montos internos
         item = st.session_state.carrito[idx]
         item['IVA'] = (item['Precio Base'] * item['Cantidad']) * 0.16
         item['Importe Total'] = (item['Precio Base'] * item['Cantidad']) + item['IVA']
 
     def eliminar_item(idx):
-        """Elimina el ítem del carrito"""
         st.session_state.carrito.pop(idx)
 
     def actualizar_propiedad(idx, clave, key_widget):
-        """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
         valor = st.session_state[key_widget]
         valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
                             .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
         st.session_state.carrito[idx][clave] = valor_limpio
 
     def actualizar_tiempo_entrega(idx, key_widget):
-        """Actualiza el campo de Tiempo de Entrega"""
         st.session_state.carrito[idx]['Tiempo Entrega'] = st.session_state[key_widget]
 
-    # --- ITERACIÓN DE ÍTEMS EN TARJETAS ---
     for i, item in enumerate(st.session_state.carrito):
-        
-        # Usamos st.container con borde para crear el efecto de "Tarjeta"
         with st.container(border=True):
-            
-            # --- FILA SUPERIOR: DESCRIPCIÓN Y PRECIO TOTAL ---
             top_col1, top_col2, top_col3 = st.columns([3, 1, 0.3])
             
             with top_col1:
@@ -660,59 +616,39 @@ if st.session_state.carrito:
                 st.caption(f"SKU: {item['SKU']} • P.Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
             
             with top_col2:
-                # Precio total alineado y destacado
                 st.markdown(f"<div style='text-align:right; color:#eb0a1e; font-weight:bold; font-size:1.1em;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
             
             with top_col3:
-                st.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="tertiary", help="Eliminar")
+                st.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="tertiary")
 
-            # --- FILA INFERIOR: CONTROLES OPERATIVOS ---
-            # Ajustamos las columnas para que quepan bien los controles
             c_prio, c_stat, c_time, c_qty = st.columns([1.3, 1.3, 1.5, 1.8])
             
-            # 1. Prioridad
             opts_prio = ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"]
             idx_prio = 1
             if item['Prioridad'] == "Urgente": idx_prio = 0
             elif item['Prioridad'] == "Bajo": idx_prio = 2
             
-            c_prio.selectbox(
-                "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
-                on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
-            )
+            c_prio.selectbox("Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed", on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}"))
 
-            # 2. Abasto
             opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
             idx_abasto = 3
             if "Disponible" in item['Abasto']: idx_abasto = 0
             elif "Pedido" in item['Abasto']: idx_abasto = 1
             elif "Back" in item['Abasto']: idx_abasto = 2
             
-            c_stat.selectbox(
-                "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
-                on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
-            )
+            c_stat.selectbox("Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed", on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}"))
 
-            # 3. Tiempo
-            c_time.text_input(
-                "Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed",
-                on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}")
-            )
+            c_time.text_input("Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed", on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}"))
 
-            # 4. Cantidad (+/-)
             with c_qty:
                 sub_c1, sub_c2, sub_c3 = st.columns([1, 1, 1])
                 sub_c1.button("➖", key=f"btn_rest_{i}", on_click=actualizar_cantidad, args=(i, -1), use_container_width=True)
                 sub_c2.markdown(f"<div style='text-align:center; font-weight:bold; padding-top:8px;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
                 sub_c3.button("➕", key=f"btn_sum_{i}", on_click=actualizar_cantidad, args=(i, 1), use_container_width=True)
 
-    # --- TOTALES ---
     subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
     total_gral = subtotal * 1.16
 
-    # ============================================================
-    # LÓGICA DE BLOQUEO (VALIDACIÓN DE CAMPOS INCOMPLETOS)
-    # ============================================================
     pendientes = [i for i in st.session_state.carrito if "REVISAR" in str(i['Abasto'])]
 
     if pendientes:
@@ -756,18 +692,16 @@ if st.session_state.carrito:
             msg_enc = urllib.parse.quote(msg_raw)
             st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
-# --- VISTA PREVIA ADAPTATIVA (CON COLORES COMPLETOS) ---
+# --- VISTA PREVIA ---
 if st.session_state.ver_preview and st.session_state.carrito:
     rows_html = ""
     hay_pedido_prev = False
     hay_revisar_prev = False
 
     for item in st.session_state.carrito:
-        # Lógica colores Prioridad
         p = item['Prioridad']
         p_class = "badge-base " + ("badge-urg" if p == "Urgente" else ("badge-med" if p == "Medio" else "badge-baj"))
         
-        # Lógica colores Estatus
         a_val = item.get('Abasto', '⚠️ REVISAR')
         a_class = "status-base " + ("status-disp" if "Disponible" in a_val else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev")))
         
