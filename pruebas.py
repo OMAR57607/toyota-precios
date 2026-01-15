@@ -591,6 +591,10 @@ if st.session_state.carrito:
         st.session_state.carrito = clean_cart
         st.rerun()
 
+    # --- CALCULAMOS EL TOTAL AQUÍ (ANTES DE LA VALIDACIÓN) ---
+    subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
+    total_gral = subtotal * 1.16
+
     # ============================================================
     # LÓGICA DE BLOQUEO (VALIDACIÓN DE CAMPOS INCOMPLETOS)
     # ============================================================
@@ -618,8 +622,7 @@ if st.session_state.carrito:
         
     else:
         # --- CASO: TODO CORRECTO -> MOSTRAMOS BOTONES ---
-        subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
-        total_gral = subtotal * 1.16
+        # (El total ya se calculó arriba)
 
         c1, c2, c3 = st.columns(3)
         
