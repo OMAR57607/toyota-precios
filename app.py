@@ -9,6 +9,7 @@ from pyzbar.pyzbar import decode
 import pytz
 import easyocr
 import numpy as np
+import zipfile  # <--- NUEVO: Para abrir el ZIP
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Toyota Los Fuertes - Verificador", page_icon="🚗", layout="wide")
@@ -197,15 +198,37 @@ def traducir_profe(texto):
         return GoogleTranslator(source='en', target='es').translate(str(texto))
     except: return texto
 
-# --- CARGA DE DATOS ---
+# --- CARGA DE DATOS (NUEVA VERSIÓN ZIP + EXCEL) ---
 @st.cache_data
 def cargar_catalogo():
     try:
-        df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
+        # Abrimos el ZIP
+        with zipfile.ZipFile("lista_precios.zip", "r") as z:
+            # Buscamos archivos .xlsx
+            archivos_dentro = [f for f in z.namelist() if f.endswith('.xlsx')]
+            
+            if not archivos_dentro:
+                st.error("Error: El ZIP no tiene archivos .xlsx")
+                return None
+                
+            nombre_archivo_excel = archivos_dentro[0]
+            
+            # Leemos el Excel desde memoria
+            with z.open(nombre_archivo_excel) as f:
+                # dtype=str para conservar ceros a la izquierda
+                df = pd.read_excel(f, dtype=str)
+
+        # Limpieza estándar
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
         
-        c_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c][0]
+        # Detectar columnas dinámicamente
+        c_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c or 'SKU' in c]
+        if not c_sku:
+            st.error("No se encontró columna de SKU/Part Number")
+            return None
+        c_sku = c_sku[0]
+
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
