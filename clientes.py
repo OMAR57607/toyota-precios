@@ -1,9 +1,14 @@
 import streamlit as st
 import pandas as pd
+from deep_translator import GoogleTranslator
+import urllib.parse
 from datetime import datetime
-import pytz
+from fpdf import FPDF
 from PIL import Image
-import os
+from pyzbar.pyzbar import decode
+import pytz
+import easyocr
+import numpy as np
 
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS
 st.set_page_config(
