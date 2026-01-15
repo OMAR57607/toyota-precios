@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import os # <--- ESTA LIBRERÍA FALTABA Y ES CRITICA
+import os
+import zipfile  # <--- IMPORTANTE: Necesaria para abrir el Excel dentro del ZIP
 from datetime import datetime
 from PIL import Image
 import pytz
@@ -79,7 +80,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CARGA DE DATOS (ENFOCADO EN ZIP) ---
+# --- 2. CARGA DE DATOS (ACTUALIZADO PARA EXCEL EN ZIP) ---
 @st.cache_data
 def cargar_catalogo():
     archivo_objetivo = "lista_precios.zip"
@@ -89,26 +90,42 @@ def cargar_catalogo():
         return None
 
     try:
-        # Intenta leer el ZIP. Se asume codificación latin-1 común en Excel/Sistemas viejos
-        df = pd.read_csv(archivo_objetivo, compression='zip', dtype=str, encoding='latin-1')
+        # Lógica para abrir ZIP -> Buscar XLSX -> Leer Excel
+        with zipfile.ZipFile(archivo_objetivo, "r") as z:
+            # Busca cualquier archivo que termine en .xlsx dentro del zip
+            archivos_excel = [f for f in z.namelist() if f.endswith('.xlsx')]
+            
+            if not archivos_excel:
+                st.error("El archivo ZIP no contiene ningún archivo Excel (.xlsx)")
+                return None
+                
+            nombre_archivo = archivos_excel[0]
+            
+            # Abrimos el archivo en memoria y lo leemos con pandas
+            with z.open(nombre_archivo) as f:
+                # dtype=str es vital para no perder ceros a la izquierda en los SKU
+                df = pd.read_excel(f, dtype=str)
         
         # Limpieza básica
         df.dropna(how='all', inplace=True)
+        # Estandarizar encabezados a mayúsculas y sin espacios
         df.columns = [c.strip().upper() for c in df.columns]
         
-        # Intentar identificar columna de número de parte
-        cols_posibles = [c for c in df.columns if 'PART' in c or 'NUM' in c or 'COD' in c]
-        if cols_posibles:
-            c_sku = cols_posibles[0]
-            # Limpiar SKU para búsquedas (quitar guiones y espacios)
+        # --- DETECCIÓN INTELIGENTE DE COLUMNAS NUEVAS ---
+        # Prioridad: ITEM, luego PART, luego SKU
+        cols_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c]
+        
+        if cols_sku:
+            c_sku = cols_sku[0]
+            # Limpiar SKU para búsquedas (quitar guiones, espacios, todo mayúsculas)
             df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.replace(' ', '').str.strip().str.upper()
             return df
         else:
-            st.error("No se encontró una columna de 'Número de Parte' en el archivo.")
+            st.error(f"No se encontró columna 'ITEM' o 'Número de Parte'. Columnas detectadas: {list(df.columns)}")
             return None
 
     except Exception as e:
-        st.error(f"Error leyendo {archivo_objetivo}: {e}")
+        st.error(f"Error procesando el archivo: {e}")
         return None
 
 df = cargar_catalogo()
@@ -152,20 +169,32 @@ if busqueda and df is not None:
     if not resultados.empty:
         row = resultados.iloc[0]
         
-        # Identificar columnas
-        c_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c][0]
+        # --- MAPEO DE COLUMNAS DEL NUEVO FORMATO ---
+        # 1. SKU (ITEM)
+        c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c][0]
+        
+        # 2. DESCRIPCIÓN
         c_desc = [c for c in df.columns if 'DESC' in c][0]
-        c_precio = [c for c in df.columns if 'PRICE' in c or 'PRECIO' in c or 'PUBLICO' in c][0]
-
+        
+        # 3. PRECIO (TOTAL_UNITARIO)
+        # Buscamos TOTAL_UNITARIO, PRICE, PRECIO o PUBLICO
+        c_precio_list = [c for c in df.columns if 'TOTAL' in c or 'UNITARIO' in c or 'PRICE' in c or 'PRECIO' in c]
+        
         sku_val = row[c_sku]
         desc_val = row[c_desc]
         
-        try:
-            precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
-            precio_base = float(precio_texto)
-            precio_final = precio_base * 1.16 # IVA
-        except:
-            precio_final = 0.0
+        precio_final = 0.0
+        
+        if c_precio_list:
+            c_precio = c_precio_list[0]
+            try:
+                precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
+                precio_base = float(precio_texto)
+                # IMPORTANTE: Aquí mantenemos tu lógica de sumar IVA (1.16)
+                # Si la columna "TOTAL_UNITARIO" ya tiene IVA, cambia 1.16 por 1.0
+                precio_final = precio_base * 1.16 
+            except:
+                precio_final = 0.0
 
         st.markdown(f"<div class='sku-title'>SKU: {sku_val}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='desc-text'>{desc_val}</div>", unsafe_allow_html=True)
@@ -194,4 +223,3 @@ st.markdown(f"""
     <strong>3. LIMITACIONES:</strong> Las partes eléctricas no cuentan con garantía ni devoluciones. La garantía de refacciones es de 12 meses o 20,000 km si son instaladas en taller autorizado.
 </div>
 """, unsafe_allow_html=True)
-
