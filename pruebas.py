@@ -322,7 +322,7 @@ def generar_pdf():
         iva_total += item['IVA']
         abasto = item.get('Abasto', '⚠️ REVISAR')
         
-        if abasto == "Por Pedido" or abasto == "Back Order": hay_pedido = True
+        if "Pedido" in abasto or "Back" in abasto: hay_pedido = True
         if "Back" in abasto: hay_backorder = True
 
         sku_txt = item['SKU'][:15]
@@ -523,21 +523,41 @@ st.divider()
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
-    df_c = pd.DataFrame(st.session_state.carrito)
+    # 1. Preparamos el DataFrame visual (CON EMOJIS)
+    cart_display = []
+    for item in st.session_state.carrito:
+        row = item.copy()
+        
+        # Mapeo Visual Prioridad (Acorde a nueva paleta)
+        if row['Prioridad'] == "Urgente": row['Prioridad'] = "🔴 Urgente"
+        elif row['Prioridad'] == "Medio": row['Prioridad'] = "🔵 Medio" 
+        elif row['Prioridad'] == "Bajo": row['Prioridad'] = "⚪ Bajo"
+        
+        # Mapeo Visual Abasto
+        if "Disponible" in row['Abasto']: row['Abasto'] = "✅ Disponible"
+        elif "Pedido" in row['Abasto']: row['Abasto'] = "📦 Por Pedido"
+        elif "Back" in row['Abasto']: row['Abasto'] = "⚫ Back Order"
+        else: row['Abasto'] = "⚠️ REVISAR"
+        
+        cart_display.append(row)
+
+    df_c = pd.DataFrame(cart_display)
     
-    # NOTA: El data_editor de Streamlit es estándar y no permite colorear el fondo
-    # de los selectbox al editar. Sin embargo, hemos configurado los selectbox
-    # para que al elegir, se refleje la lógica correcta en el PDF y Preview.
+    # 2. El Editor muestra las opciones con Emojis
     edited = st.data_editor(
         df_c,
         column_config={
-            "Prioridad": st.column_config.SelectboxColumn(options=["Urgente", "Medio", "Bajo"], width="small", required=True),
-            "Abasto": st.column_config.SelectboxColumn(options=["Disponible", "Por Pedido", "Back Order", "⚠️ REVISAR"], width="small", required= True),
+            "Prioridad": st.column_config.SelectboxColumn(
+                options=["🔴 Urgente", "🔵 Medio", "⚪ Bajo"],
+                width="small", required=True
+            ),
+            "Abasto": st.column_config.SelectboxColumn(
+                options=["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"],
+                width="small", required= True
+            ),
             "Precio Unitario (c/IVA)": st.column_config.NumberColumn("P. Unit. (Neto)", format="$%.2f", disabled=True),
             "Importe Total": st.column_config.NumberColumn("Total Línea", format="$%.2f", disabled=True),
-            "Precio Base": None,
-            "IVA": None,
-            "Tipo": None, "Estatus": None,
+            "Precio Base": None, "IVA": None, "Tipo": None, "Estatus": None,
             "Cantidad": st.column_config.NumberColumn(min_value=1, step=1, width="small"),
             "Descripción": st.column_config.TextColumn(width="medium"),
             "SKU": st.column_config.TextColumn(width="small", disabled=True),
@@ -546,51 +566,95 @@ if st.session_state.carrito:
         num_rows="dynamic", key="editor_cart"
     )
 
+    # 3. Lógica de Guardado (LIMPIEZA DE EMOJIS)
     if not edited.equals(df_c):
-        new_cart = edited.to_dict('records')
-        for r in new_cart:
-            r['IVA'] = (r['Precio Base'] * r['Cantidad']) * 0.16
-            r['Importe Total'] = (r['Precio Base'] * r['Cantidad']) + r['IVA']
-        st.session_state.carrito = new_cart
+        new_cart_raw = edited.to_dict('records')
+        clean_cart = []
+        
+        for r in new_cart_raw:
+            # Limpiar Prioridad
+            p_clean = r['Prioridad'].replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")
+            # Limpiar Abasto
+            a_clean = r['Abasto'].replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
+            
+            # Recalcular Precios
+            iva_new = (r['Precio Base'] * r['Cantidad']) * 0.16
+            total_new = (r['Precio Base'] * r['Cantidad']) + iva_new
+            
+            r['Prioridad'] = p_clean
+            r['Abasto'] = a_clean
+            r['IVA'] = iva_new
+            r['Importe Total'] = total_new
+            
+            clean_cart.append(r)
+            
+        st.session_state.carrito = clean_cart
         st.rerun()
 
-    subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
-    total_gral = subtotal * 1.16
-
-    c1, c2, c3 = st.columns(3)
+    # ============================================================
+    # LÓGICA DE BLOQUEO (VALIDACIÓN DE CAMPOS INCOMPLETOS)
+    # ============================================================
     
-    with c1:
-        if st.button("👁️ Vista Previa / Cerrar", type="secondary", use_container_width=True):
-            toggle_preview(); st.rerun()
-            
-    with c2:
-        pdf_bytes = generar_pdf()
-        st.download_button("📄 Descargar PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
+    # Buscamos si existe algún ítem que todavía tenga el estatus de alerta
+    pendientes = [i for i in st.session_state.carrito if "REVISAR" in str(i['Abasto'])]
 
-    with c3:
-        items_wa = ""
-        for i in st.session_state.carrito:
-            items_wa += f"▪️ {i['Cantidad']}x {i['Descripción']} (${i['Precio Unitario (c/IVA)']:,.2f} c/u)\n"
+    if pendientes:
+        # --- CASO: HAY ERRORES -> BLOQUEAMOS TODO ---
+        st.divider()
+        st.error(f"🛑 ACCIÓN REQUERIDA: Tienes {len(pendientes)} partida(s) con estatus '⚠️ REVISAR'.")
         
-        ase_firma = st.session_state.asesor if st.session_state.asesor else "Asesor de Servicio"
+        st.markdown("""
+        <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; border: 1px solid #ffeeba;">
+            <strong>⚠️ No se puede continuar:</strong><br>
+            Por seguridad, el sistema no permite generar cotizaciones con ítems sin definir.<br>
+            Por favor, ve a la tabla de arriba (Carrito) y en la columna <strong>"Abasto"</strong> selecciona si la pieza está:
+            <ul>
+                <li>✅ Disponible</li>
+                <li>📦 Por Pedido</li>
+                <li>⚫ Back Order</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
         
-        msg_raw = (
-            f"Estimado/a *{st.session_state.cliente}*,\n\n"
-            f"Por medio del presente, le compartimos el presupuesto solicitado para su vehículo en *Toyota Los Fuertes*:\n\n"
-            f"🔹 VIN: {st.session_state.vin}\n"
-            f"🔹 Orden: {st.session_state.orden}\n\n"
-            f"*DETALLE DEL PRESUPUESTO:*\n"
-            f"{items_wa}\n"
-            f"--------------------\n"
-            f"💰 *GRAN TOTAL: ${total_gral:,.2f} (IVA Incluido)*\n"
-            f"--------------------\n\n"
-            f"Quedamos atentos a su amable autorización.\n\n"
-            f"Atentamente,\n"
-            f"*{ase_firma}*\n"
-            f"Toyota Los Fuertes"
-        )
-        msg_enc = urllib.parse.quote(msg_raw)
-        st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
+    else:
+        # --- CASO: TODO CORRECTO -> MOSTRAMOS BOTONES ---
+        subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
+        total_gral = subtotal * 1.16
+
+        c1, c2, c3 = st.columns(3)
+        
+        with c1:
+            if st.button("👁️ Vista Previa / Cerrar", type="secondary", use_container_width=True):
+                toggle_preview(); st.rerun()
+                
+        with c2:
+            pdf_bytes = generar_pdf()
+            st.download_button("📄 Descargar PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
+
+        with c3:
+            items_wa = ""
+            for i in st.session_state.carrito:
+                items_wa += f"▪️ {i['Cantidad']}x {i['Descripción']} (${i['Precio Unitario (c/IVA)']:,.2f} c/u)\n"
+            
+            ase_firma = st.session_state.asesor if st.session_state.asesor else "Asesor de Servicio"
+            
+            msg_raw = (
+                f"Estimado/a *{st.session_state.cliente}*,\n\n"
+                f"Por medio del presente, le compartimos el presupuesto solicitado para su vehículo en *Toyota Los Fuertes*:\n\n"
+                f"🔹 VIN: {st.session_state.vin}\n"
+                f"🔹 Orden: {st.session_state.orden}\n\n"
+                f"*DETALLE DEL PRESUPUESTO:*\n"
+                f"{items_wa}\n"
+                f"--------------------\n"
+                f"💰 *GRAN TOTAL: ${total_gral:,.2f} (IVA Incluido)*\n"
+                f"--------------------\n\n"
+                f"Quedamos atentos a su amable autorización.\n\n"
+                f"Atentamente,\n"
+                f"*{ase_firma}*\n"
+                f"Toyota Los Fuertes"
+            )
+            msg_enc = urllib.parse.quote(msg_raw)
+            st.markdown(f'<a href="https://wa.me/?text={msg_enc}" target="_blank" class="wa-btn">📱 Enviar WhatsApp Formal</a>', unsafe_allow_html=True)
 
 # --- VISTA PREVIA ADAPTATIVA (CON COLORES COMPLETOS) ---
 if st.session_state.ver_preview and st.session_state.carrito:
@@ -666,3 +730,4 @@ if st.session_state.ver_preview and st.session_state.carrito:
 </div>
 </div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
+
