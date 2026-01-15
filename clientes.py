@@ -6,15 +6,14 @@ from datetime import datetime
 from PIL import Image
 import pytz
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
+# Configuración de página
 st.set_page_config(
-    page_title="Verificador Toyota",
+    page_title="Verificador de Precios - Toyota Los Fuertes",
     page_icon="🔴",
-    layout="centered",
-    initial_sidebar_state="collapsed" # Oculta la barra lateral en móviles para ganar espacio
+    layout="centered"
 )
 
-# --- 2. CONFIGURACIÓN REGIONAL ---
+# --- 1. CONFIGURACIÓN Y ESTILOS (SÓLO AQUÍ ESTÁ EL CAMBIO DE TAMAÑO) ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -25,134 +24,135 @@ def obtener_hora_mx():
         return datetime.now(tz_cdmx)
     return datetime.now()
 
-# --- 3. ESTILOS CSS ADAPTABLES (RESPONSIVE & THEME AWARE) ---
 st.markdown("""
     <style>
-    /* Ocultar elementos de Streamlit no deseados */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+   
+    /* --- CAMBIOS DE REDIMENSIONAMIENTO (RESPONSIVE) --- */
     
-    /* --- TIPOGRAFÍA RESPONSIVA --- */
-    /* Usamos clamp(minimo, ideal, maximo) para adaptar el tamaño */
-    
+    /* PRECIO: Se hace grande en PC y pequeño en celular automáticamente */
     .big-price {
-        /* Se adapta: Mínimo 40px, Ideal 15% del ancho, Máximo 90px */
-        font-size: clamp(40px, 15vw, 90px); 
+        font-size: clamp(40px, 12vw, 90px); 
         font-weight: 800;
-        color: #eb0a1e; /* Rojo Toyota (visible en dark y light mode) */
+        color: #eb0a1e;
         text-align: center;
-        margin: 10px 0;
+        margin: 0;
         line-height: 1.1;
     }
    
+    /* ETIQUETAS: Se ajustan al ancho de pantalla */
     .price-label {
         font-size: clamp(14px, 4vw, 20px);
-        font-weight: 600;
-        /* No definimos color fijo, hereda del tema (blanco/negro) */
+        color: #333;
         text-align: center;
         text-transform: uppercase;
         letter-spacing: 2px;
-        opacity: 0.9;
     }
 
+    /* SKU Y DESCRIPCIÓN: Texto fluido */
     .sku-title {
-        font-size: clamp(18px, 5vw, 26px);
+        font-size: clamp(18px, 5vw, 24px);
         font-weight: bold;
+        color: #000;
         text-align: center;
-        margin-top: 10px;
     }
    
     .desc-text {
-        font-size: clamp(16px, 4vw, 20px);
+        font-size: clamp(14px, 4vw, 18px);
+        color: #555;
         text-align: center;
         margin-bottom: 20px;
-        opacity: 0.8; /* Efecto gris sin usar color fijo */
     }
 
-    /* Input del Buscador Adaptable */
+    /* INPUT: Se adapta al ancho */
     .stTextInput input {
         font-size: 20px;
         text-align: center;
         border: 2px solid #eb0a1e;
         border-radius: 10px;
-        padding: 10px;
+        width: 100%;
     }
 
-    /* Footer Legal Adaptable */
+    /* FOOTER: Letra pequeña legible en móvil */
     .legal-footer {
-        margin-top: 40px;
+        margin-top: 50px;
         padding-top: 20px;
-        border-top: 1px solid rgba(150, 150, 150, 0.3); /* Borde semitransparente */
-        font-size: clamp(9px, 2.5vw, 11px);
+        border-top: 1px solid #ddd;
+        font-size: clamp(9px, 3vw, 11px); 
+        color: #777;
         text-align: justify;
-        font-family: sans-serif;
-        line-height: 1.4;
-        opacity: 0.7;
+        font-family: Arial, sans-serif;
     }
     
-    /* Centrado de imágenes */
+    /* LOGO: Centrado y adaptable */
     div[data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
-    }
-    
-    /* Ajustes para móviles */
-    @media (max-width: 600px) {
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+        max-width: 200px; /* Tamaño máximo en PC */
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. CARGA DE DATOS ---
+# --- 2. CARGA DE DATOS (LÓGICA ORIGINAL RESTAURADA) ---
 @st.cache_data
 def cargar_catalogo():
     archivo_objetivo = "lista_precios.zip"
+    
     if not os.path.exists(archivo_objetivo):
-        st.error(f"⚠️ Falta archivo: {archivo_objetivo}")
+        st.error(f"⚠️ No se encuentra el archivo: {archivo_objetivo}")
         return None
 
     try:
         with zipfile.ZipFile(archivo_objetivo, "r") as z:
-            archivos = [f for f in z.namelist() if f.endswith('.xlsx')]
-            if not archivos: return None
-            with z.open(archivos[0]) as f:
+            archivos_excel = [f for f in z.namelist() if f.endswith('.xlsx')]
+            
+            if not archivos_excel:
+                st.error("El archivo ZIP no contiene Excel (.xlsx)")
+                return None
+                
+            nombre_archivo = archivos_excel[0]
+            
+            with z.open(nombre_archivo) as f:
                 df = pd.read_excel(f, dtype=str)
         
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
         
         cols_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c]
+        
         if cols_sku:
             c_sku = cols_sku[0]
             df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.replace(' ', '').str.strip().str.upper()
             return df
-        return None
-    except:
+        else:
+            st.error("Error: No se encontró columna de SKU/Parte.")
+            return None
+
+    except Exception as e:
+        st.error(f"Error procesando datos: {e}")
         return None
 
 df = cargar_catalogo()
 fecha_actual = obtener_hora_mx()
 
-# --- 5. HEADER ADAPTABLE ---
-# Layout responsive: En móviles se apila, en escritorio usa columnas
+# --- 3. HEADER (CON LOGO CENTRADO) ---
 col_vacia, col_logo, col_fecha = st.columns([1, 2, 1])
 
 with col_logo:
     if os.path.exists("logo.png"):
-        # use_container_width=True hace que el logo se adapte al ancho del celular o PC
-        st.image("logo.png", use_container_width=True) 
+        # use_column_width=True permite que el logo se redimensione según la pantalla
+        st.image("logo.png", use_column_width=True) 
     else:
         st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
 
 with col_fecha:
-    # Fecha pequeña y alineada, se adapta al color de fondo
     st.markdown(f"""
-    <div style="text-align: right; font-size: 10px; opacity: 0.8; margin-top: 5px;">
-        <strong>LOS FUERTES</strong><br>
+    <div style="text-align: right; color: #555; font-size: 10px;">
+        <strong>TOYOTA LOS FUERTES</strong><br>
         {fecha_actual.strftime("%d/%m/%Y")}<br>
         {fecha_actual.strftime("%H:%M")}
     </div>
@@ -160,14 +160,14 @@ with col_fecha:
 
 st.markdown("---")
 
-# --- 6. BUSCADOR ---
+# --- 4. BUSCADOR ---
 st.markdown("<h3 style='text-align: center;'>🔍 Verificador de Precios</h3>", unsafe_allow_html=True)
 
-busqueda = st.text_input("Ingresa Número de Parte:",
+busqueda = st.text_input("Escanea o escribe el número de parte:",
                          placeholder="Ej. 90915-YZZD1",
-                         help="Escanea o escribe el código").strip()
+                         help="Escribe el código y presiona Enter").strip()
 
-# --- 7. RESULTADOS ---
+# --- 5. RESULTADOS (LÓGICA ORIGINAL) ---
 if busqueda and df is not None:
     busqueda_clean = busqueda.upper().replace('-', '').replace(' ', '')
     mask = df['SKU_CLEAN'] == busqueda_clean
@@ -176,7 +176,6 @@ if busqueda and df is not None:
     if not resultados.empty:
         row = resultados.iloc[0]
         
-        # Detección de columnas
         c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c][0]
         c_desc = [c for c in df.columns if 'DESC' in c][0]
         c_precio_list = [c for c in df.columns if 'TOTAL' in c or 'UNITARIO' in c or 'PRICE' in c or 'PRECIO' in c]
@@ -186,40 +185,43 @@ if busqueda and df is not None:
         precio_final = 0.0
         
         if c_precio_list:
+            c_precio = c_precio_list[0]
             try:
-                precio_txt = str(row[c_precio_list[0]]).replace(',', '').replace('$', '').strip()
-                # Ajuste de IVA (1.16)
-                precio_final = float(precio_txt) * 1.16 
+                precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
+                precio_base = float(precio_texto)
+                # MULTIPLICADOR IVA ORIGINAL
+                precio_final = precio_base * 1.16 
             except:
                 precio_final = 0.0
 
-        # Mostramos resultados con las clases CSS responsivas
         st.markdown(f"<div class='sku-title'>SKU: {sku_val}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='desc-text'>{desc_val}</div>", unsafe_allow_html=True)
         
         if precio_final > 0:
             st.markdown("<div class='price-label'>Precio Público (Neto)</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='big-price'>${precio_final:,.2f}</div>", unsafe_allow_html=True)
-            st.caption("MXN - Incluye Impuestos")
+            st.caption("Moneda Nacional (MXN). Incluye Impuestos.")
         else:
-            st.warning("Precio no disponible.")
+            st.warning("Precio no disponible para consulta pública.")
     else:
-        st.error("❌ Producto no encontrado.")
+        st.error("❌ Producto no encontrado en el catálogo vigente.")
 
 elif not busqueda:
-    st.info("👋 Escanee el código.")
+    st.info("👋 Escanee el código de barras.")
 
-# --- 8. FOOTER LEGAL COMPACTO ---
+# --- 6. FOOTER LEGAL (TEXTO CORREGIDO CON NOMs) ---
 st.markdown("---")
 st.markdown(f"""
 <div class="legal-footer">
-    <strong>AVISO LEGAL - TOYOTA LOS FUERTES</strong><br>
-    <strong>1. PRECIOS:</strong> Incluyen IVA (16%) conforme al Art. 7 Bis de la <strong>LFPC</strong>. Montos en Moneda Nacional (MXN).
-    <br>
-    <strong>2. VIGENCIA:</strong> Precios válidos al momento de la consulta: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M")}</strong>. Respetamos el precio exhibido salvo error de sistema.
-    <br>
-    <strong>3. NORMATIVIDAD:</strong> Cumple con <strong>NOM-050-SCFI-2004</strong> (Info. Comercial) y <strong>NOM-174-SCFI-2007</strong> (Transacciones electrónicas/Kioscos).
-    <br>
-    <strong>4. GARANTÍA:</strong> Refacciones genuinas: 12 meses o 20,000 km. Partes eléctricas sin devolución.
+    <strong>AVISO LEGAL E INFORMACIÓN AL CONSUMIDOR</strong><br>
+    De conformidad con lo dispuesto en la <strong>Ley Federal de Protección al Consumidor (LFPC)</strong> y las Normas Oficiales Mexicanas aplicables:
+    <br><br>
+    <strong>1. PRECIOS TOTALES:</strong> En cumplimiento al <strong>Artículo 7 Bis de la LFPC</strong>, los precios aquí mostrados representan el monto total a pagar, expresados en Moneda Nacional (MXN) e incluyen el Impuesto al Valor Agregado (IVA) del 16% y cualquier otro cargo obligatorio.
+    <br><br>
+    <strong>2. VIGENCIA:</strong> Los precios son vigentes al momento exacto de esta consulta: <strong>{fecha_actual.strftime("%d/%m/%Y a las %H:%M hrs")}</strong>. Toyota Los Fuertes se compromete a respetar el precio exhibido al momento de la compra, salvo error evidente de sistema.
+    <br><br>
+    <strong>3. NORMATIVIDAD APLICABLE:</strong> La información comercial cumple con los lineamientos de la <strong>NOM-050-SCFI-2004</strong> (Información comercial general) y la <strong>NOM-174-SCFI-2007</strong> (Prácticas comerciales en transacciones electrónicas).
+    <br><br>
+    <strong>4. GARANTÍAS:</strong> Las refacciones genuinas cuentan con garantía de 12 meses o 20,000 km (lo que ocurra primero) contra defectos de fábrica. Las partes eléctricas no aceptan cambios ni devoluciones una vez instaladas o vendidas.
 </div>
 """, unsafe_allow_html=True)
