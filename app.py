@@ -9,7 +9,7 @@ from pyzbar.pyzbar import decode
 import pytz
 import easyocr
 import numpy as np
-import zipfile  # <--- NUEVO: Para abrir el ZIP
+import zipfile
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Toyota Los Fuertes - Verificador", page_icon="🚗", layout="wide")
@@ -57,9 +57,6 @@ st.markdown("""
         margin-top: 50px; padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.2);
         font-family: sans-serif;
-    }
-    .datos-cliente {
-        background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -129,10 +126,10 @@ def generar_pdf_bytes(carrito, subtotal, iva, total, cliente, vin, orden):
     w_total = 25
     w_estatus = 20
 
-    pdf.cell(w_sku, 8, 'SKU', 1, 0, 'C', True)
+    pdf.cell(w_sku, 8, 'ITEM', 1, 0, 'C', True)
     pdf.cell(w_desc, 8, 'Descripcion', 1, 0, 'C', True)
     pdf.cell(w_cant, 8, 'Cant.', 1, 0, 'C', True)
-    pdf.cell(w_base, 8, 'P. Base', 1, 0, 'C', True)
+    pdf.cell(w_base, 8, 'P. Unit', 1, 0, 'C', True)
     pdf.cell(w_iva, 8, 'IVA', 1, 0, 'C', True)
     pdf.cell(w_total, 8, 'Total', 1, 0, 'C', True)
     pdf.cell(w_estatus, 8, 'Estatus', 1, 1, 'C', True)
@@ -198,34 +195,30 @@ def traducir_profe(texto):
         return GoogleTranslator(source='en', target='es').translate(str(texto))
     except: return texto
 
-# --- CARGA DE DATOS (NUEVA VERSIÓN ZIP + EXCEL) ---
+# --- CARGA DE DATOS (AJUSTADO PARA ITEM / DESCRIPCION / TOTAL_UNITARIO) ---
 @st.cache_data
 def cargar_catalogo():
     try:
-        # Abrimos el ZIP
         with zipfile.ZipFile("lista_precios.zip", "r") as z:
-            # Buscamos archivos .xlsx
             archivos_dentro = [f for f in z.namelist() if f.endswith('.xlsx')]
-            
             if not archivos_dentro:
                 st.error("Error: El ZIP no tiene archivos .xlsx")
                 return None
-                
             nombre_archivo_excel = archivos_dentro[0]
             
-            # Leemos el Excel desde memoria
             with z.open(nombre_archivo_excel) as f:
-                # dtype=str para conservar ceros a la izquierda
                 df = pd.read_excel(f, dtype=str)
 
-        # Limpieza estándar
+        # Limpieza
         df.dropna(how='all', inplace=True)
+        # Convertimos todo a mayúsculas para evitar errores (Ej. Item vs ITEM)
         df.columns = [c.strip().upper() for c in df.columns]
         
-        # Detectar columnas dinámicamente
-        c_sku = [c for c in df.columns if 'PART' in c or 'NUM' in c or 'SKU' in c]
+        # --- BÚSQUEDA ESPECÍFICA DE TUS COLUMNAS ---
+        # 1. Buscar ITEM (SKU)
+        c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c]
         if not c_sku:
-            st.error("No se encontró columna de SKU/Part Number")
+            st.error(f"Error: No se encontró columna 'ITEM'. Columnas detectadas: {list(df.columns)}")
             return None
         c_sku = c_sku[0]
 
@@ -290,7 +283,7 @@ if df is not None:
     valor_inicial = sku_detectado if sku_detectado else ""
     col_search, col_date = st.columns([4, 1])
     with col_search:
-        st.markdown("Busca por SKU (con/sin guiones) o Nombre:")
+        st.markdown("Busca por ITEM/SKU (con/sin guiones) o Nombre:")
         busqueda = st.text_input("Input Búsqueda", value=valor_inicial, label_visibility="collapsed", placeholder="Ej. 90915YZZD1")
     with col_date:
         st.markdown(f"**CDMX:**\n{fecha_hoy_str}\n{hora_hoy_str}")
@@ -304,13 +297,27 @@ if df is not None:
         resultados = df[mask_desc | mask_sku].head(10).copy() 
 
         if not resultados.empty:
-            c_sku = [c for c in resultados.columns if 'PART' in c or 'NUM' in c][0]
+            # --- MAPEADO DINÁMICO DE COLUMNAS (AQUÍ ESTABA EL ERROR) ---
+            # Ahora buscamos explícitamente ITEM, DESCRIPCION y TOTAL_UNITARIO
+            
+            # 1. SKU / ITEM
+            c_sku = [c for c in resultados.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c][0]
+            
+            # 2. DESCRIPCION
             c_desc = [c for c in resultados.columns if 'DESC' in c][0]
-            c_precio = [c for c in resultados.columns if 'PRICE' in c or 'PRECIO' in c][0]
+            
+            # 3. PRECIO (TOTAL_UNITARIO)
+            # Buscamos 'TOTAL', 'UNITARIO', 'PRICE' o 'PRECIO'
+            c_precios_posibles = [c for c in resultados.columns if 'TOTAL' in c or 'UNITARIO' in c or 'PRICE' in c or 'PRECIO' in c]
+            
+            if c_precios_posibles:
+                c_precio = c_precios_posibles[0]
+            else:
+                st.error("No se encontró columna de precio (TOTAL_UNITARIO)")
+                st.stop()
 
             st.success(f"Resultados encontrados:")
             
-            # --- LOOP DE RESULTADOS ---
             for i, row in resultados.iterrows():
                 desc_es = traducir_profe(row[c_desc])
                 sku_val = row[c_sku]
@@ -319,28 +326,25 @@ if df is not None:
                     precio_val = float(precio_texto)
                 except: precio_val = 0.0
 
-                # Cálculos de Totales Unitarios
+                # NOTA: Asumimos que "TOTAL_UNITARIO" es el Precio Lista (Base)
+                # Si tu archivo ya tiene IVA incluido en esa columna, avísame para quitar esta suma.
                 iva_unitario = precio_val * 0.16
                 total_unitario = precio_val + iva_unitario
 
                 with st.container():
-                    # Nueva distribución: Solo Info, Precio Total y Acción
                     c1, c2, c3 = st.columns([3, 1.5, 1])
                     
                     with c1:
                         st.markdown(f"**{desc_es}**")
-                        st.caption(f"SKU: {sku_val}")
+                        st.caption(f"ITEM: {sku_val}")
                     
                     with c2:
-                        # Mostrar el precio TOTAL con mayor importancia
                         st.markdown(f'<div class="precio-total">${total_unitario:,.2f}</div>', unsafe_allow_html=True)
-                        st.markdown(f'<div class="desglose-impuestos">Base: ${precio_val:,.2f} | IVA: ${iva_unitario:,.2f}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="desglose-impuestos">Unitario: ${precio_val:,.2f} | IVA: ${iva_unitario:,.2f}</div>', unsafe_allow_html=True)
                     
                     with c3:
                         estatus = st.selectbox("Estatus", ["Disponible", "No Disponible", "Back Order"], key=f"st_{i}", label_visibility="collapsed")
-                        # Botón sin cantidad (siempre 1)
                         if st.button("Agregar ➕", key=f"add_{i}"):
-                            # Siempre agrega 1 unidad
                             cantidad = 1 
                             st.session_state.carrito.append({
                                 "SKU": sku_val,
@@ -399,7 +403,6 @@ if st.session_state.carrito:
     
     df_carro = pd.DataFrame(st.session_state.carrito)
     
-    # Mostramos la tabla simplificada, enfocada en el importe total
     st.dataframe(
         df_carro[["SKU", "Descripción", "Importe Total", "Estatus"]], 
         hide_index=True, 
@@ -416,7 +419,6 @@ if st.session_state.carrito:
     iva_sum = df_carro['IVA'].sum()
     gran_total = df_carro['Importe Total'].sum()
 
-    # Bloque de Totales Grande
     st.markdown(f"""
     <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; border: 1px solid #ddd; text-align: right;">
         <span style="font-size: 16px;">Subtotal: ${subtotal_sum:,.2f}</span><br>
@@ -458,7 +460,6 @@ if st.session_state.carrito:
         
         for _, row in df_carro.iterrows():
             estatus_icon = "✅" if row['Estatus'] == "Disponible" else ("⏳" if "Back" in row['Estatus'] else "❌")
-            # En WhatsApp enviamos directo el precio con IVA para evitar confusiones
             msg += f"{estatus_icon} *{row['SKU']}* | ${row['Importe Total']:,.2f}\n"
             msg += f"   {row['Descripción']}\n"
             
