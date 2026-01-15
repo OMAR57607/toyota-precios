@@ -189,7 +189,7 @@ st.markdown(f"""
     <strong>INFORMACIÓN AL CONSUMIDOR Y AVISO LEGAL</strong><br><br>
     <strong>1. PRECIOS:</strong> Todos los precios exhibidos están expresados en Moneda Nacional (MXN) e incluyen el Impuesto al Valor Agregado (IVA) del 16%, conforme a lo estipulado en el artículo 7 Bis de la <strong>Ley Federal de Protección al Consumidor (LFPC)</strong>.
     <br><br>
-    <strong>2. VIGENCIA:</strong> Los precios mostrados son vigentes al momento de la consulta: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M")}</strong>. Toyota Los Fuertes se reserva el derecho de modificar los precios sin previo aviso.
+    <strong>2. VIGENCIA:</strong> Los precios mostrados son vigentes al momento de la consulta: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M")}</strong>.
     <br><br>
     <strong>3. LIMITACIONES:</strong> Las partes eléctricas no cuentan con garantía ni devoluciones. La garantía de refacciones es de 12 meses o 20,000 km si son instaladas en taller autorizado.
 </div>
