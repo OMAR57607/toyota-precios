@@ -433,6 +433,12 @@ if df_db is None: st.error("Falta lista_precios.zip"); st.stop()
 with st.sidebar:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
+    
+    # --- MODIFICACIÓN: BOTÓN DE NIEVE ---
+    if st.button("❄️ Efecto Nieve", type="secondary", use_container_width=True):
+        st.snow()
+    # ------------------------------------
+
     st.divider()
     
     st.markdown("### 🚘 Datos del Servicio")
@@ -490,7 +496,6 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                     c1, c2 = st.columns([3, 1])
                     sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']
                     c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
-                    # Lápiz eliminado por solicitud
                     c2.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
         with col_r:
             with st.form("manual"):
