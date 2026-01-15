@@ -52,7 +52,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (PALETA DE ALTO CONTRASTE)
+# 2. ESTILOS CSS (PALETA DE ALTO CONTRASTE Y MINIMALISTA)
 # ==========================================
 st.markdown("""
     <style>
@@ -521,7 +521,7 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
 st.divider()
 
 # ==========================================
-# SECCIÓN CARRITO (DISEÑO INTERACTIVO + / -)
+# SECCIÓN CARRITO (DISEÑO TARJETAS MINIMALISTAS)
 # ==========================================
 st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
@@ -554,72 +554,65 @@ if st.session_state.carrito:
         """Actualiza el campo de Tiempo de Entrega"""
         st.session_state.carrito[idx]['Tiempo Entrega'] = st.session_state[key_widget]
 
-    # --- ENCABEZADOS DE LA LISTA ---
-    # c1=Idx, c2=Desc, c3=Prio, c4=Abasto, c5=Tiempo, c6=Cant, c7=Del
-    c1, c2, c3, c4, c5, c6, c7 = st.columns([0.4, 2.0, 1.0, 1.0, 1.2, 1.4, 0.5])
-    c1.markdown("**#**")
-    c2.markdown("**Descripción / SKU**")
-    c3.markdown("**Prioridad**")
-    c4.markdown("**Abasto**")
-    c5.markdown("**Tiempo Ent.**")
-    c6.markdown("**Cant / Total**")
-    c7.markdown("**X**")
-    st.markdown("---")
-
-    # --- ITERACIÓN DE ÍTEMS ---
+    # --- ITERACIÓN DE ÍTEMS EN TARJETAS ---
     for i, item in enumerate(st.session_state.carrito):
         
-        c1, c2, c3, c4, c5, c6, c7 = st.columns([0.4, 2.0, 1.0, 1.0, 1.2, 1.4, 0.5])
-        
-        # 1. Índice
-        c1.write(f"{i+1}")
-        
-        # 2. Descripción
-        with c2:
-            st.markdown(f"**{item['Descripción']}**")
-            st.caption(f"SKU: {item['SKU']} | ${item['Precio Unitario (c/IVA)']:,.2f}")
+        # Usamos st.container con borde para crear el efecto de "Tarjeta"
+        with st.container(border=True):
+            
+            # --- FILA SUPERIOR: DESCRIPCIÓN Y PRECIO TOTAL ---
+            top_col1, top_col2, top_col3 = st.columns([3, 1, 0.3])
+            
+            with top_col1:
+                st.markdown(f"**{item['Descripción']}**")
+                st.caption(f"SKU: {item['SKU']} • P.Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
+            
+            with top_col2:
+                # Precio total alineado y destacado
+                st.markdown(f"<div style='text-align:right; color:#eb0a1e; font-weight:bold; font-size:1.1em;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
+            
+            with top_col3:
+                st.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="tertiary", help="Eliminar")
 
-        # 3. Prioridad
-        opts_prio = ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"]
-        idx_prio = 1
-        if item['Prioridad'] == "Urgente": idx_prio = 0
-        elif item['Prioridad'] == "Bajo": idx_prio = 2
-        
-        c3.selectbox(
-            "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
-            on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
-        )
+            # --- FILA INFERIOR: CONTROLES OPERATIVOS ---
+            # Ajustamos las columnas para que quepan bien los controles
+            c_prio, c_stat, c_time, c_qty = st.columns([1.3, 1.3, 1.5, 1.8])
+            
+            # 1. Prioridad
+            opts_prio = ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"]
+            idx_prio = 1
+            if item['Prioridad'] == "Urgente": idx_prio = 0
+            elif item['Prioridad'] == "Bajo": idx_prio = 2
+            
+            c_prio.selectbox(
+                "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
+                on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
+            )
 
-        # 4. Abasto
-        opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
-        idx_abasto = 3
-        if "Disponible" in item['Abasto']: idx_abasto = 0
-        elif "Pedido" in item['Abasto']: idx_abasto = 1
-        elif "Back" in item['Abasto']: idx_abasto = 2
-        
-        c4.selectbox(
-            "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
-            on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
-        )
+            # 2. Abasto
+            opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
+            idx_abasto = 3
+            if "Disponible" in item['Abasto']: idx_abasto = 0
+            elif "Pedido" in item['Abasto']: idx_abasto = 1
+            elif "Back" in item['Abasto']: idx_abasto = 2
+            
+            c_stat.selectbox(
+                "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
+                on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
+            )
 
-        # 5. Tiempo Entrega (NUEVA COLUMNA DE TEXTO)
-        c5.text_input(
-            "Tiempo", value=item['Tiempo Entrega'], key=f"time_{i}", label_visibility="collapsed",
-            on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}")
-        )
+            # 3. Tiempo
+            c_time.text_input(
+                "Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed",
+                on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}")
+            )
 
-        # 6. Cantidad (+/-) y Total
-        with c6:
-            sc1, sc2, sc3 = st.columns([1, 1, 1])
-            sc1.button("➖", key=f"btn_rest_{i}", on_click=actualizar_cantidad, args=(i, -1), use_container_width=True)
-            sc2.markdown(f"<div style='text-align:center; font-weight:bold; font-size:18px; padding-top:5px;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
-            sc3.button("➕", key=f"btn_sum_{i}", on_click=actualizar_cantidad, args=(i, 1), use_container_width=True)
-            st.markdown(f"<div style='text-align:center; color:#eb0a1e; font-weight:bold;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
-
-        # 7. Eliminar
-        c7.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="secondary")
-        
-        st.divider()
+            # 4. Cantidad (+/-)
+            with c_qty:
+                sub_c1, sub_c2, sub_c3 = st.columns([1, 1, 1])
+                sub_c1.button("➖", key=f"btn_rest_{i}", on_click=actualizar_cantidad, args=(i, -1), use_container_width=True)
+                sub_c2.markdown(f"<div style='text-align:center; font-weight:bold; padding-top:8px;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
+                sub_c3.button("➕", key=f"btn_sum_{i}", on_click=actualizar_cantidad, args=(i, 1), use_container_width=True)
 
     # --- TOTALES ---
     subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
@@ -635,7 +628,7 @@ if st.session_state.carrito:
         st.markdown("""
         <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; border: 1px solid #ffeeba;">
             <strong>⚠️ No se puede continuar:</strong><br>
-            Por favor, ve a la tabla de arriba (Carrito) y selecciona el estatus correcto (Disponible, Por Pedido o Back Order).
+            Por favor, revisa las tarjetas arriba marcadas con '⚠️ REVISAR' y selecciona el estatus correcto.
         </div>
         """, unsafe_allow_html=True)
         
