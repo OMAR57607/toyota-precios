@@ -487,12 +487,11 @@ with st.expander("🔎 Agregar Ítems (Refacciones o Mano de Obra)", expanded=Tr
                 b_raw = q.upper().strip().replace('-', '')
                 mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1) | df_db['SKU_CLEAN'].str.contains(b_raw, na=False)
                 for _, row in df_db[mask].head(3).iterrows():
-                    c1, c2, c3 = st.columns([3, 0.7, 1])
+                    c1, c2 = st.columns([3, 1])
                     sku_db = row[col_sku_db]; pr_db = row['PRECIO_NUM']
                     c1.markdown(f"**{sku_db}**\n${pr_db:,.2f}")
-                    if c2.button("✏️", key=f"ed_{sku_db}"):
-                        cargar_en_manual(sku_db, row[col_desc_db], pr_db); st.rerun()
-                    c3.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
+                    # Lápiz eliminado por solicitud
+                    c2.button("➕ Agregar", key=f"ad_{sku_db}", type="primary", on_click=agregar_item_callback, args=(sku_db, row[col_desc_db], pr_db, 1, "Refacción"))
         with col_r:
             with st.form("manual"):
                 st.markdown("**Agregar Manual (Refacción)**")
