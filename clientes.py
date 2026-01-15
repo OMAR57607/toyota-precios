@@ -32,7 +32,7 @@ def init_session():
         'temp_desc': "",
         'temp_precio': 0.0,
         'ver_preview': False,
-        'nieve_activa': False 
+        'nieve_activa': False
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -165,66 +165,72 @@ st.markdown("""
 # Lógica del Efecto Nieve
 if st.session_state.nieve_activa:
     st.markdown("""
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
-    <div class="snowflake">❅</div>
-    <div class="snowflake">❆</div>
+    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div>
+    <div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+    <div class="snowflake">❅</div><div class="snowflake">❆</div><div class="snowflake">❅</div>
+    <div class="snowflake">❆</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. LÓGICA DE DATOS (AJUSTADA PARA TXT EN ZIP SIN ENCABEZADOS)
+# 3. LÓGICA DE DATOS (MODO ROBUSTO)
 # ==========================================
 @st.cache_data
 def cargar_catalogo():
-    # Buscamos el ZIP
-    if not os.path.exists("lista_precios.zip"): 
-        return None, None, None
+    # NOMBRE ACTUALIZADO DEL ARCHIVO
+    ARCHIVO_DB = "lista_precios2.zip"
     
+    c_sku = 'PART_NO'
+    c_desc = 'DESCRIPTION'
+    c_precio = 'PRICE'
+    
+    # 1. Intentamos cargar el archivo ZIP real
+    if os.path.exists(ARCHIVO_DB):
+        try:
+            df = pd.read_csv(
+                ARCHIVO_DB,
+                compression='zip',
+                header=None,
+                names=[c_sku, c_desc, c_precio],
+                dtype=str,
+                encoding='latin-1',
+                sep=None,
+                engine='python'
+            )
+        except Exception as e:
+            st.error(f"Error leyendo {ARCHIVO_DB}: {e}")
+            return None, None, None
+            
+    # 2. Si NO existe el archivo, creamos DATOS DE EJEMPLO (Modo Demo)
+    else:
+        st.warning(f"⚠️ No se encontró '{ARCHIVO_DB}'. Cargando MODO DEMO con datos de prueba.", icon="ℹ️")
+        data_demo = {
+            c_sku: [
+                "90915-YZZD1", "04465-02240", "90919-01253", "87139-50100", 
+                "04152-YZZA1", "52119-02987", "81110-02B50", "17801-21050",
+                "48510-80569", "04466-52140"
+            ],
+            c_desc: [
+                "FILTRO DE ACEITE", "BALATAS DELANTERAS", "BUJIA IRIDIUM", "FILTRO DE AIRE CABINA",
+                "FILTRO ELEMENTO ACEITE", "FASCIA DELANTERA", "FARO DERECHO", "FILTRO DE AIRE MOTOR",
+                "AMORTIGUADOR DEL", "BALATAS TRASERAS"
+            ],
+            c_precio: [
+                "185.00", "1450.50", "320.00", "450.00",
+                "190.00", "3500.00", "4200.00", "380.00",
+                "2100.00", "980.00"
+            ]
+        }
+        df = pd.DataFrame(data_demo)
+
+    # --- LIMPIEZA Y PROCESAMIENTO ---
     try:
-        # Leemos el TXT contenido en el ZIP
-        # header=None: Porque dijiste que no tiene títulos
-        # names: Asignamos manualmente Parte, Descripción, Precio
-        # dtype=str: Para que 0E010 no se convierta en notación científica
-        # sep=None + engine='python': Para que detecte solo si es tabulador, coma, etc.
-        df = pd.read_csv(
-            "lista_precios.zip", 
-            compression='zip', 
-            header=None,
-            names=['PART_NO', 'DESCRIPTION', 'PRICE'], 
-            dtype=str, 
-            encoding='latin-1',
-            sep=None,
-            engine='python'
-        )
-        
-        # Limpieza básica
         df.dropna(how='all', inplace=True)
-        
-        # Asignamos las columnas fijas
-        c_sku = 'PART_NO'
-        c_desc = 'DESCRIPTION'
-        c_precio = 'PRICE'
-        
-        # Eliminar duplicados de SKU
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
-        
-        # Crear columna de SKU limpia para búsquedas
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
         
-        # Función para limpiar precio y convertir a número
         def limpiar_precio_num(x):
             try:
-                # Quitamos signos de pesos y comas
                 s = str(x).replace('$', '').replace(',', '').strip()
-                # Verificamos si es dígito (permitiendo un punto)
                 if s.replace('.', '', 1).isdigit():
                     return float(s)
                 return 0.0
@@ -232,11 +238,10 @@ def cargar_catalogo():
                 return 0.0
 
         df['PRECIO_NUM'] = df[c_precio].apply(limpiar_precio_num)
-        
         return df, c_sku, c_desc
-        
+
     except Exception as e:
-        # Si algo falla (ej. el zip está dañado o vacío)
+        st.error(f"Error procesando datos: {e}")
         return None, None, None
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
@@ -455,15 +460,15 @@ def generar_pdf():
         pdf.multi_cell(cols[1], line_height, desc_txt, 0, 'L')
         pdf.set_xy(x_desc + cols[1], y_desc)
         
-        # --- COLOREADO PRIORIDAD (FONDO) - NUEVA PALETA ---
+        # --- COLOREADO PRIORIDAD (FONDO) ---
         if prio == 'Urgente':
             pdf.set_fill_color(211, 47, 47) # ROJO
             pdf.set_text_color(255, 255, 255)
         elif prio == 'Medio':
-            pdf.set_fill_color(25, 118, 210) # AZUL REY (Distinto a Naranja)
+            pdf.set_fill_color(25, 118, 210) # AZUL REY
             pdf.set_text_color(255, 255, 255)
         else: # Bajo
-            pdf.set_fill_color(117, 117, 117) # GRIS (Neutro)
+            pdf.set_fill_color(117, 117, 117) # GRIS
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True)
@@ -472,18 +477,18 @@ def generar_pdf():
         pdf.set_fill_color(255, 255, 255)
         pdf.set_text_color(0, 0, 0)
         
-        # --- COLOREADO ESTATUS (FONDO) - NUEVA PALETA ---
+        # --- COLOREADO ESTATUS (FONDO) ---
         if "Disponible" in abasto:
             pdf.set_fill_color(56, 142, 60) # Verde
             pdf.set_text_color(255, 255, 255)
         elif "Pedido" in abasto:
-            pdf.set_fill_color(245, 124, 0) # Naranja (Único naranja)
+            pdf.set_fill_color(245, 124, 0) # Naranja
             pdf.set_text_color(255, 255, 255)
         elif "Back" in abasto:
             pdf.set_fill_color(33, 33, 33) # Negro
             pdf.set_text_color(255, 255, 255)
         else: # Revisar
-            pdf.set_fill_color(136, 14, 79) # Magenta/Vino (Distinto a Rojo Urgente)
+            pdf.set_fill_color(136, 14, 79) # Magenta
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True)
@@ -524,7 +529,7 @@ def generar_pdf():
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-if df_db is None: st.error("Falta lista_precios.zip"); st.stop()
+# YA NO SE DETIENE SI FALTA EL ARCHIVO ZIP.
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -632,53 +637,39 @@ if st.session_state.carrito:
     
     # --- FUNCIONES DE ACCIÓN DEL CARRITO ---
     def actualizar_cantidad(idx, delta):
-        """Suma o resta cantidad asegurando que no baje de 1"""
         nueva_cant = st.session_state.carrito[idx]['Cantidad'] + delta
         if nueva_cant < 1: nueva_cant = 1
         st.session_state.carrito[idx]['Cantidad'] = nueva_cant
-        
-        # Recalcular montos internos
         item = st.session_state.carrito[idx]
         item['IVA'] = (item['Precio Base'] * item['Cantidad']) * 0.16
         item['Importe Total'] = (item['Precio Base'] * item['Cantidad']) + item['IVA']
 
     def eliminar_item(idx):
-        """Elimina el ítem del carrito"""
         st.session_state.carrito.pop(idx)
 
     def actualizar_propiedad(idx, clave, key_widget):
-        """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
         valor = st.session_state[key_widget]
         valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
-                            .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
+                                .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
         st.session_state.carrito[idx][clave] = valor_limpio
 
     def actualizar_tiempo_entrega(idx, key_widget):
-        """Actualiza el campo de Tiempo de Entrega"""
         st.session_state.carrito[idx]['Tiempo Entrega'] = st.session_state[key_widget]
 
     # --- ITERACIÓN DE ÍTEMS EN TARJETAS ---
     for i, item in enumerate(st.session_state.carrito):
-        
-        # Usamos st.container con borde para crear el efecto de "Tarjeta"
         with st.container(border=True):
-            
             # --- FILA SUPERIOR: DESCRIPCIÓN Y PRECIO TOTAL ---
             top_col1, top_col2, top_col3 = st.columns([3, 1, 0.3])
-            
             with top_col1:
                 st.markdown(f"**{item['Descripción']}**")
                 st.caption(f"SKU: {item['SKU']} • P.Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
-            
             with top_col2:
-                # Precio total alineado y destacado
                 st.markdown(f"<div style='text-align:right; color:#eb0a1e; font-weight:bold; font-size:1.1em;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
-            
             with top_col3:
                 st.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="tertiary", help="Eliminar")
 
             # --- FILA INFERIOR: CONTROLES OPERATIVOS ---
-            # Ajustamos las columnas para que quepan bien los controles
             c_prio, c_stat, c_time, c_qty = st.columns([1.3, 1.3, 1.5, 1.8])
             
             # 1. Prioridad
@@ -686,11 +677,7 @@ if st.session_state.carrito:
             idx_prio = 1
             if item['Prioridad'] == "Urgente": idx_prio = 0
             elif item['Prioridad'] == "Bajo": idx_prio = 2
-            
-            c_prio.selectbox(
-                "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
-                on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
-            )
+            c_prio.selectbox("Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed", on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}"))
 
             # 2. Abasto
             opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
@@ -698,17 +685,10 @@ if st.session_state.carrito:
             if "Disponible" in item['Abasto']: idx_abasto = 0
             elif "Pedido" in item['Abasto']: idx_abasto = 1
             elif "Back" in item['Abasto']: idx_abasto = 2
-            
-            c_stat.selectbox(
-                "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
-                on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
-            )
+            c_stat.selectbox("Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed", on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}"))
 
             # 3. Tiempo
-            c_time.text_input(
-                "Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed",
-                on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}")
-            )
+            c_time.text_input("Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed", on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}"))
 
             # 4. Cantidad (+/-)
             with c_qty:
@@ -774,11 +754,9 @@ if st.session_state.ver_preview and st.session_state.carrito:
     hay_revisar_prev = False
 
     for item in st.session_state.carrito:
-        # Lógica colores Prioridad
         p = item['Prioridad']
         p_class = "badge-base " + ("badge-urg" if p == "Urgente" else ("badge-med" if p == "Medio" else "badge-baj"))
         
-        # Lógica colores Estatus
         a_val = item.get('Abasto', '⚠️ REVISAR')
         a_class = "status-base " + ("status-disp" if "Disponible" in a_val else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev")))
         
