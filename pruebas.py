@@ -545,124 +545,114 @@ if st.session_state.carrito:
 
     def actualizar_propiedad(idx, clave, key_widget):
         """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
-        # Obtenemos el valor directamente del state usando la key
         valor = st.session_state[key_widget]
-        # Limpiamos los emojis
         valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
                             .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
         st.session_state.carrito[idx][clave] = valor_limpio
 
+    def actualizar_tiempo_entrega(idx, key_widget):
+        """Actualiza el campo de Tiempo de Entrega"""
+        st.session_state.carrito[idx]['Tiempo Entrega'] = st.session_state[key_widget]
+
     # --- ENCABEZADOS DE LA LISTA ---
-    # Usamos columnas para simular una tabla, pero con widgets reales
-    h1, h2, h3, h4, h5, h6 = st.columns([0.5, 3, 1.2, 1.2, 1.5, 0.5])
-    h1.markdown("**#**")
-    h2.markdown("**Descripción / SKU**")
-    h3.markdown("**Prioridad**")
-    h4.markdown("**Abasto**")
-    h5.markdown("**Cant / Total**")
-    h6.markdown("**X**")
+    # c1=Idx, c2=Desc, c3=Prio, c4=Abasto, c5=Tiempo, c6=Cant, c7=Del
+    c1, c2, c3, c4, c5, c6, c7 = st.columns([0.4, 2.0, 1.0, 1.0, 1.2, 1.4, 0.5])
+    c1.markdown("**#**")
+    c2.markdown("**Descripción / SKU**")
+    c3.markdown("**Prioridad**")
+    c4.markdown("**Abasto**")
+    c5.markdown("**Tiempo Ent.**")
+    c6.markdown("**Cant / Total**")
+    c7.markdown("**X**")
     st.markdown("---")
 
-    # --- ITERACIÓN DE ÍTEMS (RENDERIZADO FILA POR FILA) ---
+    # --- ITERACIÓN DE ÍTEMS ---
     for i, item in enumerate(st.session_state.carrito):
         
-        # Definimos el layout de la fila
-        c1, c2, c3, c4, c5, c6 = st.columns([0.5, 3, 1.2, 1.2, 1.5, 0.5])
+        c1, c2, c3, c4, c5, c6, c7 = st.columns([0.4, 2.0, 1.0, 1.0, 1.2, 1.4, 0.5])
         
         # 1. Índice
         c1.write(f"{i+1}")
         
-        # 2. Descripción y SKU
+        # 2. Descripción
         with c2:
             st.markdown(f"**{item['Descripción']}**")
-            st.caption(f"SKU: {item['SKU']} | P.Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
+            st.caption(f"SKU: {item['SKU']} | ${item['Precio Unitario (c/IVA)']:,.2f}")
 
-        # 3. Selector de Prioridad (Con Emojis)
+        # 3. Prioridad
         opts_prio = ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"]
-        idx_prio = 1 # Default Medio
+        idx_prio = 1
         if item['Prioridad'] == "Urgente": idx_prio = 0
         elif item['Prioridad'] == "Bajo": idx_prio = 2
         
-        # CORRECCIÓN AQUÍ: Pasamos f"prio_{i}" (string) en vez del valor del state
-        val_prio = c3.selectbox(
+        c3.selectbox(
             "Prioridad", opts_prio, index=idx_prio, key=f"prio_{i}", label_visibility="collapsed",
             on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
         )
 
-        # 4. Selector de Abasto (Con Emojis)
+        # 4. Abasto
         opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
-        idx_abasto = 3 # Default Revisar
+        idx_abasto = 3
         if "Disponible" in item['Abasto']: idx_abasto = 0
         elif "Pedido" in item['Abasto']: idx_abasto = 1
         elif "Back" in item['Abasto']: idx_abasto = 2
         
-        # CORRECCIÓN AQUÍ: Pasamos f"abasto_{i}" (string) en vez del valor del state
-        val_abasto = c4.selectbox(
+        c4.selectbox(
             "Abasto", opts_abasto, index=idx_abasto, key=f"abasto_{i}", label_visibility="collapsed",
             on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
         )
 
-        # 5. Botones de Acción (+ / -) y Total
-        with c5:
+        # 5. Tiempo Entrega (NUEVA COLUMNA DE TEXTO)
+        c5.text_input(
+            "Tiempo", value=item['Tiempo Entrega'], key=f"time_{i}", label_visibility="collapsed",
+            on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}")
+        )
+
+        # 6. Cantidad (+/-) y Total
+        with c6:
             sc1, sc2, sc3 = st.columns([1, 1, 1])
             sc1.button("➖", key=f"btn_rest_{i}", on_click=actualizar_cantidad, args=(i, -1), use_container_width=True)
             sc2.markdown(f"<div style='text-align:center; font-weight:bold; font-size:18px; padding-top:5px;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
             sc3.button("➕", key=f"btn_sum_{i}", on_click=actualizar_cantidad, args=(i, 1), use_container_width=True)
-            
             st.markdown(f"<div style='text-align:center; color:#eb0a1e; font-weight:bold;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
 
-        # 6. Botón Eliminar
-        c6.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="secondary")
+        # 7. Eliminar
+        c7.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="secondary")
         
         st.divider()
 
-    # --- CALCULAMOS EL TOTAL AQUÍ (ANTES DE LA VALIDACIÓN) ---
+    # --- TOTALES ---
     subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
     total_gral = subtotal * 1.16
 
     # ============================================================
     # LÓGICA DE BLOQUEO (VALIDACIÓN DE CAMPOS INCOMPLETOS)
     # ============================================================
-    
-    # Buscamos si existe algún ítem que todavía tenga el estatus de alerta
     pendientes = [i for i in st.session_state.carrito if "REVISAR" in str(i['Abasto'])]
 
     if pendientes:
-        # --- CASO: HAY ERRORES -> BLOQUEAMOS TODO ---
         st.error(f"🛑 ACCIÓN REQUERIDA: Tienes {len(pendientes)} partida(s) con estatus '⚠️ REVISAR'.")
-        
         st.markdown("""
         <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; border: 1px solid #ffeeba;">
             <strong>⚠️ No se puede continuar:</strong><br>
-            Por seguridad, el sistema no permite generar cotizaciones con ítems sin definir.<br>
-            Por favor, ve a la tabla de arriba (Carrito) y en la columna <strong>"Abasto"</strong> selecciona si la pieza está:
-            <ul>
-                <li>✅ Disponible</li>
-                <li>📦 Por Pedido</li>
-                <li>⚫ Back Order</li>
-            </ul>
+            Por favor, ve a la tabla de arriba (Carrito) y selecciona el estatus correcto (Disponible, Por Pedido o Back Order).
         </div>
         """, unsafe_allow_html=True)
         
     else:
-        # --- CASO: TODO CORRECTO -> MOSTRAMOS BOTONES ---
         c1, c2, c3 = st.columns(3)
-        
         with c1:
             if st.button("👁️ Vista Previa / Cerrar", type="secondary", use_container_width=True):
                 toggle_preview(); st.rerun()
-                
         with c2:
             pdf_bytes = generar_pdf()
             st.download_button("📄 Descargar PDF", pdf_bytes, f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
-
         with c3:
             items_wa = ""
             for i in st.session_state.carrito:
                 items_wa += f"▪️ {i['Cantidad']}x {i['Descripción']} (${i['Precio Unitario (c/IVA)']:,.2f} c/u)\n"
             
             ase_firma = st.session_state.asesor if st.session_state.asesor else "Asesor de Servicio"
-            
             msg_raw = (
                 f"Estimado/a *{st.session_state.cliente}*,\n\n"
                 f"Por medio del presente, le compartimos el presupuesto solicitado para su vehículo en *Toyota Los Fuertes*:\n\n"
