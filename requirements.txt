@@ -12,4 +12,3 @@ openpyxl
 opencv-python-headless
 pdfplumber
 pytesseract
-xlrd
