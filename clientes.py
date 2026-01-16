@@ -14,7 +14,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 1. FUNCIONES DE TIEMPO Y FONDO DINÁMICO ---
+# --- 1. LÓGICA DE FONDO DINÁMICO (ESTACIÓN Y HORA) ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -38,138 +38,116 @@ def get_time_of_day(date):
     elif 12 <= h < 19: return "tarde"
     else: return "noche"
 
-# Diccionario de gradientes para cada combinación
+# Colores de fondo según temporada y hora
 gradients = {
-    ("primavera", "mañana"): "linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)", # Fresco/Claro
-    ("primavera", "tarde"): "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",  # Rosa/Azul pastel
-    ("primavera", "noche"): "linear-gradient(135deg, #2c3e50 0%, #3498db 100%)",  # Azul noche
+    ("primavera", "mañana"): "linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)",
+    ("primavera", "tarde"): "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+    ("primavera", "noche"): "linear-gradient(135deg, #2c3e50 0%, #3498db 100%)",
     
-    ("verano", "mañana"): "linear-gradient(135deg, #2980b9 0%, #6dd5fa 100%, #ffffff 100%)", # Cielo azul brillante
-    ("verano", "tarde"): "linear-gradient(135deg, #fceabb 0%, #f8b500 100%)",     # Sol cálido intenso
-    ("verano", "noche"): "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)", # Noche profunda de verano
+    ("verano", "mañana"): "linear-gradient(135deg, #2980b9 0%, #6dd5fa 100%, #ffffff 100%)",
+    ("verano", "tarde"): "linear-gradient(135deg, #fceabb 0%, #f8b500 100%)",
+    ("verano", "noche"): "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
 
-    ("otoño", "mañana"): "linear-gradient(135deg, #f12711 0%, #f5af19 100%)",     # Amanecer naranja/rojo
-    ("otoño", "tarde"): "linear-gradient(135deg, #dd5e89 0%, #f7bb97 100%)",      # Atardecer cálido
-    ("otoño", "noche"): "linear-gradient(135deg, #232526 0%, #414345 100%)",      # Gris oscuro/negro
+    ("otoño", "mañana"): "linear-gradient(135deg, #f12711 0%, #f5af19 100%)",
+    ("otoño", "tarde"): "linear-gradient(135deg, #dd5e89 0%, #f7bb97 100%)",
+    ("otoño", "noche"): "linear-gradient(135deg, #232526 0%, #414345 100%)",
 
-    ("invierno", "mañana"): "linear-gradient(135deg, #E0EAFC 0%, #CFDEF3 100%)",  # Frío pálido
-    ("invierno", "tarde"): "linear-gradient(135deg, #83a4d4 0%, #b6fbff 100%)",   # Azul hielo
-    ("invierno", "noche"): "linear-gradient(135deg, #000428 0%, #004e92 100%)",   # Azul oscuro invernal
+    ("invierno", "mañana"): "linear-gradient(135deg, #E0EAFC 0%, #CFDEF3 100%)",
+    ("invierno", "tarde"): "linear-gradient(135deg, #83a4d4 0%, #b6fbff 100%)",
+    ("invierno", "noche"): "linear-gradient(135deg, #000428 0%, #004e92 100%)",
 }
 
 def set_dynamic_background():
     now = obtener_hora_mx()
     season = get_season(now)
     time = get_time_of_day(now)
-    # Obtener el gradiente correspondiente o uno por defecto
     gradient = gradients.get((season, time), "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)")
     
     st.markdown(f"""
         <style>
-        /* Aplica el fondo al contenedor principal de la app */
-        [data-testid="stAppViewContainer"] > .main {{
+        /* 1. FONDO DE LA APP (Dinámico) */
+        .stApp {{
             background-image: {gradient} !important;
             background-attachment: fixed;
             background-size: cover;
-            transition: background-image 1s ease-in-out;
         }}
-        /* Crea una "tarjeta" blanca semitransparente para el contenido */
+        
+        /* 2. TARJETA BLANCA (Donde va el contenido) */
         [data-testid="stBlockContainer"] {{
-            background-color: rgba(255, 255, 255, 0.90); /* Blanco al 90% de opacidad */
-            padding: 30px;
+            background-color: rgba(255, 255, 255, 0.95) !important;
             border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1); /* Sombra suave */
-            margin-top: 40px;
+            padding: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            max-width: 700px;
+            margin-top: 20px;
         }}
-        /* Ajuste para que el footer se vea bien dentro de la tarjeta */
+
+        /* 3. CORRECCIÓN DE TEXTO (Forzar NEGRO siempre) */
+        h1, h2, h3, h4, h5, h6, p, span, div, label {{
+            color: #222222 !important;
+        }}
+        
+        /* 4. CORRECCIÓN DEL INPUT (Números invisibles) */
+        .stTextInput input {{
+            background-color: #ffffff !important;
+            color: #000000 !important; /* Texto negro */
+            -webkit-text-fill-color: #000000 !important; /* Safari/Chrome */
+            border: 2px solid #eb0a1e !important;
+            font-size: 22px !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            caret-color: #eb0a1e !important; /* Cursor rojo */
+        }}
+        
+        /* 5. TEXTO DEL PRECIO ROJO */
+        .big-price {{
+            font-size: clamp(45px, 15vw, 95px); 
+            font-weight: 800;
+            color: #eb0a1e !important; /* Rojo Toyota */
+            text-align: center;
+            margin: 0;
+            line-height: 1.1;
+        }}
+        
+        /* 6. OCULTAR ELEMENTOS DE STREAMLIT (Kiosco) */
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
+        header {{visibility: hidden;}}
+        
+        /* 7. BOTÓN ROJO */
+        .stButton button {{
+            background-color: #eb0a1e !important;
+            color: white !important;
+            border: none;
+            width: 100%;
+            border-radius: 10px;
+            font-weight: bold;
+        }}
+        .stButton button:hover {{
+            background-color: #cc0000 !important;
+        }}
+        
+        /* 8. FOOTER LEGAL */
         .legal-footer {{
-             border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
-             color: #555 !important;
+            border-top: 1px solid #ccc !important;
+            color: #555555 !important;
+            font-size: 11px;
+            margin-top: 30px;
+            padding-top: 15px;
+        }}
+        
+        /* Centrar imágenes */
+        div[data-testid="stImage"] {{
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
         }}
         </style>
     """, unsafe_allow_html=True)
 
-# Llamamos a la función para establecer el fondo inmediatamente
 set_dynamic_background()
 
-
-# --- 2. ESTILOS ADICIONALES Y MODO KIOSCO ---
-st.markdown("""
-    <style>
-    /* Ocultar elementos de Streamlit (Modo Kiosco) */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* Estilos de Texto */
-    .big-price {
-        font-size: clamp(45px, 15vw, 95px); 
-        font-weight: 800;
-        color: #eb0a1e; 
-        text-align: center;
-        margin: 0;
-        line-height: 1.1;
-    }
-    
-    .sku-title {
-        font-size: clamp(20px, 5vw, 28px);
-        font-weight: bold;
-        text-align: center;
-        color: #333; /* Color oscuro para contraste con fondo blanco */
-    }
-    
-    .desc-text {
-        font-size: clamp(16px, 4vw, 22px);
-        text-align: center;
-        margin-bottom: 20px;
-        color: #555; /* Gris medio */
-        opacity: 1;
-        font-style: italic;
-    }
-
-    /* Input estilo Google */
-    .stTextInput input {
-        font-size: 22px;
-        text-align: center;
-        border: 2px solid #eb0a1e;
-        border-radius: 25px; 
-        padding: 10px;
-        background-color: white;
-    }
-
-    /* Botón personalizado */
-    .stButton button {
-        width: 100%;
-        border-radius: 20px;
-        font-size: 18px;
-        font-weight: bold;
-        background-color: #eb0a1e; /* Botón rojo para resaltar */
-        color: white;
-        border: none;
-        transition: all 0.3s ease;
-    }
-    .stButton button:hover {
-        background-color: #c40012; /* Rojo más oscuro al pasar el mouse */
-        box-shadow: 0 4px 8px rgba(235, 10, 30, 0.3);
-    }
-
-    .legal-footer {
-        margin-top: 50px;
-        padding-top: 20px;
-        font-size: 10px;
-        opacity: 0.7;   
-        text-align: justify;
-    }
-    
-    div[data-testid="stImage"] {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- 3. CARGA DE DATOS ---
+# --- 2. CARGA DE DATOS ---
 @st.cache_data
 def cargar_catalogo():
     archivo_objetivo = "base_datos_2026.zip"
@@ -194,17 +172,17 @@ def cargar_catalogo():
 df = cargar_catalogo()
 fecha_actual = obtener_hora_mx()
 
-# --- 4. INTERFAZ ---
+# --- 3. INTERFAZ ---
 col_vacia, col_logo, col_fecha = st.columns([1, 2, 1])
 with col_logo:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True) 
     else:
-        st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #eb0a1e !important;'>TOYOTA</h1>", unsafe_allow_html=True)
 
 with col_fecha:
     st.markdown(f"""
-    <div style="text-align: right; color: #555; font-size: 11px;">
+    <div style="text-align: right; color: #333; font-size: 11px;">
         <strong>LOS FUERTES</strong><br>
         {fecha_actual.strftime("%d/%m/%Y")}<br>
         {fecha_actual.strftime("%H:%M")}
@@ -213,24 +191,21 @@ with col_fecha:
 
 st.markdown("---")
 
-# --- 5. BUSCADOR Y BOTÓN ---
-st.markdown("<h4 style='text-align: center; color: #333;'>Verificador de Precios</h4>", unsafe_allow_html=True)
+# --- 4. BUSCADOR ---
+st.markdown("<h4 style='text-align: center; color: #333 !important;'>Verificador de Precios</h4>", unsafe_allow_html=True)
 
-busqueda_input = st.text_input("Código de Parte:", placeholder="Escanea o escribe aquí...", label_visibility="collapsed").strip()
+busqueda_input = st.text_input("Ingresa SKU:", placeholder="Ej. 90915-YZZD1", label_visibility="collapsed").strip()
 boton_consultar = st.button("🔍 Consultar Precio")
 
-# Lógica
+# --- 5. RESULTADOS ---
 if (busqueda_input or boton_consultar) and df is not None:
     busqueda_clean = busqueda_input.upper().replace('-', '').replace(' ', '')
     mask = df['SKU_CLEAN'] == busqueda_clean
     resultados = df[mask]
 
     if not resultados.empty:
-        # SE ELIMINÓ st.snow()
-
         row = resultados.iloc[0]
         
-        # Detectar columnas
         c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c or 'NUMERO' in c][0]
         c_desc_list = [c for c in df.columns if 'DESC' in c]
         c_desc = c_desc_list[0] if c_desc_list else c_sku
@@ -239,13 +214,12 @@ if (busqueda_input or boton_consultar) and df is not None:
         sku_val = row[c_sku]
         desc_original = row[c_desc]
         
-        # Traducción
+        # Traducción automática
         try:
             desc_es = GoogleTranslator(source='auto', target='es').translate(desc_original)
         except:
             desc_es = desc_original
 
-        # Cálculo Precio
         precio_final = 0.0
         if c_precio_list:
             try:
@@ -253,30 +227,26 @@ if (busqueda_input or boton_consultar) and df is not None:
                 precio_final = float(p_text) * 1.16 
             except: pass
 
-        # Mostrar Resultados
-        st.markdown(f"<div class='sku-title'>{sku_val}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='desc-text'>{desc_es}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size: 24px; font-weight: bold; text-align: center; color: #333;'>{sku_val}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size: 18px; text-align: center; color: #555; margin-bottom: 20px; font-style: italic;'>{desc_es}</div>", unsafe_allow_html=True)
         
         if precio_final > 0:
             st.markdown(f"<div class='big-price'>${precio_final:,.2f}</div>", unsafe_allow_html=True)
-            st.caption("Precio Neto (Incluye IVA). Moneda Nacional.")
+            # AQUÍ ESTÁ EL CAMBIO SOLICITADO:
+            st.caption("Precio por Unidad. Neto (Incluye IVA). Moneda Nacional.")
         else:
             st.warning("Precio no disponible al público.")
             
     elif busqueda_input:
         st.error("❌ Código no encontrado.")
 
-# --- 6. FOOTER LEGAL ROBUSTO ---
+# --- 6. FOOTER LEGAL ---
 st.markdown("---")
 st.markdown(f"""
 <div class="legal-footer">
     <strong>INFORMACIÓN COMERCIAL Y MARCO LEGAL</strong><br>
-    La información de precios mostrada en este verificador digital cumple estrictamente con las disposiciones legales vigentes en los Estados Unidos Mexicanos:
-    <br><br>
-    <strong>1. PRECIO TOTAL A PAGAR (LFPC Art. 7 Bis):</strong> En cumplimiento con la Ley Federal de Protección al Consumidor, el precio exhibido representa el monto final e inequívoco a pagar por el consumidor. Este importe incluye el costo del producto, el Impuesto al Valor Agregado (IVA del 16%) y cualquier cargo administrativo aplicable, evitando prácticas comerciales engañosas.
-    <br><br>
-    <strong>2. VIGENCIA Y EXACTITUD (NOM-174-SCFI-2007):</strong> El precio mostrado es válido exclusivamente al momento de la consulta (Timbre digital: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M:%S")}</strong>). Toyota Los Fuertes garantiza el respeto al precio exhibido al momento de la transacción conforme a lo dispuesto en las Normas Oficiales Mexicanas sobre prácticas comerciales en transacciones electrónicas y de información.
-    <br><br>
-    <strong>3. INFORMACIÓN COMERCIAL (NOM-050-SCFI-2004):</strong> La descripción y especificaciones de las partes cumplen con los requisitos de información comercial general para productos destinados a consumidores en el territorio nacional.
+    1. <strong>PRECIO TOTAL (LFPC Art. 7 Bis):</strong> Incluye IVA y cargos. Monto final a pagar.<br>
+    2. <strong>VIGENCIA (NOM-174):</strong> Válido al {fecha_actual.strftime("%d/%m/%Y %H:%M:%S")}.<br>
+    3. <strong>IDIOMA (NOM-050):</strong> Descripción en español para información clara al consumidor.
 </div>
 """, unsafe_allow_html=True)
