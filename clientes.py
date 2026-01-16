@@ -14,7 +14,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 1. ESTILOS, MODO KIOSCO Y EFECTO NIEVE GOOGLE ---
+# --- 1. FUNCIONES DE TIEMPO Y FONDO DINÁMICO ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -25,74 +25,75 @@ def obtener_hora_mx():
         return datetime.now(tz_cdmx)
     return datetime.now()
 
-# CÓDIGO PARA EL EFECTO DE NIEVE FINA (TIPO GOOGLE)
-# Este bloque define cómo se ven y se mueven las partículas
-def activar_efecto_nieve_fina():
-    snow_code = """
-    <div id="snow-overlay"></div>
-    <style>
-    /* Contenedor transparente que cubre toda la pantalla */
-    #snow-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        pointer-events: none; /* Permite dar clic a través de la nieve */
-        z-index: 99999;
-    }
-    /* Estilo de la partícula de nieve (pequeño punto blanco) */
-    .snow-flake {
-        position: absolute;
-        top: -10px;
-        background: white; /* Color blanco */
-        border-radius: 50%; /* Forma redonda */
-        opacity: 0.7; /* Ligeramente transparente */
-        animation: snowfall linear infinite; /* Animación continua */
-    }
-    /* Animación de caída */
-    @keyframes snowfall {
-        to { transform: translateY(100vh); }
-    }
-    </style>
-    <script>
-    // Script para generar múltiples partículas aleatorias
-    (function() {
-        // Evitar duplicar si ya existe
-        if (document.getElementById('snow-generated')) return;
-        const container = document.getElementById('snow-overlay');
-        container.id = 'snow-generated'; // Marcar como generado
+def get_season(date):
+    m = date.month
+    if 3 <= m <= 5: return "primavera"
+    elif 6 <= m <= 8: return "verano"
+    elif 9 <= m <= 11: return "otoño"
+    else: return "invierno"
 
-        const particleCount = 150; // Cantidad de partículas (ajustar densidad)
+def get_time_of_day(date):
+    h = date.hour
+    if 6 <= h < 12: return "mañana"
+    elif 12 <= h < 19: return "tarde"
+    else: return "noche"
 
-        for (let i = 0; i < particleCount; i++) {
-            const flake = document.createElement('div');
-            flake.className = 'snow-flake';
-            
-            // Tamaño aleatorio muy pequeño (entre 1px y 3px) como en la imagen de Google
-            const size = (Math.random() * 2 + 1) + 'px';
-            flake.style.width = size;
-            flake.style.height = size;
-            
-            // Posición horizontal aleatoria
-            flake.style.left = Math.random() * 100 + 'vw';
-            
-            // Velocidad de caída aleatoria (entre 5s y 12s)
-            const duration = (Math.random() * 7 + 5) + 's';
-            flake.style.animationDuration = duration;
-            
-            // Retraso aleatorio para que no empiecen todas juntas
-            flake.style.animationDelay = (Math.random() * -10) + 's';
-            
-            container.appendChild(flake);
-        }
-    })();
-    </script>
-    """
-    # Inyectamos este código en la aplicación
-    st.markdown(snow_code, unsafe_allow_html=True)
+# Diccionario de gradientes para cada combinación
+gradients = {
+    ("primavera", "mañana"): "linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)", # Fresco/Claro
+    ("primavera", "tarde"): "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",  # Rosa/Azul pastel
+    ("primavera", "noche"): "linear-gradient(135deg, #2c3e50 0%, #3498db 100%)",  # Azul noche
+    
+    ("verano", "mañana"): "linear-gradient(135deg, #2980b9 0%, #6dd5fa 100%, #ffffff 100%)", # Cielo azul brillante
+    ("verano", "tarde"): "linear-gradient(135deg, #fceabb 0%, #f8b500 100%)",     # Sol cálido intenso
+    ("verano", "noche"): "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)", # Noche profunda de verano
+
+    ("otoño", "mañana"): "linear-gradient(135deg, #f12711 0%, #f5af19 100%)",     # Amanecer naranja/rojo
+    ("otoño", "tarde"): "linear-gradient(135deg, #dd5e89 0%, #f7bb97 100%)",      # Atardecer cálido
+    ("otoño", "noche"): "linear-gradient(135deg, #232526 0%, #414345 100%)",      # Gris oscuro/negro
+
+    ("invierno", "mañana"): "linear-gradient(135deg, #E0EAFC 0%, #CFDEF3 100%)",  # Frío pálido
+    ("invierno", "tarde"): "linear-gradient(135deg, #83a4d4 0%, #b6fbff 100%)",   # Azul hielo
+    ("invierno", "noche"): "linear-gradient(135deg, #000428 0%, #004e92 100%)",   # Azul oscuro invernal
+}
+
+def set_dynamic_background():
+    now = obtener_hora_mx()
+    season = get_season(now)
+    time = get_time_of_day(now)
+    # Obtener el gradiente correspondiente o uno por defecto
+    gradient = gradients.get((season, time), "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)")
+    
+    st.markdown(f"""
+        <style>
+        /* Aplica el fondo al contenedor principal de la app */
+        [data-testid="stAppViewContainer"] > .main {{
+            background-image: {gradient} !important;
+            background-attachment: fixed;
+            background-size: cover;
+            transition: background-image 1s ease-in-out;
+        }}
+        /* Crea una "tarjeta" blanca semitransparente para el contenido */
+        [data-testid="stBlockContainer"] {{
+            background-color: rgba(255, 255, 255, 0.90); /* Blanco al 90% de opacidad */
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); /* Sombra suave */
+            margin-top: 40px;
+        }}
+        /* Ajuste para que el footer se vea bien dentro de la tarjeta */
+        .legal-footer {{
+             border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+             color: #555 !important;
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+
+# Llamamos a la función para establecer el fondo inmediatamente
+set_dynamic_background()
 
 
+# --- 2. ESTILOS ADICIONALES Y MODO KIOSCO ---
 st.markdown("""
     <style>
     /* Ocultar elementos de Streamlit (Modo Kiosco) */
@@ -100,7 +101,7 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Estilos Adaptativos */
+    /* Estilos de Texto */
     .big-price {
         font-size: clamp(45px, 15vw, 95px); 
         font-weight: 800;
@@ -114,15 +115,15 @@ st.markdown("""
         font-size: clamp(20px, 5vw, 28px);
         font-weight: bold;
         text-align: center;
-        color: inherit; 
+        color: #333; /* Color oscuro para contraste con fondo blanco */
     }
     
     .desc-text {
         font-size: clamp(16px, 4vw, 22px);
         text-align: center;
         margin-bottom: 20px;
-        color: inherit; 
-        opacity: 0.9;
+        color: #555; /* Gris medio */
+        opacity: 1;
         font-style: italic;
     }
 
@@ -131,8 +132,9 @@ st.markdown("""
         font-size: 22px;
         text-align: center;
         border: 2px solid #eb0a1e;
-        border-radius: 25px;
+        border-radius: 25px; 
         padding: 10px;
+        background-color: white;
     }
 
     /* Botón personalizado */
@@ -141,22 +143,21 @@ st.markdown("""
         border-radius: 20px;
         font-size: 18px;
         font-weight: bold;
-        background-color: #f0f2f6;
-        color: #31333F;
-        border: 1px solid #d0d0d0;
+        background-color: #eb0a1e; /* Botón rojo para resaltar */
+        color: white;
+        border: none;
+        transition: all 0.3s ease;
     }
     .stButton button:hover {
-        border-color: #eb0a1e;
-        color: #eb0a1e;
+        background-color: #c40012; /* Rojo más oscuro al pasar el mouse */
+        box-shadow: 0 4px 8px rgba(235, 10, 30, 0.3);
     }
 
     .legal-footer {
-        margin-top: 60px;
+        margin-top: 50px;
         padding-top: 20px;
-        border-top: 1px solid rgba(128, 128, 128, 0.4); 
         font-size: 10px;
-        color: inherit; 
-        opacity: 0.6;   
+        opacity: 0.7;   
         text-align: justify;
     }
     
@@ -168,7 +169,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CARGA DE DATOS ---
+# --- 3. CARGA DE DATOS ---
 @st.cache_data
 def cargar_catalogo():
     archivo_objetivo = "base_datos_2026.zip"
@@ -193,7 +194,7 @@ def cargar_catalogo():
 df = cargar_catalogo()
 fecha_actual = obtener_hora_mx()
 
-# --- 3. INTERFAZ ---
+# --- 4. INTERFAZ ---
 col_vacia, col_logo, col_fecha = st.columns([1, 2, 1])
 with col_logo:
     if os.path.exists("logo.png"):
@@ -203,7 +204,7 @@ with col_logo:
 
 with col_fecha:
     st.markdown(f"""
-    <div style="text-align: right; opacity: 0.7; font-size: 11px;">
+    <div style="text-align: right; color: #555; font-size: 11px;">
         <strong>LOS FUERTES</strong><br>
         {fecha_actual.strftime("%d/%m/%Y")}<br>
         {fecha_actual.strftime("%H:%M")}
@@ -212,20 +213,24 @@ with col_fecha:
 
 st.markdown("---")
 
-# --- 4. BUSCADOR Y BOTÓN ---
-st.markdown("<h4 style='text-align: center; opacity: 0.8;'>Verificador de Precios</h4>", unsafe_allow_html=True)
+# --- 5. BUSCADOR Y BOTÓN ---
+st.markdown("<h4 style='text-align: center; color: #333;'>Verificador de Precios</h4>", unsafe_allow_html=True)
 
 busqueda_input = st.text_input("Código de Parte:", placeholder="Escanea o escribe aquí...", label_visibility="collapsed").strip()
 boton_consultar = st.button("🔍 Consultar Precio")
 
+# Lógica
 if (busqueda_input or boton_consultar) and df is not None:
     busqueda_clean = busqueda_input.upper().replace('-', '').replace(' ', '')
     mask = df['SKU_CLEAN'] == busqueda_clean
     resultados = df[mask]
 
     if not resultados.empty:
+        # SE ELIMINÓ st.snow()
+
         row = resultados.iloc[0]
         
+        # Detectar columnas
         c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c or 'NUMERO' in c][0]
         c_desc_list = [c for c in df.columns if 'DESC' in c]
         c_desc = c_desc_list[0] if c_desc_list else c_sku
@@ -240,6 +245,7 @@ if (busqueda_input or boton_consultar) and df is not None:
         except:
             desc_es = desc_original
 
+        # Cálculo Precio
         precio_final = 0.0
         if c_precio_list:
             try:
@@ -252,9 +258,6 @@ if (busqueda_input or boton_consultar) and df is not None:
         st.markdown(f"<div class='desc-text'>{desc_es}</div>", unsafe_allow_html=True)
         
         if precio_final > 0:
-            # --- ACTIVAR EL EFECTO DE NIEVE FINA ---
-            activar_efecto_nieve_fina()
-            # ---------------------------------------
             st.markdown(f"<div class='big-price'>${precio_final:,.2f}</div>", unsafe_allow_html=True)
             st.caption("Precio Neto (Incluye IVA). Moneda Nacional.")
         else:
@@ -263,12 +266,17 @@ if (busqueda_input or boton_consultar) and df is not None:
     elif busqueda_input:
         st.error("❌ Código no encontrado.")
 
-# --- 5. FOOTER LEGAL ---
+# --- 6. FOOTER LEGAL ROBUSTO ---
+st.markdown("---")
 st.markdown(f"""
 <div class="legal-footer">
-    <strong>MARCO LEGAL Y NORMATIVO (PROFECO)</strong><br>
-    1. <strong>Precio Total (LFPC Art. 7 Bis):</strong> El monto exhibido incluye IVA y cargos aplicables.<br>
-    2. <strong>Información en Español (NOM-050):</strong> Descripción traducida para cumplimiento de información comercial.<br>
-    3. <strong>Vigencia (NOM-174):</strong> Válido al {fecha_actual.strftime("%d/%m/%Y %H:%M")}.
+    <strong>INFORMACIÓN COMERCIAL Y MARCO LEGAL</strong><br>
+    La información de precios mostrada en este verificador digital cumple estrictamente con las disposiciones legales vigentes en los Estados Unidos Mexicanos:
+    <br><br>
+    <strong>1. PRECIO TOTAL A PAGAR (LFPC Art. 7 Bis):</strong> En cumplimiento con la Ley Federal de Protección al Consumidor, el precio exhibido representa el monto final e inequívoco a pagar por el consumidor. Este importe incluye el costo del producto, el Impuesto al Valor Agregado (IVA del 16%) y cualquier cargo administrativo aplicable, evitando prácticas comerciales engañosas.
+    <br><br>
+    <strong>2. VIGENCIA Y EXACTITUD (NOM-174-SCFI-2007):</strong> El precio mostrado es válido exclusivamente al momento de la consulta (Timbre digital: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M:%S")}</strong>). Toyota Los Fuertes garantiza el respeto al precio exhibido al momento de la transacción conforme a lo dispuesto en las Normas Oficiales Mexicanas sobre prácticas comerciales en transacciones electrónicas y de información.
+    <br><br>
+    <strong>3. INFORMACIÓN COMERCIAL (NOM-050-SCFI-2004):</strong> La descripción y especificaciones de las partes cumplen con los requisitos de información comercial general para productos destinados a consumidores en el territorio nacional.
 </div>
 """, unsafe_allow_html=True)
