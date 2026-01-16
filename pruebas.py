@@ -9,6 +9,7 @@ import os
 import base64
 import urllib.parse
 import math
+import zipfile  # <--- NUEVO IMPORT NECESARIO
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -186,18 +187,32 @@ if st.session_state.nieve_activa:
 def cargar_catalogo():
     if not os.path.exists("lista_precios.zip"): return None, None, None
     try:
-        df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
+        # --- MODIFICACIÓN PARA LEER EXCEL DENTRO DE ZIP ---
+        with zipfile.ZipFile("lista_precios.zip", 'r') as z:
+            # Obtenemos el nombre del primer archivo dentro del ZIP (asumimos que es el Excel)
+            nombre_archivo = z.namelist()[0]
+            with z.open(nombre_archivo) as f:
+                # Leemos como Excel. No se requiere encoding='latin-1' para Excel usualmente
+                df = pd.read_excel(f, dtype=str)
+        
+        # El resto de la lógica de limpieza se mantiene igual
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
         c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
         c_desc = next((c for c in df.columns if 'DESC' in c), None)
         c_precio = next((c for c in df.columns if 'PRICE' in c or 'PRECIO' in c), None)
+        
         if not c_sku or not c_precio: return None, None, None
+        
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
+        # Limpieza de precio robusta
         df['PRECIO_NUM'] = df[c_precio].apply(lambda x: float(str(x).replace('$','').replace(',','').strip()) if str(x).replace('$','').replace(',','').strip().replace('.','',1).isdigit() else 0.0)
+        
         return df, c_sku, c_desc
-    except: return None, None, None
+    except Exception as e:
+        print(f"Error cargando catálogo: {e}")
+        return None, None, None
 
 df_db, col_sku_db, col_desc_db = cargar_catalogo()
 
