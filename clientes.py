@@ -3,19 +3,18 @@ import pandas as pd
 import os
 import zipfile
 from datetime import datetime
-from PIL import Image
-import pytz
-# Nueva librería para traducir al español automáticamente (Cumplimiento NOM)
+# Librería para la traducción automática (NOM-050)
 from deep_translator import GoogleTranslator
+import pytz
 
 # Configuración de página
 st.set_page_config(
-    page_title="Verificador de Precios - Toyota Los Fuertes",
+    page_title="Toyota Los Fuertes",
     page_icon="🔴",
     layout="centered"
 )
 
-# --- 1. CONFIGURACIÓN Y ESTILOS (MODO KIOSCO ACTIVADO) ---
+# --- 1. ESTILOS, MODO KIOSCO Y EFECTO NIEVE GOOGLE ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -26,69 +25,141 @@ def obtener_hora_mx():
         return datetime.now(tz_cdmx)
     return datetime.now()
 
+# CÓDIGO PARA EL EFECTO DE NIEVE FINA (TIPO GOOGLE)
+# Este bloque define cómo se ven y se mueven las partículas
+def activar_efecto_nieve_fina():
+    snow_code = """
+    <div id="snow-overlay"></div>
+    <style>
+    /* Contenedor transparente que cubre toda la pantalla */
+    #snow-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none; /* Permite dar clic a través de la nieve */
+        z-index: 99999;
+    }
+    /* Estilo de la partícula de nieve (pequeño punto blanco) */
+    .snow-flake {
+        position: absolute;
+        top: -10px;
+        background: white; /* Color blanco */
+        border-radius: 50%; /* Forma redonda */
+        opacity: 0.7; /* Ligeramente transparente */
+        animation: snowfall linear infinite; /* Animación continua */
+    }
+    /* Animación de caída */
+    @keyframes snowfall {
+        to { transform: translateY(100vh); }
+    }
+    </style>
+    <script>
+    // Script para generar múltiples partículas aleatorias
+    (function() {
+        // Evitar duplicar si ya existe
+        if (document.getElementById('snow-generated')) return;
+        const container = document.getElementById('snow-overlay');
+        container.id = 'snow-generated'; // Marcar como generado
+
+        const particleCount = 150; // Cantidad de partículas (ajustar densidad)
+
+        for (let i = 0; i < particleCount; i++) {
+            const flake = document.createElement('div');
+            flake.className = 'snow-flake';
+            
+            // Tamaño aleatorio muy pequeño (entre 1px y 3px) como en la imagen de Google
+            const size = (Math.random() * 2 + 1) + 'px';
+            flake.style.width = size;
+            flake.style.height = size;
+            
+            // Posición horizontal aleatoria
+            flake.style.left = Math.random() * 100 + 'vw';
+            
+            // Velocidad de caída aleatoria (entre 5s y 12s)
+            const duration = (Math.random() * 7 + 5) + 's';
+            flake.style.animationDuration = duration;
+            
+            // Retraso aleatorio para que no empiecen todas juntas
+            flake.style.animationDelay = (Math.random() * -10) + 's';
+            
+            container.appendChild(flake);
+        }
+    })();
+    </script>
+    """
+    # Inyectamos este código en la aplicación
+    st.markdown(snow_code, unsafe_allow_html=True)
+
+
 st.markdown("""
     <style>
-    /* --- MODO KIOSCO: OCULTAR ELEMENTOS DE STREAMLIT --- */
+    /* Ocultar elementos de Streamlit (Modo Kiosco) */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* --- ESTILOS 100% ADAPTATIVOS (CLARO / OSCURO) --- */
-    
+    /* Estilos Adaptativos */
     .big-price {
-        font-size: clamp(40px, 15vw, 90px); 
+        font-size: clamp(45px, 15vw, 95px); 
         font-weight: 800;
-        color: #eb0a1e; /* Rojo Toyota */
+        color: #eb0a1e; 
         text-align: center;
         margin: 0;
         line-height: 1.1;
     }
     
-    .price-label {
-        font-size: clamp(14px, 4vw, 20px);
-        text-align: center;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        color: inherit; 
-        opacity: 0.8; 
-    }
-
     .sku-title {
-        font-size: clamp(18px, 5vw, 26px);
+        font-size: clamp(20px, 5vw, 28px);
         font-weight: bold;
         text-align: center;
         color: inherit; 
     }
     
     .desc-text {
-        font-size: clamp(16px, 4vw, 20px);
+        font-size: clamp(16px, 4vw, 22px);
         text-align: center;
         margin-bottom: 20px;
         color: inherit; 
         opacity: 0.9;
-        font-style: italic; /* Estilo itálico para la descripción */
+        font-style: italic;
     }
 
-    /* Input adaptable */
+    /* Input estilo Google */
     .stTextInput input {
-        font-size: 20px;
+        font-size: 22px;
         text-align: center;
         border: 2px solid #eb0a1e;
-        border-radius: 10px;
+        border-radius: 25px;
+        padding: 10px;
+    }
+
+    /* Botón personalizado */
+    .stButton button {
+        width: 100%;
+        border-radius: 20px;
+        font-size: 18px;
+        font-weight: bold;
+        background-color: #f0f2f6;
+        color: #31333F;
+        border: 1px solid #d0d0d0;
+    }
+    .stButton button:hover {
+        border-color: #eb0a1e;
+        color: #eb0a1e;
     }
 
     .legal-footer {
-        margin-top: 50px;
+        margin-top: 60px;
         padding-top: 20px;
         border-top: 1px solid rgba(128, 128, 128, 0.4); 
-        font-size: clamp(9px, 2.5vw, 11px);
+        font-size: 10px;
         color: inherit; 
         opacity: 0.6;   
         text-align: justify;
-        font-family: Arial, sans-serif;
     }
     
-    /* Centrar imágenes */
     div[data-testid="stImage"] {
         display: block;
         margin-left: auto;
@@ -101,47 +172,29 @@ st.markdown("""
 @st.cache_data
 def cargar_catalogo():
     archivo_objetivo = "base_datos_2026.zip"
-    
     if not os.path.exists(archivo_objetivo):
-        st.error(f"⚠️ No se encuentra el archivo: {archivo_objetivo}")
+        st.error(f"⚠️ Falta archivo: {archivo_objetivo}")
         return None
-
     try:
         with zipfile.ZipFile(archivo_objetivo, "r") as z:
-            archivos_excel = [f for f in z.namelist() if f.endswith('.xlsx')]
-            
-            if not archivos_excel:
-                st.error("El archivo ZIP no contiene Excel (.xlsx)")
-                return None
-                
-            nombre_archivo = archivos_excel[0]
-            
-            with z.open(nombre_archivo) as f:
+            archivos = [f for f in z.namelist() if f.endswith('.xlsx')]
+            if not archivos: return None
+            with z.open(archivos[0]) as f:
                 df = pd.read_excel(f, dtype=str)
-        
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
-        
         cols_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c or 'NUMERO' in c]
-        
         if cols_sku:
-            c_sku = cols_sku[0]
-            df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.replace(' ', '').str.strip().str.upper()
+            df['SKU_CLEAN'] = df[cols_sku[0]].astype(str).str.replace('-', '').str.replace(' ', '').str.strip().str.upper()
             return df
-        else:
-            st.error("Error: No se encontró columna de SKU/Parte.")
-            return None
-
-    except Exception as e:
-        st.error(f"Error procesando datos: {e}")
         return None
+    except: return None
 
 df = cargar_catalogo()
 fecha_actual = obtener_hora_mx()
 
-# --- 3. HEADER (Visible, pero sin menú de Streamlit arriba) ---
+# --- 3. INTERFAZ ---
 col_vacia, col_logo, col_fecha = st.columns([1, 2, 1])
-
 with col_logo:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True) 
@@ -151,7 +204,7 @@ with col_logo:
 with col_fecha:
     st.markdown(f"""
     <div style="text-align: right; opacity: 0.7; font-size: 11px;">
-        <strong>TOYOTA LOS FUERTES</strong><br>
+        <strong>LOS FUERTES</strong><br>
         {fecha_actual.strftime("%d/%m/%Y")}<br>
         {fecha_actual.strftime("%H:%M")}
     </div>
@@ -159,77 +212,63 @@ with col_fecha:
 
 st.markdown("---")
 
-# --- 4. BUSCADOR ---
-st.markdown("<h3 style='text-align: center;'>🔍 Verificador de Precios</h3>", unsafe_allow_html=True)
+# --- 4. BUSCADOR Y BOTÓN ---
+st.markdown("<h4 style='text-align: center; opacity: 0.8;'>Verificador de Precios</h4>", unsafe_allow_html=True)
 
-busqueda = st.text_input("Escanea o escribe el número de parte:",
-                          placeholder="Ej. 90915-YZZD1",
-                          help="Escribe el código y presiona Enter").strip()
+busqueda_input = st.text_input("Código de Parte:", placeholder="Escanea o escribe aquí...", label_visibility="collapsed").strip()
+boton_consultar = st.button("🔍 Consultar Precio")
 
-# --- 5. RESULTADOS ---
-if busqueda and df is not None:
-    busqueda_clean = busqueda.upper().replace('-', '').replace(' ', '')
+if (busqueda_input or boton_consultar) and df is not None:
+    busqueda_clean = busqueda_input.upper().replace('-', '').replace(' ', '')
     mask = df['SKU_CLEAN'] == busqueda_clean
     resultados = df[mask]
 
     if not resultados.empty:
         row = resultados.iloc[0]
         
-        # Detectar columnas
         c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c or 'NUMERO' in c][0]
         c_desc_list = [c for c in df.columns if 'DESC' in c]
         c_desc = c_desc_list[0] if c_desc_list else c_sku
         c_precio_list = [c for c in df.columns if 'TOTAL' in c or 'UNITARIO' in c or 'PRICE' in c or 'PRECIO' in c or 'IMPORTE' in c]
         
         sku_val = row[c_sku]
-        desc_val_original = row[c_desc] # Descripción original (posiblemente en inglés)
+        desc_original = row[c_desc]
         
-        # --- TRADUCCIÓN AUTOMÁTICA (CUMPLIMIENTO NOM-050) ---
-        # Intentamos traducir al español. Si falla por internet, usamos la original.
+        # Traducción
         try:
-            desc_val = GoogleTranslator(source='auto', target='es').translate(desc_val_original)
+            desc_es = GoogleTranslator(source='auto', target='es').translate(desc_original)
         except:
-            desc_val = desc_val_original # Fallback si no hay internet
+            desc_es = desc_original
 
         precio_final = 0.0
-        
         if c_precio_list:
-            c_precio = c_precio_list[0]
             try:
-                precio_texto = str(row[c_precio]).replace(',', '').replace('$', '').strip()
-                precio_base = float(precio_texto)
-                precio_final = precio_base * 1.16 
-            except:
-                precio_final = 0.0
+                p_text = str(row[c_precio_list[0]]).replace(',', '').replace('$', '').strip()
+                precio_final = float(p_text) * 1.16 
+            except: pass
 
-        st.markdown(f"<div class='sku-title'>SKU: {sku_val}</div>", unsafe_allow_html=True)
-        # Mostramos la descripción traducida
-        st.markdown(f"<div class='desc-text'>{desc_val}</div>", unsafe_allow_html=True)
+        # Mostrar Resultados
+        st.markdown(f"<div class='sku-title'>{sku_val}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='desc-text'>{desc_es}</div>", unsafe_allow_html=True)
         
         if precio_final > 0:
-            st.snow() # Efecto de Nieve
-            st.markdown("<div class='price-label'>Precio Público (Neto)</div>", unsafe_allow_html=True)
+            # --- ACTIVAR EL EFECTO DE NIEVE FINA ---
+            activar_efecto_nieve_fina()
+            # ---------------------------------------
             st.markdown(f"<div class='big-price'>${precio_final:,.2f}</div>", unsafe_allow_html=True)
-            st.caption("Moneda Nacional (MXN). Incluye Impuestos.")
+            st.caption("Precio Neto (Incluye IVA). Moneda Nacional.")
         else:
-            st.warning("Precio no disponible para consulta pública.")
-    else:
-        st.error("❌ Producto no encontrado en el catálogo vigente.")
+            st.warning("Precio no disponible al público.")
+            
+    elif busqueda_input:
+        st.error("❌ Código no encontrado.")
 
-elif not busqueda:
-    st.info("👋 Escanee el código de barras.")
-
-# --- 6. FOOTER LEGAL ---
-st.markdown("---")
+# --- 5. FOOTER LEGAL ---
 st.markdown(f"""
 <div class="legal-footer">
-    <strong>INFORMACIÓN COMERCIAL Y MARCO LEGAL</strong><br>
-    La información de precios mostrada en este verificador digital cumple estrictamente con las disposiciones legales vigentes en los Estados Unidos Mexicanos:
-    <br><br>
-    <strong>1. PRECIO TOTAL A PAGAR (LFPC Art. 7 Bis):</strong> En cumplimiento con la Ley Federal de Protección al Consumidor, el precio exhibido representa el monto final e inequívoco a pagar por el consumidor. Este importe incluye el costo del producto, el Impuesto al Valor Agregado (IVA del 16%) y cualquier cargo administrativo aplicable.
-    <br><br>
-    <strong>2. IDIOMA Y DESCRIPCIÓN (NOM-050-SCFI-2004):</strong> La descripción de los productos se presenta en idioma español, cumpliendo con la normativa de información comercial para productos extranjeros comercializados en territorio nacional.
-    <br><br>
-    <strong>3. VIGENCIA (NOM-174-SCFI-2007):</strong> Precio válido al momento de la consulta: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M:%S")}</strong>.
+    <strong>MARCO LEGAL Y NORMATIVO (PROFECO)</strong><br>
+    1. <strong>Precio Total (LFPC Art. 7 Bis):</strong> El monto exhibido incluye IVA y cargos aplicables.<br>
+    2. <strong>Información en Español (NOM-050):</strong> Descripción traducida para cumplimiento de información comercial.<br>
+    3. <strong>Vigencia (NOM-174):</strong> Válido al {fecha_actual.strftime("%d/%m/%Y %H:%M")}.
 </div>
 """, unsafe_allow_html=True)
