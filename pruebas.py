@@ -722,10 +722,17 @@ if st.session_state.carrito:
  
     def actualizar_propiedad(idx, clave, key_widget):
         """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
-        valor = st.session_state[key_widget]
+        # CORRECCIÓN DE ERROR KEYERROR: Usar .get() en lugar de [] directo
+        valor = st.session_state.get(key_widget)
+        if valor is None:
+            return # Evita el error si la key no se encuentra
+            
         valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
                             .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
-        st.session_state.carrito[idx][clave] = valor_limpio
+        
+        # Doble verificación de índice por seguridad
+        if idx < len(st.session_state.carrito):
+            st.session_state.carrito[idx][clave] = valor_limpio
  
     def actualizar_tiempo_entrega(idx, key_widget):
         """Actualiza el campo de Tiempo de Entrega"""
@@ -915,4 +922,3 @@ if st.session_state.ver_preview and st.session_state.carrito:
 </div>
 </div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
-
