@@ -32,7 +32,7 @@ def init_session():
         'temp_desc': "",
         'temp_precio': 0.0,
         'ver_preview': False,
-        'nieve_activa': False 
+        'nieve_activa': False # Nuevo estado para la nieve
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -162,6 +162,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# Lógica del Efecto Nieve
 if st.session_state.nieve_activa:
     st.markdown("""
     <div class="snowflake">❅</div>
@@ -179,34 +180,22 @@ if st.session_state.nieve_activa:
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. LÓGICA DE DATOS (ACTUALIZADO A lista_precios.zip)
+# 3. LÓGICA DE DATOS
 # ==========================================
 @st.cache_data
 def cargar_catalogo():
-    # --- CAMBIO: Nombre del archivo a lista_precios.zip ---
-    archivo_zip = "lista_precios.zip"
-    
-    if not os.path.exists(archivo_zip): return None, None, None
+    if not os.path.exists("lista_precios.zip"): return None, None, None
     try:
-        # Se asume que dentro del ZIP hay un CSV válido
-        df = pd.read_csv(archivo_zip, compression='zip', dtype=str, encoding='latin-1')
+        df = pd.read_csv("lista_precios.zip", compression='zip', dtype=str, encoding='latin-1')
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
-        
         c_sku = next((c for c in df.columns if 'PART' in c or 'NUM' in c), None)
         c_desc = next((c for c in df.columns if 'DESC' in c), None)
         c_precio = next((c for c in df.columns if 'PRICE' in c or 'PRECIO' in c), None)
-        
         if not c_sku or not c_precio: return None, None, None
-        
         df.drop_duplicates(subset=[c_sku], keep='first', inplace=True)
         df['SKU_CLEAN'] = df[c_sku].astype(str).str.replace('-', '').str.strip().str.upper()
-        
-        def clean_price(x):
-            s = str(x).replace('$','').replace(',','').strip()
-            return float(s) if s.replace('.','',1).isdigit() else 0.0
-
-        df['PRECIO_NUM'] = df[c_precio].apply(clean_price)
+        df['PRECIO_NUM'] = df[c_precio].apply(lambda x: float(str(x).replace('$','').replace(',','').strip()) if str(x).replace('$','').replace(',','').strip().replace('.','',1).isdigit() else 0.0)
         return df, c_sku, c_desc
     except: return None, None, None
 
@@ -302,6 +291,12 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
         "Estatus": "Disponible",
         "Tipo": tipo
     })
+
+def cargar_en_manual(sku, desc, precio):
+    st.session_state.temp_sku = sku
+    try: st.session_state.temp_desc = GoogleTranslator(source='en', target='es').translate(str(desc))
+    except: st.session_state.temp_desc = str(desc)
+    st.session_state.temp_precio = precio
 
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
@@ -425,10 +420,10 @@ def generar_pdf():
             pdf.set_fill_color(211, 47, 47) # ROJO
             pdf.set_text_color(255, 255, 255)
         elif prio == 'Medio':
-            pdf.set_fill_color(25, 118, 210) # AZUL REY
+            pdf.set_fill_color(25, 118, 210) # AZUL REY (Distinto a Naranja)
             pdf.set_text_color(255, 255, 255)
         else: # Bajo
-            pdf.set_fill_color(117, 117, 117) # GRIS
+            pdf.set_fill_color(117, 117, 117) # GRIS (Neutro)
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[2], row_height, prio.upper(), 1, 0, 'C', True)
@@ -442,13 +437,13 @@ def generar_pdf():
             pdf.set_fill_color(56, 142, 60) # Verde
             pdf.set_text_color(255, 255, 255)
         elif "Pedido" in abasto:
-            pdf.set_fill_color(245, 124, 0) # Naranja
+            pdf.set_fill_color(245, 124, 0) # Naranja (Único naranja)
             pdf.set_text_color(255, 255, 255)
         elif "Back" in abasto:
             pdf.set_fill_color(33, 33, 33) # Negro
             pdf.set_text_color(255, 255, 255)
         else: # Revisar
-            pdf.set_fill_color(136, 14, 79) # Magenta/Vino
+            pdf.set_fill_color(136, 14, 79) # Magenta/Vino (Distinto a Rojo Urgente)
             pdf.set_text_color(255, 255, 255)
 
         pdf.cell(cols[3], row_height, st_txt, 1, 0, 'C', True)
@@ -489,7 +484,7 @@ def generar_pdf():
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-if df_db is None: st.error("⚠️ Falta lista_precios.zip en el directorio."); st.stop()
+if df_db is None: st.error("Falta lista_precios.zip"); st.stop()
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -501,6 +496,7 @@ with st.sidebar:
     if st.button(btn_txt, type="secondary", use_container_width=True):
         toggle_nieve()
         st.rerun()
+    # ------------------------------------
 
     st.divider()
     
@@ -596,6 +592,7 @@ if st.session_state.carrito:
     
     # --- FUNCIONES DE ACCIÓN DEL CARRITO ---
     def actualizar_cantidad(idx, delta):
+        """Suma o resta cantidad asegurando que no baje de 1"""
         nueva_cant = st.session_state.carrito[idx]['Cantidad'] + delta
         if nueva_cant < 1: nueva_cant = 1
         st.session_state.carrito[idx]['Cantidad'] = nueva_cant
@@ -606,20 +603,27 @@ if st.session_state.carrito:
         item['Importe Total'] = (item['Precio Base'] * item['Cantidad']) + item['IVA']
 
     def eliminar_item(idx):
+        """Elimina el ítem del carrito"""
         st.session_state.carrito.pop(idx)
 
     def actualizar_propiedad(idx, clave, key_widget):
+        """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
         valor = st.session_state[key_widget]
         valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
                             .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
         st.session_state.carrito[idx][clave] = valor_limpio
 
     def actualizar_tiempo_entrega(idx, key_widget):
+        """Actualiza el campo de Tiempo de Entrega"""
         st.session_state.carrito[idx]['Tiempo Entrega'] = st.session_state[key_widget]
 
     # --- ITERACIÓN DE ÍTEMS EN TARJETAS ---
     for i, item in enumerate(st.session_state.carrito):
+        
+        # Usamos st.container con borde para crear el efecto de "Tarjeta"
         with st.container(border=True):
+            
+            # --- FILA SUPERIOR: DESCRIPCIÓN Y PRECIO TOTAL ---
             top_col1, top_col2, top_col3 = st.columns([3, 1, 0.3])
             
             with top_col1:
@@ -627,13 +631,17 @@ if st.session_state.carrito:
                 st.caption(f"SKU: {item['SKU']} • P.Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
             
             with top_col2:
+                # Precio total alineado y destacado
                 st.markdown(f"<div style='text-align:right; color:#eb0a1e; font-weight:bold; font-size:1.1em;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
             
             with top_col3:
                 st.button("🗑️", key=f"del_{i}", on_click=eliminar_item, args=(i,), type="tertiary", help="Eliminar")
 
+            # --- FILA INFERIOR: CONTROLES OPERATIVOS ---
+            # Ajustamos las columnas para que quepan bien los controles
             c_prio, c_stat, c_time, c_qty = st.columns([1.3, 1.3, 1.5, 1.8])
             
+            # 1. Prioridad
             opts_prio = ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"]
             idx_prio = 1
             if item['Prioridad'] == "Urgente": idx_prio = 0
@@ -644,6 +652,7 @@ if st.session_state.carrito:
                 on_change=actualizar_propiedad, args=(i, 'Prioridad', f"prio_{i}")
             )
 
+            # 2. Abasto
             opts_abasto = ["✅ Disponible", "📦 Por Pedido", "⚫ Back Order", "⚠️ REVISAR"]
             idx_abasto = 3
             if "Disponible" in item['Abasto']: idx_abasto = 0
@@ -655,20 +664,26 @@ if st.session_state.carrito:
                 on_change=actualizar_propiedad, args=(i, 'Abasto', f"abasto_{i}")
             )
 
+            # 3. Tiempo
             c_time.text_input(
                 "Tiempo", value=item['Tiempo Entrega'], placeholder="Tiempo Entrega...", key=f"time_{i}", label_visibility="collapsed",
                 on_change=actualizar_tiempo_entrega, args=(i, f"time_{i}")
             )
 
+            # 4. Cantidad (+/-)
             with c_qty:
                 sub_c1, sub_c2, sub_c3 = st.columns([1, 1, 1])
                 sub_c1.button("➖", key=f"btn_rest_{i}", on_click=actualizar_cantidad, args=(i, -1), use_container_width=True)
                 sub_c2.markdown(f"<div style='text-align:center; font-weight:bold; padding-top:8px;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
                 sub_c3.button("➕", key=f"btn_sum_{i}", on_click=actualizar_cantidad, args=(i, 1), use_container_width=True)
 
+    # --- TOTALES ---
     subtotal = sum(i['Precio Base'] * i['Cantidad'] for i in st.session_state.carrito)
     total_gral = subtotal * 1.16
 
+    # ============================================================
+    # LÓGICA DE BLOQUEO (VALIDACIÓN DE CAMPOS INCOMPLETOS)
+    # ============================================================
     pendientes = [i for i in st.session_state.carrito if "REVISAR" in str(i['Abasto'])]
 
     if pendientes:
@@ -719,9 +734,11 @@ if st.session_state.ver_preview and st.session_state.carrito:
     hay_revisar_prev = False
 
     for item in st.session_state.carrito:
+        # Lógica colores Prioridad
         p = item['Prioridad']
         p_class = "badge-base " + ("badge-urg" if p == "Urgente" else ("badge-med" if p == "Medio" else "badge-baj"))
         
+        # Lógica colores Estatus
         a_val = item.get('Abasto', '⚠️ REVISAR')
         a_class = "status-base " + ("status-disp" if "Disponible" in a_val else ("status-ped" if "Pedido" in a_val else ("status-bo" if "Back" in a_val else "status-rev")))
         
