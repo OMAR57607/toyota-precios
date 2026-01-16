@@ -179,12 +179,12 @@ if st.session_state.nieve_activa:
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. LÓGICA DE DATOS (ACTUALIZADO A lista_precios_3.zip)
+# 3. LÓGICA DE DATOS (ACTUALIZADO A lista_precios.zip)
 # ==========================================
 @st.cache_data
 def cargar_catalogo():
-    # --- CAMBIO: Nombre del archivo a lista_precios_3.zip ---
-    archivo_zip = "lista_precios_3.zip"
+    # --- CAMBIO: Nombre del archivo a lista_precios.zip ---
+    archivo_zip = "lista_precios.zip"
     
     if not os.path.exists(archivo_zip): return None, None, None
     try:
@@ -489,7 +489,7 @@ def generar_pdf():
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
-if df_db is None: st.error("⚠️ Falta lista_precios_3.zip en el directorio."); st.stop()
+if df_db is None: st.error("⚠️ Falta lista_precios.zip en el directorio."); st.stop()
 
 # --- SIDEBAR ---
 with st.sidebar:
