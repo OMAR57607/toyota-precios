@@ -14,7 +14,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 1. LÓGICA DE TEMA DINÁMICO (Colores y Fondos) ---
+# --- 1. LÓGICA DE TEMA VISUAL (ALTO CONTRASTE + FONDOS REALISTAS) ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -27,134 +27,147 @@ def obtener_hora_mx():
 
 def get_theme_by_time(date):
     h = date.hour
-    # Definimos 3 paletas de colores completas según la hora
+    
+    # 🌅 MAÑANA (6 AM - 12 PM): Amanecer Claro
     if 6 <= h < 12:
-        # MAÑANA: Amanecer cálido
         return {
-            "bg_gradient": "linear-gradient(to top, #f5af19, #ffdd00, #87ceeb)",
-            "card_bg": "rgba(255, 255, 255, 0.90)", # Tarjeta clara
-            "text_primary": "#222222", # Texto oscuro
-            "text_secondary": "#555555",
+            # Degradado suave de amanecer
+            "css_bg": "linear-gradient(180deg, #87CEEB 0%, #E0F6FF 50%, #FFD194 100%)", 
+            "card_bg": "rgba(255, 255, 255, 0.95)", # Tarjeta casi sólida para contraste
+            "text_color": "#000000", # NEGRO PURO
+            "text_shadow": "none",
+            "icon_color": "#eb0a1e",
             "input_bg": "#ffffff",
-            "accent_color": "#eb0a1e"
+            "input_text": "#000000"
         }
+    
+    # ☀️ TARDE (12 PM - 7 PM): Sol Radiante
     elif 12 <= h < 19:
-        # TARDE: Sol brillante
         return {
-            "bg_gradient": "linear-gradient(to bottom, #2980b9, #6dd5fa, #ffffff)",
-            "card_bg": "rgba(255, 255, 255, 0.95)", # Tarjeta muy clara
-            "text_primary": "#111111", # Texto muy oscuro (contraste alto)
-            "text_secondary": "#444444",
+            # Azul intenso con un "brillo" de sol arriba
+            "css_bg": "radial-gradient(circle at 50% 10%, #FFD700 0%, #87CEEB 20%, #1E90FF 100%)",
+            "card_bg": "rgba(255, 255, 255, 0.98)", # Blanco total para máximo contraste
+            "text_color": "#000000", # NEGRO PURO
+            "text_shadow": "none",
+            "icon_color": "#eb0a1e",
             "input_bg": "#ffffff",
-            "accent_color": "#eb0a1e"
+            "input_text": "#000000"
         }
+    
+    # 🌌 NOCHE (7 PM - 6 AM): Noche Estrellada
     else:
-        # NOCHE: Cielo profundo estrellado (simulado con gradiente rico)
         return {
-            "bg_gradient": "linear-gradient(to bottom, #0f2027, #203a43, #2c5364)",
-            "card_bg": "rgba(20, 30, 40, 0.90)", # ¡Tarjeta oscura!
-            "text_primary": "#ffffff", # ¡Texto blanco!
-            "text_secondary": "#cccccc", # Texto gris claro
-            "input_bg": "#e6e6e6", # Input ligeramente gris para no deslumbrar
-            "accent_color": "#ff4d4d" # Rojo un poco más brillante para la noche
+            # Truco CSS para generar estrellas sin imágenes
+            "css_bg": """
+                radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 3px),
+                radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px),
+                radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 3px),
+                linear-gradient(to bottom, #020111 0%, #191621 100%)
+            """,
+            "bg_size": "550px 550px, 350px 350px, 250px 250px, 100% 100%", # Repetir estrellas
+            "card_bg": "rgba(0, 0, 0, 0.85)", # Tarjeta oscura
+            "text_color": "#FFFFFF", # BLANCO PURO
+            "text_shadow": "0px 2px 4px black", # Sombra negra para que la letra flote
+            "icon_color": "#ff4d4d", # Rojo neón
+            "input_bg": "#ffffff", # Input blanco para que no se pierda nada
+            "input_text": "#000000"
         }
 
 def apply_dynamic_styles():
     now = obtener_hora_mx()
     theme = get_theme_by_time(now)
     
+    # Ajuste especial para el background-size si es de noche
+    bg_size_css = f"background-size: {theme.get('bg_size', 'cover')};"
+    
     st.markdown(f"""
         <style>
-        /* --- VARIABLES CSS DINÁMICAS --- */
+        /* --- VARIABLES GLOBALES --- */
         :root {{
-            --bg-gradient: {theme['bg_gradient']};
+            --text-color: {theme['text_color']};
+            --text-shadow: {theme['text_shadow']};
             --card-bg: {theme['card_bg']};
-            --text-primary: {theme['text_primary']};
-            --text-secondary: {theme['text_secondary']};
-            --input-bg: {theme['input_bg']};
-            --accent-color: {theme['accent_color']};
         }}
 
-        /* 1. FONDO GLOBAL ANIMADO */
+        /* 1. FONDO "VIVO" */
         .stApp {{
-            background-image: var(--bg-gradient) !important;
+            background-image: {theme['css_bg']} !important;
+            {bg_size_css}
             background-attachment: fixed;
-            background-size: 200% 200%;
-            animation: gradientBG 15s ease infinite;
-        }}
-        @keyframes gradientBG {{
-            0% {{background-position: 0% 50%;}}
-            50% {{background-position: 100% 50%;}}
-            100% {{background-position: 0% 50%;}}
         }}
         
-        /* 2. TARJETA CENTRAL DINÁMICA */
+        /* 2. TARJETA DE CONTENIDO (ALTO CONTRASTE) */
         [data-testid="stBlockContainer"] {{
             background-color: var(--card-bg) !important;
-            border-radius: 25px;
-            padding: 2.5rem;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-            backdrop-filter: blur(10px); /* Efecto cristal elegante */
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             max-width: 700px;
             margin-top: 20px;
+            border: 1px solid rgba(128,128,128, 0.2);
         }}
 
-        /* 3. TEXTOS DINÁMICOS */
-        h1, h2, h3, h4, h5, h6, div, label, .sku-display {{
-            color: var(--text-primary) !important;
-            transition: color 0.5s ease;
-        }}
-        .date-display, .desc-display, .legal-footer {{
-            color: var(--text-secondary) !important;
-            transition: color 0.5s ease;
+        /* 3. TEXTOS (FORZAR COLOR) */
+        h1, h2, h3, h4, h5, h6, p, div, span, label {{
+            color: var(--text-color) !important;
+            text-shadow: var(--text-shadow) !important;
+            font-family: sans-serif;
         }}
         
-        /* 4. INPUT DINÁMICO */
+        /* 4. INPUT (SIEMPRE BLANCO CON LETRA NEGRA PARA LEER BIEN) */
         .stTextInput input {{
-            background-color: var(--input-bg) !important;
-            color: #222 !important; /* El texto dentro del input siempre oscuro */
-            border: 2px solid var(--accent-color) !important;
-            font-size: 22px !important;
-            font-weight: bold !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            font-weight: 900 !important; /* Letra muy gruesa */
+            font-size: 24px !important;
+            border: 3px solid {theme['icon_color']} !important;
             text-align: center !important;
-            border-radius: 15px;
+            border-radius: 12px;
         }}
         
-        /* 5. PRECIO Y BOTÓN (Acento) */
+        /* 5. PRECIO GIGANTE */
         .big-price {{
-            color: var(--accent-color) !important;
-            font-size: clamp(45px, 15vw, 95px); 
+            color: {theme['icon_color']} !important;
+            text-shadow: 2px 2px 0px #000000; /* Borde negro al precio */
+            font-size: clamp(50px, 15vw, 100px); 
             font-weight: 900;
             text-align: center;
             line-height: 1.1;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 10px 0;
         }}
+
+        /* 6. BOTÓN */
         .stButton button {{
-            background: var(--accent-color) !important;
+            background-color: {theme['icon_color']} !important;
             color: white !important;
-            border: none;
-            width: 100%;
-            border-radius: 15px;
+            border: 2px solid white;
             font-weight: bold;
             font-size: 18px;
-            padding: 10px;
-            transition: transform 0.2s;
-        }}
-        .stButton button:hover {{
-            transform: scale(1.02);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }}
         
-        /* 6. KIOSCO Y EXTRAS */
+        /* 7. KIOSCO */
         #MainMenu, footer, header {{visibility: hidden;}}
+        
+        /* 8. DISPLAY GRANDE DE SKU */
+        .sku-display {{
+            font-size: 30px !important;
+            font-weight: 900 !important;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }}
+        
+        /* 9. FOOTER */
         .legal-footer {{
-            border-top: 1px solid var(--text-secondary) !important;
-            opacity: 0.7;
-            font-size: 11px;
+            border-top: 1px solid var(--text-color) !important;
+            opacity: 0.8;
+            font-size: 12px;
             margin-top: 30px;
             padding-top: 15px;
-            text-align: justify;
         }}
+        
         div[data-testid="stImage"] {{ display: block; margin: auto; }}
         </style>
     """, unsafe_allow_html=True)
@@ -192,14 +205,12 @@ with col_logo:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True) 
     else:
-        # Usamos una clase para que el color se adapte
         st.markdown("<h1 style='text-align: center;'>TOYOTA</h1>", unsafe_allow_html=True)
 
 with col_fecha:
-    # Usamos la clase date-display para que el color se adapte (claro/oscuro)
     st.markdown(f"""
-    <div class="date-display" style="text-align: right; font-size: 11px;">
-        <strong>LOS FUERTES</strong><br>
+    <div style="text-align: right; font-size: 12px; font-weight: bold;">
+        LOS FUERTES<br>
         {fecha_actual.strftime("%d/%m/%Y")}<br>
         {fecha_actual.strftime("%H:%M")}
     </div>
@@ -208,10 +219,10 @@ with col_fecha:
 st.markdown("---")
 
 # --- 4. BUSCADOR ---
-st.markdown("<h4 style='text-align: center; opacity: 0.9;'>Verificador de Precios</h4>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center; font-weight: 800;'>VERIFICADOR DE PRECIOS</h3>", unsafe_allow_html=True)
 
 busqueda_input = st.text_input("Ingresa SKU:", placeholder="Ej. 90915-YZZD1", label_visibility="collapsed").strip()
-boton_consultar = st.button("🔍 Consultar Precio")
+boton_consultar = st.button("🔍 CONSULTAR PRECIO")
 
 # --- 5. RESULTADOS ---
 if (busqueda_input or boton_consultar) and df is not None:
@@ -230,7 +241,7 @@ if (busqueda_input or boton_consultar) and df is not None:
         sku_val = row[c_sku]
         desc_original = row[c_desc]
         
-        # Traducción automática
+        # Traducción
         try:
             desc_es = GoogleTranslator(source='auto', target='es').translate(desc_original)
         except:
@@ -243,19 +254,18 @@ if (busqueda_input or boton_consultar) and df is not None:
                 precio_final = float(p_text) * 1.16 
             except: pass
 
-        # Usamos clases dinámicas para los textos
-        st.markdown(f"<div class='sku-display' style='font-size: 26px; font-weight: bold; text-align: center; margin-top: 20px;'>{sku_val}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='desc-display' style='font-size: 18px; text-align: center; margin-bottom: 25px; font-style: italic;'>{desc_es}</div>", unsafe_allow_html=True)
+        # SKU y Descripción con clases de alto contraste
+        st.markdown(f"<div class='sku-display' style='text-align: center; margin-top: 20px;'>{sku_val}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 25px;'>{desc_es}</div>", unsafe_allow_html=True)
         
         if precio_final > 0:
             st.markdown(f"<div class='big-price'>${precio_final:,.2f}</div>", unsafe_allow_html=True)
-            # Caption también se adapta
-            st.markdown(f"<div class='desc-display' style='text-align: center; font-size: 14px; margin-top: 5px;'>Precio por Unidad. Neto (Incluye IVA). Moneda Nacional.</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align: center; font-size: 14px; font-weight: bold; margin-top: 5px; opacity: 0.9;'>Precio por Unidad. Neto (Incluye IVA). Moneda Nacional.</div>", unsafe_allow_html=True)
         else:
             st.warning("Precio no disponible al público.")
             
     elif busqueda_input:
-        st.error("❌ Código no encontrado.")
+        st.error("❌ CÓDIGO NO ENCONTRADO")
 
 # --- 6. FOOTER LEGAL ---
 st.markdown("---")
