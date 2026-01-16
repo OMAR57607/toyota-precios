@@ -99,7 +99,7 @@ st.markdown("""
 # --- 2. CARGA DE DATOS ---
 @st.cache_data
 def cargar_catalogo():
-    archivo_objetivo = "lista_precios.zip"
+    archivo_objetivo = "base_datos_2026.zip"
     
     if not os.path.exists(archivo_objetivo):
         st.error(f"⚠️ No se encuentra el archivo: {archivo_objetivo}")
