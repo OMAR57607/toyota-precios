@@ -590,7 +590,7 @@ with st.sidebar:
     st.divider()
     
     # -------------------------------------------------------------
-    # MODIFICACIÓN SOLICITADA: LÓGICA DE BÚSQUEDA HOJA/COLUMNAS
+    # MODIFICACIÓN PARA EXCEL CON MACROS (XLSM)
     # -------------------------------------------------------------
     st.markdown("### 🤖 Carga Inteligente")
     uploaded_file = st.file_uploader("Excel / Macros / CSV", type=['xlsx', 'xlsm', 'csv'], label_visibility="collapsed")
@@ -598,23 +598,11 @@ with st.sidebar:
     if uploaded_file and st.button("Analizar Archivo", type="primary"):
         with st.status("Procesando...", expanded=False) as status:
             try:
-                # Lectura inteligente: Si es CSV lee como csv
+                # Lectura inteligente: Si es CSV lee como csv, si no (xlsx/xlsm) lee como excel
                 if uploaded_file.name.endswith('.csv'):
                     df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
                 else:
-                    # Lógica para buscar HOJA llamada COTIZACION (cualquier forma)
-                    xl = pd.ExcelFile(uploaded_file)
-                    target_sheet = xl.sheet_names[0] # Default primera hoja
-                    for sheet in xl.sheet_names:
-                        s_clean = sheet.upper().replace('Ó', 'O')
-                        if "COTIZACION" in s_clean:
-                            target_sheet = sheet
-                            break
-                    
-                    df_up = pd.read_excel(uploaded_file, sheet_name=target_sheet)
-                    
-                    # Normalizar nombres de columnas para buscar COTIZACION en cabeceras si fuera necesario
-                    df_up.columns = [str(c).upper().strip().replace('Ó', 'O') for c in df_up.columns]
+                    df_up = pd.read_excel(uploaded_file)
                 
                 items, meta = analizador_inteligente_archivos(df_up)
                 if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
@@ -722,17 +710,10 @@ if st.session_state.carrito:
  
     def actualizar_propiedad(idx, clave, key_widget):
         """Actualiza Prioridad o Abasto cuando cambia el Selectbox"""
-        # CORRECCIÓN DE ERROR KEYERROR: Usar .get() en lugar de [] directo
-        valor = st.session_state.get(key_widget)
-        if valor is None:
-            return # Evita el error si la key no se encuentra
-            
+        valor = st.session_state[key_widget]
         valor_limpio = valor.replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "")\
                             .replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
-        
-        # Doble verificación de índice por seguridad
-        if idx < len(st.session_state.carrito):
-            st.session_state.carrito[idx][clave] = valor_limpio
+        st.session_state.carrito[idx][clave] = valor_limpio
  
     def actualizar_tiempo_entrega(idx, key_widget):
         """Actualiza el campo de Tiempo de Entrega"""
