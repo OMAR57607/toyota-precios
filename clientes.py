@@ -13,7 +13,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 1. CONFIGURACIÓN Y ESTILOS (AQUÍ ESTÁN TUS CAMBIOS) ---
+# --- 1. CONFIGURACIÓN Y ESTILOS ADAPTATIVOS ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -29,41 +29,40 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-   
-    /* --- CAMBIOS PARA RESPONSIVE Y MODO OSCURO --- */
+    
+    /* --- ESTILOS 100% ADAPTATIVOS (CLARO / OSCURO) --- */
     
     .big-price {
-        /* Se adapta al tamaño de pantalla automáticamente */
         font-size: clamp(40px, 15vw, 90px); 
         font-weight: 800;
-        color: #eb0a1e; /* Rojo Toyota (Se ve bien en blanco y negro) */
+        color: #eb0a1e; /* Rojo Toyota (Funciona bien en ambos fondos) */
         text-align: center;
         margin: 0;
         line-height: 1.1;
     }
-   
+    
     .price-label {
-        /* Tamaño adaptable */
         font-size: clamp(14px, 4vw, 20px);
-        /* SIN COLOR FIJO: Se adapta al tema del sistema (Blanco/Negro) */
         text-align: center;
         text-transform: uppercase;
         letter-spacing: 2px;
+        /* Hereda el color del sistema (Blanco o Negro) */
+        color: inherit; 
         opacity: 0.8; 
     }
 
     .sku-title {
         font-size: clamp(18px, 5vw, 26px);
         font-weight: bold;
-        /* SIN COLOR FIJO: Se adapta al tema */
         text-align: center;
+        color: inherit; /* Adaptativo */
     }
-   
+    
     .desc-text {
         font-size: clamp(16px, 4vw, 20px);
-        /* SIN COLOR FIJO */
         text-align: center;
         margin-bottom: 20px;
+        color: inherit; /* Adaptativo */
         opacity: 0.9;
     }
 
@@ -73,15 +72,17 @@ st.markdown("""
         text-align: center;
         border: 2px solid #eb0a1e;
         border-radius: 10px;
+        /* El fondo y el texto del input los maneja Streamlit automáticamente */
     }
 
     .legal-footer {
         margin-top: 50px;
         padding-top: 20px;
-        border-top: 1px solid #777; /* Borde visible en ambos modos */
+        /* Borde semitransparente: se ve bien en blanco y en negro */
+        border-top: 1px solid rgba(128, 128, 128, 0.4); 
         font-size: clamp(9px, 2.5vw, 11px);
-        /* Color neutro que funciona en fondo blanco y negro */
-        color: #888; 
+        color: inherit; /* Toma el color de texto del tema del usuario */
+        opacity: 0.6;   /* Lo hace ver grisáceo sin forzar un color fijo */
         text-align: justify;
         font-family: Arial, sans-serif;
     }
@@ -95,7 +96,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CARGA DE DATOS (NO SE MOVIÓ NADA) ---
+# --- 2. CARGA DE DATOS ---
 @st.cache_data
 def cargar_catalogo():
     archivo_objetivo = "lista_precios.zip"
@@ -137,17 +138,17 @@ def cargar_catalogo():
 df = cargar_catalogo()
 fecha_actual = obtener_hora_mx()
 
-# --- 3. HEADER (LOGO ADAPTABLE) ---
+# --- 3. HEADER ---
 col_vacia, col_logo, col_fecha = st.columns([1, 2, 1])
 
 with col_logo:
     if os.path.exists("logo.png"):
-        # CAMBIO: use_container_width=True hace que el logo se ajuste al celular o PC
         st.image("logo.png", use_container_width=True) 
     else:
         st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
 
 with col_fecha:
+    # Usamos opacity en lugar de color fijo para el texto de la fecha
     st.markdown(f"""
     <div style="text-align: right; opacity: 0.7; font-size: 11px;">
         <strong>TOYOTA LOS FUERTES</strong><br>
@@ -162,10 +163,10 @@ st.markdown("---")
 st.markdown("<h3 style='text-align: center;'>🔍 Verificador de Precios</h3>", unsafe_allow_html=True)
 
 busqueda = st.text_input("Escanea o escribe el número de parte:",
-                         placeholder="Ej. 90915-YZZD1",
-                         help="Escribe el código y presiona Enter").strip()
+                          placeholder="Ej. 90915-YZZD1",
+                          help="Escribe el código y presiona Enter").strip()
 
-# --- 5. RESULTADOS (NO SE MOVIÓ NADA DE LA LÓGICA) ---
+# --- 5. RESULTADOS ---
 if busqueda and df is not None:
     busqueda_clean = busqueda.upper().replace('-', '').replace(' ', '')
     mask = df['SKU_CLEAN'] == busqueda_clean
@@ -206,19 +207,17 @@ if busqueda and df is not None:
 elif not busqueda:
     st.info("👋 Escanee el código de barras.")
 
-# --- 6. FOOTER LEGAL ---
+# --- 6. FOOTER LEGAL (ROBUSTO Y NORMATIVO) ---
 st.markdown("---")
 st.markdown(f"""
 <div class="legal-footer">
-    <strong>AVISO LEGAL E INFORMACIÓN AL CONSUMIDOR</strong><br>
-    De conformidad con lo dispuesto en la <strong>Ley Federal de Protección al Consumidor (LFPC)</strong> y las Normas Oficiales Mexicanas aplicables:
+    <strong>INFORMACIÓN COMERCIAL Y MARCO LEGAL</strong><br>
+    La información de precios mostrada en este verificador digital cumple estrictamente con las disposiciones legales vigentes en los Estados Unidos Mexicanos:
     <br><br>
-    <strong>1. PRECIOS TOTALES:</strong> En cumplimiento al <strong>Artículo 7 Bis de la LFPC</strong>, los precios aquí mostrados representan el monto total a pagar, expresados en Moneda Nacional (MXN) e incluyen el Impuesto al Valor Agregado (IVA) del 16% y cualquier otro cargo obligatorio.
+    <strong>1. PRECIO TOTAL A PAGAR (LFPC Art. 7 Bis):</strong> En cumplimiento con la Ley Federal de Protección al Consumidor, el precio exhibido representa el monto final e inequívoco a pagar por el consumidor. Este importe incluye el costo del producto, el Impuesto al Valor Agregado (IVA del 16%) y cualquier cargo administrativo aplicable, evitando prácticas comerciales engañosas.
     <br><br>
-    <strong>2. VIGENCIA:</strong> Los precios son vigentes al momento exacto de esta consulta: <strong>{fecha_actual.strftime("%d/%m/%Y a las %H:%M hrs")}</strong>. Toyota Los Fuertes se compromete a respetar el precio exhibido al momento de la compra, salvo error evidente de sistema.
+    <strong>2. VIGENCIA Y EXACTITUD (NOM-174-SCFI-2007):</strong> El precio mostrado es válido exclusivamente al momento de la consulta (Timbre digital: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M:%S")}</strong>). Toyota Los Fuertes garantiza el respeto al precio exhibido al momento de la transacción conforme a lo dispuesto en las Normas Oficiales Mexicanas sobre prácticas comerciales en transacciones electrónicas y de información.
     <br><br>
-    <strong>3. NORMATIVIDAD APLICABLE:</strong> La información comercial cumple con los lineamientos de la <strong>NOM-050-SCFI-2004</strong> (Información comercial general) y la <strong>NOM-174-SCFI-2007</strong> (Prácticas comerciales en transacciones electrónicas).
-    <br><br>
-    <strong>4. GARANTÍAS:</strong> Las refacciones genuinas cuentan con garantía de 12 meses o 20,000 km (lo que ocurra primero) contra defectos de fábrica. Las partes eléctricas no aceptan cambios ni devoluciones una vez instaladas o vendidas.
+    <strong>3. INFORMACIÓN COMERCIAL (NOM-050-SCFI-2004):</strong> La descripción y especificaciones de las partes cumplen con los requisitos de información comercial general para productos destinados a consumidores en el territorio nacional.
 </div>
 """, unsafe_allow_html=True)
