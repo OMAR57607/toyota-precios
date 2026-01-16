@@ -375,46 +375,49 @@ class PDF(FPDF):
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
 
     def footer(self):
-        # Posición a 5 cm del final para que quepa todo limpio
-        self.set_y(-50)
+        # Posición a 7.5 cm del final para dar espacio al texto legal completo
+        self.set_y(-75)
         
-        # Título del pie de página
+        # Título con la NOM obligatoria
         self.set_font('Arial', 'B', 7)
         self.set_text_color(0)
-        self.cell(0, 4, 'TÉRMINOS Y CONDICIONES', 0, 1, 'L')
+        self.cell(0, 4, 'CONTRATO DE ADHESIÓN Y TÉRMINOS LEGALES (NOM-174-SCFI-2007)', 0, 1, 'L')
         
-        # Texto legal simplificado (Sin cláusulas abusivas)
-        self.set_font('Arial', '', 6)
-        self.set_text_color(60) # Gris oscuro para no ser agresivo
+        # Cuerpo del texto legal
+        self.set_font('Arial', '', 5)
+        self.set_text_color(60)
         
         legales = (
-            "1. VIGENCIA Y PRECIOS: Este presupuesto es válido por 24 horas a partir de su emisión. Todos los precios están expresados en Moneda Nacional (MXN) e incluyen IVA. Sujetos a cambio sin previo aviso.\n"
-            "2. PEDIDOS ESPECIALES: Las refacciones que no se encuentren en inventario (Back Order o Pedido) requieren un anticipo del 100% para su solicitud.\n"
-            "3. GARANTÍA: 12 meses en refacciones genuinas Toyota y 30 días en mano de obra. Por su naturaleza técnica, las partes eléctricas no admiten devolución una vez instaladas, salvo por defecto de fábrica validado por diagnóstico.\n"
-            "4. ACEPTACIÓN DIGITAL: La confirmación de este presupuesto a través de medios electrónicos (WhatsApp o Correo) constituye la aceptación formal de los trabajos y términos aquí descritos."
+            "1. VIGENCIA Y PRECIOS: Presupuesto válido por 24 horas a partir de su emisión. Precios en MXN incluyen IVA.\n"
+            "2. PEDIDOS ESPECIALES: Para partes no disponibles en stock, se requiere un anticipo del 100%. En caso de cancelación por causas imputables al consumidor, "
+            "se aplicará una pena convencional del 20% sobre el anticipo por gastos administrativos (Art. 92 LFPC).\n"
+            "3. GARANTÍA: 12 meses en refacciones genuinas Toyota y 30 días en mano de obra. La garantía de partes eléctricas está sujeta a diagnóstico técnico "
+            "para descartar daños por instalación externa (Art. 77 LFPC). Las partes eléctricas no admiten devolución si se encuentran en buen estado funcional.\n"
+            "4. CONSENTIMIENTO DIGITAL: De conformidad con los Art. 89 bis y 93 del Código de Comercio, la aceptación de este presupuesto a través de medios electrónicos "
+            "(WhatsApp, Correo) produce los mismos efectos jurídicos que la firma autógrafa.\n"
+            "5. PRIVACIDAD: Sus datos personales son tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares."
         )
         
-        # Imprimimos el texto justificándolo
-        self.multi_cell(0, 3, legales, 0, 'J')
+        self.multi_cell(0, 2.5, legales, 0, 'J')
         
-        # Líneas de firma
-        self.ln(8) # Espacio para firmar
+        # Espacio para firmas
+        self.ln(5)
         y_firma = self.get_y()
         
-        # Línea Izquierda (Asesor)
+        # Líneas de firma
         self.line(10, y_firma, 80, y_firma)
-        # Línea Derecha (Cliente)
         self.line(110, y_firma, 190, y_firma)
         
-        # Texto debajo de las firmas
+        # Textos de firma
         self.set_font('Arial', 'B', 6)
         self.cell(90, 3, "TOYOTA LOS FUERTES (ASESOR)", 0, 0, 'C')
         self.cell(90, 3, "NOMBRE Y FIRMA DE CONFORMIDAD DEL CLIENTE", 0, 1, 'C')
         
-        # Número de página
+        # Paginación
         self.set_y(-12)
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'R')
+        
 def generar_pdf():
     pdf = PDF()
     pdf.add_page()
