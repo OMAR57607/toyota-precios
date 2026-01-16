@@ -14,7 +14,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 1. LÓGICA DE FONDO DINÁMICO (ESTACIÓN Y HORA) ---
+# --- 1. LÓGICA DE TEMA DINÁMICO (Colores y Fondos) ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -25,127 +25,141 @@ def obtener_hora_mx():
         return datetime.now(tz_cdmx)
     return datetime.now()
 
-def get_season(date):
-    m = date.month
-    if 3 <= m <= 5: return "primavera"
-    elif 6 <= m <= 8: return "verano"
-    elif 9 <= m <= 11: return "otoño"
-    else: return "invierno"
-
-def get_time_of_day(date):
+def get_theme_by_time(date):
     h = date.hour
-    if 6 <= h < 12: return "mañana"
-    elif 12 <= h < 19: return "tarde"
-    else: return "noche"
+    # Definimos 3 paletas de colores completas según la hora
+    if 6 <= h < 12:
+        # MAÑANA: Amanecer cálido
+        return {
+            "bg_gradient": "linear-gradient(to top, #f5af19, #ffdd00, #87ceeb)",
+            "card_bg": "rgba(255, 255, 255, 0.90)", # Tarjeta clara
+            "text_primary": "#222222", # Texto oscuro
+            "text_secondary": "#555555",
+            "input_bg": "#ffffff",
+            "accent_color": "#eb0a1e"
+        }
+    elif 12 <= h < 19:
+        # TARDE: Sol brillante
+        return {
+            "bg_gradient": "linear-gradient(to bottom, #2980b9, #6dd5fa, #ffffff)",
+            "card_bg": "rgba(255, 255, 255, 0.95)", # Tarjeta muy clara
+            "text_primary": "#111111", # Texto muy oscuro (contraste alto)
+            "text_secondary": "#444444",
+            "input_bg": "#ffffff",
+            "accent_color": "#eb0a1e"
+        }
+    else:
+        # NOCHE: Cielo profundo estrellado (simulado con gradiente rico)
+        return {
+            "bg_gradient": "linear-gradient(to bottom, #0f2027, #203a43, #2c5364)",
+            "card_bg": "rgba(20, 30, 40, 0.90)", # ¡Tarjeta oscura!
+            "text_primary": "#ffffff", # ¡Texto blanco!
+            "text_secondary": "#cccccc", # Texto gris claro
+            "input_bg": "#e6e6e6", # Input ligeramente gris para no deslumbrar
+            "accent_color": "#ff4d4d" # Rojo un poco más brillante para la noche
+        }
 
-# Colores de fondo según temporada y hora
-gradients = {
-    ("primavera", "mañana"): "linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)",
-    ("primavera", "tarde"): "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
-    ("primavera", "noche"): "linear-gradient(135deg, #2c3e50 0%, #3498db 100%)",
-    
-    ("verano", "mañana"): "linear-gradient(135deg, #2980b9 0%, #6dd5fa 100%, #ffffff 100%)",
-    ("verano", "tarde"): "linear-gradient(135deg, #fceabb 0%, #f8b500 100%)",
-    ("verano", "noche"): "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
-
-    ("otoño", "mañana"): "linear-gradient(135deg, #f12711 0%, #f5af19 100%)",
-    ("otoño", "tarde"): "linear-gradient(135deg, #dd5e89 0%, #f7bb97 100%)",
-    ("otoño", "noche"): "linear-gradient(135deg, #232526 0%, #414345 100%)",
-
-    ("invierno", "mañana"): "linear-gradient(135deg, #E0EAFC 0%, #CFDEF3 100%)",
-    ("invierno", "tarde"): "linear-gradient(135deg, #83a4d4 0%, #b6fbff 100%)",
-    ("invierno", "noche"): "linear-gradient(135deg, #000428 0%, #004e92 100%)",
-}
-
-def set_dynamic_background():
+def apply_dynamic_styles():
     now = obtener_hora_mx()
-    season = get_season(now)
-    time = get_time_of_day(now)
-    gradient = gradients.get((season, time), "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)")
+    theme = get_theme_by_time(now)
     
     st.markdown(f"""
         <style>
-        /* 1. FONDO DE LA APP (Dinámico) */
+        /* --- VARIABLES CSS DINÁMICAS --- */
+        :root {{
+            --bg-gradient: {theme['bg_gradient']};
+            --card-bg: {theme['card_bg']};
+            --text-primary: {theme['text_primary']};
+            --text-secondary: {theme['text_secondary']};
+            --input-bg: {theme['input_bg']};
+            --accent-color: {theme['accent_color']};
+        }}
+
+        /* 1. FONDO GLOBAL ANIMADO */
         .stApp {{
-            background-image: {gradient} !important;
+            background-image: var(--bg-gradient) !important;
             background-attachment: fixed;
-            background-size: cover;
+            background-size: 200% 200%;
+            animation: gradientBG 15s ease infinite;
+        }}
+        @keyframes gradientBG {{
+            0% {{background-position: 0% 50%;}}
+            50% {{background-position: 100% 50%;}}
+            100% {{background-position: 0% 50%;}}
         }}
         
-        /* 2. TARJETA BLANCA (Donde va el contenido) */
+        /* 2. TARJETA CENTRAL DINÁMICA */
         [data-testid="stBlockContainer"] {{
-            background-color: rgba(255, 255, 255, 0.95) !important;
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            background-color: var(--card-bg) !important;
+            border-radius: 25px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px); /* Efecto cristal elegante */
+            border: 1px solid rgba(255, 255, 255, 0.1);
             max-width: 700px;
             margin-top: 20px;
         }}
 
-        /* 3. CORRECCIÓN DE TEXTO (Forzar NEGRO siempre) */
-        h1, h2, h3, h4, h5, h6, p, span, div, label {{
-            color: #222222 !important;
+        /* 3. TEXTOS DINÁMICOS */
+        h1, h2, h3, h4, h5, h6, div, label, .sku-display {{
+            color: var(--text-primary) !important;
+            transition: color 0.5s ease;
+        }}
+        .date-display, .desc-display, .legal-footer {{
+            color: var(--text-secondary) !important;
+            transition: color 0.5s ease;
         }}
         
-        /* 4. CORRECCIÓN DEL INPUT (Números invisibles) */
+        /* 4. INPUT DINÁMICO */
         .stTextInput input {{
-            background-color: #ffffff !important;
-            color: #000000 !important; /* Texto negro */
-            -webkit-text-fill-color: #000000 !important; /* Safari/Chrome */
-            border: 2px solid #eb0a1e !important;
+            background-color: var(--input-bg) !important;
+            color: #222 !important; /* El texto dentro del input siempre oscuro */
+            border: 2px solid var(--accent-color) !important;
             font-size: 22px !important;
             font-weight: bold !important;
             text-align: center !important;
-            caret-color: #eb0a1e !important; /* Cursor rojo */
+            border-radius: 15px;
         }}
         
-        /* 5. TEXTO DEL PRECIO ROJO */
+        /* 5. PRECIO Y BOTÓN (Acento) */
         .big-price {{
+            color: var(--accent-color) !important;
             font-size: clamp(45px, 15vw, 95px); 
-            font-weight: 800;
-            color: #eb0a1e !important; /* Rojo Toyota */
+            font-weight: 900;
             text-align: center;
-            margin: 0;
             line-height: 1.1;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
-        
-        /* 6. OCULTAR ELEMENTOS DE STREAMLIT (Kiosco) */
-        #MainMenu {{visibility: hidden;}}
-        footer {{visibility: hidden;}}
-        header {{visibility: hidden;}}
-        
-        /* 7. BOTÓN ROJO */
         .stButton button {{
-            background-color: #eb0a1e !important;
+            background: var(--accent-color) !important;
             color: white !important;
             border: none;
             width: 100%;
-            border-radius: 10px;
+            border-radius: 15px;
             font-weight: bold;
+            font-size: 18px;
+            padding: 10px;
+            transition: transform 0.2s;
         }}
         .stButton button:hover {{
-            background-color: #cc0000 !important;
+            transform: scale(1.02);
         }}
         
-        /* 8. FOOTER LEGAL */
+        /* 6. KIOSCO Y EXTRAS */
+        #MainMenu, footer, header {{visibility: hidden;}}
         .legal-footer {{
-            border-top: 1px solid #ccc !important;
-            color: #555555 !important;
+            border-top: 1px solid var(--text-secondary) !important;
+            opacity: 0.7;
             font-size: 11px;
             margin-top: 30px;
             padding-top: 15px;
+            text-align: justify;
         }}
-        
-        /* Centrar imágenes */
-        div[data-testid="stImage"] {{
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-        }}
+        div[data-testid="stImage"] {{ display: block; margin: auto; }}
         </style>
     """, unsafe_allow_html=True)
 
-set_dynamic_background()
+apply_dynamic_styles()
 
 # --- 2. CARGA DE DATOS ---
 @st.cache_data
@@ -178,11 +192,13 @@ with col_logo:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True) 
     else:
-        st.markdown("<h1 style='text-align: center; color: #eb0a1e !important;'>TOYOTA</h1>", unsafe_allow_html=True)
+        # Usamos una clase para que el color se adapte
+        st.markdown("<h1 style='text-align: center;'>TOYOTA</h1>", unsafe_allow_html=True)
 
 with col_fecha:
+    # Usamos la clase date-display para que el color se adapte (claro/oscuro)
     st.markdown(f"""
-    <div style="text-align: right; color: #333; font-size: 11px;">
+    <div class="date-display" style="text-align: right; font-size: 11px;">
         <strong>LOS FUERTES</strong><br>
         {fecha_actual.strftime("%d/%m/%Y")}<br>
         {fecha_actual.strftime("%H:%M")}
@@ -192,7 +208,7 @@ with col_fecha:
 st.markdown("---")
 
 # --- 4. BUSCADOR ---
-st.markdown("<h4 style='text-align: center; color: #333 !important;'>Verificador de Precios</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; opacity: 0.9;'>Verificador de Precios</h4>", unsafe_allow_html=True)
 
 busqueda_input = st.text_input("Ingresa SKU:", placeholder="Ej. 90915-YZZD1", label_visibility="collapsed").strip()
 boton_consultar = st.button("🔍 Consultar Precio")
@@ -227,13 +243,14 @@ if (busqueda_input or boton_consultar) and df is not None:
                 precio_final = float(p_text) * 1.16 
             except: pass
 
-        st.markdown(f"<div style='font-size: 24px; font-weight: bold; text-align: center; color: #333;'>{sku_val}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px; text-align: center; color: #555; margin-bottom: 20px; font-style: italic;'>{desc_es}</div>", unsafe_allow_html=True)
+        # Usamos clases dinámicas para los textos
+        st.markdown(f"<div class='sku-display' style='font-size: 26px; font-weight: bold; text-align: center; margin-top: 20px;'>{sku_val}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='desc-display' style='font-size: 18px; text-align: center; margin-bottom: 25px; font-style: italic;'>{desc_es}</div>", unsafe_allow_html=True)
         
         if precio_final > 0:
             st.markdown(f"<div class='big-price'>${precio_final:,.2f}</div>", unsafe_allow_html=True)
-            # AQUÍ ESTÁ EL CAMBIO SOLICITADO:
-            st.caption("Precio por Unidad. Neto (Incluye IVA). Moneda Nacional.")
+            # Caption también se adapta
+            st.markdown(f"<div class='desc-display' style='text-align: center; font-size: 14px; margin-top: 5px;'>Precio por Unidad. Neto (Incluye IVA). Moneda Nacional.</div>", unsafe_allow_html=True)
         else:
             st.warning("Precio no disponible al público.")
             
