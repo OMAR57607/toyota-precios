@@ -590,7 +590,7 @@ with st.sidebar:
     st.divider()
     
     # -------------------------------------------------------------
-    # MODIFICACIÓN PARA EXCEL CON MACROS (XLSM)
+    # MODIFICACIÓN SOLICITADA: LÓGICA DE BÚSQUEDA HOJA/COLUMNAS
     # -------------------------------------------------------------
     st.markdown("### 🤖 Carga Inteligente")
     uploaded_file = st.file_uploader("Excel / Macros / CSV", type=['xlsx', 'xlsm', 'csv'], label_visibility="collapsed")
@@ -598,11 +598,23 @@ with st.sidebar:
     if uploaded_file and st.button("Analizar Archivo", type="primary"):
         with st.status("Procesando...", expanded=False) as status:
             try:
-                # Lectura inteligente: Si es CSV lee como csv, si no (xlsx/xlsm) lee como excel
+                # Lectura inteligente: Si es CSV lee como csv
                 if uploaded_file.name.endswith('.csv'):
                     df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
                 else:
-                    df_up = pd.read_excel(uploaded_file)
+                    # Lógica para buscar HOJA llamada COTIZACION (cualquier forma)
+                    xl = pd.ExcelFile(uploaded_file)
+                    target_sheet = xl.sheet_names[0] # Default primera hoja
+                    for sheet in xl.sheet_names:
+                        s_clean = sheet.upper().replace('Ó', 'O')
+                        if "COTIZACION" in s_clean:
+                            target_sheet = sheet
+                            break
+                    
+                    df_up = pd.read_excel(uploaded_file, sheet_name=target_sheet)
+                    
+                    # Normalizar nombres de columnas para buscar COTIZACION en cabeceras si fuera necesario
+                    df_up.columns = [str(c).upper().strip().replace('Ó', 'O') for c in df_up.columns]
                 
                 items, meta = analizador_inteligente_archivos(df_up)
                 if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
@@ -903,3 +915,4 @@ if st.session_state.ver_preview and st.session_state.carrito:
 </div>
 </div>"""
     st.markdown(html_preview, unsafe_allow_html=True)
+
