@@ -5,6 +5,8 @@ import zipfile
 from datetime import datetime
 from PIL import Image
 import pytz
+# Nueva librería para traducir al español automáticamente (Cumplimiento NOM)
+from deep_translator import GoogleTranslator
 
 # Configuración de página
 st.set_page_config(
@@ -13,7 +15,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 1. CONFIGURACIÓN Y ESTILOS ADAPTATIVOS ---
+# --- 1. CONFIGURACIÓN Y ESTILOS (MODO KIOSCO ACTIVADO) ---
 try:
     tz_cdmx = pytz.timezone('America/Mexico_City')
 except:
@@ -26,6 +28,7 @@ def obtener_hora_mx():
 
 st.markdown("""
     <style>
+    /* --- MODO KIOSCO: OCULTAR ELEMENTOS DE STREAMLIT --- */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -35,7 +38,7 @@ st.markdown("""
     .big-price {
         font-size: clamp(40px, 15vw, 90px); 
         font-weight: 800;
-        color: #eb0a1e; /* Rojo Toyota (Funciona bien en ambos fondos) */
+        color: #eb0a1e; /* Rojo Toyota */
         text-align: center;
         margin: 0;
         line-height: 1.1;
@@ -46,7 +49,6 @@ st.markdown("""
         text-align: center;
         text-transform: uppercase;
         letter-spacing: 2px;
-        /* Hereda el color del sistema (Blanco o Negro) */
         color: inherit; 
         opacity: 0.8; 
     }
@@ -55,15 +57,16 @@ st.markdown("""
         font-size: clamp(18px, 5vw, 26px);
         font-weight: bold;
         text-align: center;
-        color: inherit; /* Adaptativo */
+        color: inherit; 
     }
     
     .desc-text {
         font-size: clamp(16px, 4vw, 20px);
         text-align: center;
         margin-bottom: 20px;
-        color: inherit; /* Adaptativo */
+        color: inherit; 
         opacity: 0.9;
+        font-style: italic; /* Estilo itálico para la descripción */
     }
 
     /* Input adaptable */
@@ -72,17 +75,15 @@ st.markdown("""
         text-align: center;
         border: 2px solid #eb0a1e;
         border-radius: 10px;
-        /* El fondo y el texto del input los maneja Streamlit automáticamente */
     }
 
     .legal-footer {
         margin-top: 50px;
         padding-top: 20px;
-        /* Borde semitransparente: se ve bien en blanco y en negro */
         border-top: 1px solid rgba(128, 128, 128, 0.4); 
         font-size: clamp(9px, 2.5vw, 11px);
-        color: inherit; /* Toma el color de texto del tema del usuario */
-        opacity: 0.6;   /* Lo hace ver grisáceo sin forzar un color fijo */
+        color: inherit; 
+        opacity: 0.6;   
         text-align: justify;
         font-family: Arial, sans-serif;
     }
@@ -121,7 +122,7 @@ def cargar_catalogo():
         df.dropna(how='all', inplace=True)
         df.columns = [c.strip().upper() for c in df.columns]
         
-        cols_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c]
+        cols_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c or 'NUMERO' in c]
         
         if cols_sku:
             c_sku = cols_sku[0]
@@ -138,7 +139,7 @@ def cargar_catalogo():
 df = cargar_catalogo()
 fecha_actual = obtener_hora_mx()
 
-# --- 3. HEADER ---
+# --- 3. HEADER (Visible, pero sin menú de Streamlit arriba) ---
 col_vacia, col_logo, col_fecha = st.columns([1, 2, 1])
 
 with col_logo:
@@ -148,7 +149,6 @@ with col_logo:
         st.markdown("<h1 style='text-align: center; color: #eb0a1e;'>TOYOTA</h1>", unsafe_allow_html=True)
 
 with col_fecha:
-    # Usamos opacity en lugar de color fijo para el texto de la fecha
     st.markdown(f"""
     <div style="text-align: right; opacity: 0.7; font-size: 11px;">
         <strong>TOYOTA LOS FUERTES</strong><br>
@@ -175,12 +175,22 @@ if busqueda and df is not None:
     if not resultados.empty:
         row = resultados.iloc[0]
         
-        c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c][0]
-        c_desc = [c for c in df.columns if 'DESC' in c][0]
-        c_precio_list = [c for c in df.columns if 'TOTAL' in c or 'UNITARIO' in c or 'PRICE' in c or 'PRECIO' in c]
+        # Detectar columnas
+        c_sku = [c for c in df.columns if 'ITEM' in c or 'PART' in c or 'SKU' in c or 'NUMERO' in c][0]
+        c_desc_list = [c for c in df.columns if 'DESC' in c]
+        c_desc = c_desc_list[0] if c_desc_list else c_sku
+        c_precio_list = [c for c in df.columns if 'TOTAL' in c or 'UNITARIO' in c or 'PRICE' in c or 'PRECIO' in c or 'IMPORTE' in c]
         
         sku_val = row[c_sku]
-        desc_val = row[c_desc]
+        desc_val_original = row[c_desc] # Descripción original (posiblemente en inglés)
+        
+        # --- TRADUCCIÓN AUTOMÁTICA (CUMPLIMIENTO NOM-050) ---
+        # Intentamos traducir al español. Si falla por internet, usamos la original.
+        try:
+            desc_val = GoogleTranslator(source='auto', target='es').translate(desc_val_original)
+        except:
+            desc_val = desc_val_original # Fallback si no hay internet
+
         precio_final = 0.0
         
         if c_precio_list:
@@ -193,9 +203,11 @@ if busqueda and df is not None:
                 precio_final = 0.0
 
         st.markdown(f"<div class='sku-title'>SKU: {sku_val}</div>", unsafe_allow_html=True)
+        # Mostramos la descripción traducida
         st.markdown(f"<div class='desc-text'>{desc_val}</div>", unsafe_allow_html=True)
         
         if precio_final > 0:
+            st.snow() # Efecto de Nieve
             st.markdown("<div class='price-label'>Precio Público (Neto)</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='big-price'>${precio_final:,.2f}</div>", unsafe_allow_html=True)
             st.caption("Moneda Nacional (MXN). Incluye Impuestos.")
@@ -207,17 +219,17 @@ if busqueda and df is not None:
 elif not busqueda:
     st.info("👋 Escanee el código de barras.")
 
-# --- 6. FOOTER LEGAL (ROBUSTO Y NORMATIVO) ---
+# --- 6. FOOTER LEGAL ---
 st.markdown("---")
 st.markdown(f"""
 <div class="legal-footer">
     <strong>INFORMACIÓN COMERCIAL Y MARCO LEGAL</strong><br>
     La información de precios mostrada en este verificador digital cumple estrictamente con las disposiciones legales vigentes en los Estados Unidos Mexicanos:
     <br><br>
-    <strong>1. PRECIO TOTAL A PAGAR (LFPC Art. 7 Bis):</strong> En cumplimiento con la Ley Federal de Protección al Consumidor, el precio exhibido representa el monto final e inequívoco a pagar por el consumidor. Este importe incluye el costo del producto, el Impuesto al Valor Agregado (IVA del 16%) y cualquier cargo administrativo aplicable, evitando prácticas comerciales engañosas.
+    <strong>1. PRECIO TOTAL A PAGAR (LFPC Art. 7 Bis):</strong> En cumplimiento con la Ley Federal de Protección al Consumidor, el precio exhibido representa el monto final e inequívoco a pagar por el consumidor. Este importe incluye el costo del producto, el Impuesto al Valor Agregado (IVA del 16%) y cualquier cargo administrativo aplicable.
     <br><br>
-    <strong>2. VIGENCIA Y EXACTITUD (NOM-174-SCFI-2007):</strong> El precio mostrado es válido exclusivamente al momento de la consulta (Timbre digital: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M:%S")}</strong>). Toyota Los Fuertes garantiza el respeto al precio exhibido al momento de la transacción conforme a lo dispuesto en las Normas Oficiales Mexicanas sobre prácticas comerciales en transacciones electrónicas y de información.
+    <strong>2. IDIOMA Y DESCRIPCIÓN (NOM-050-SCFI-2004):</strong> La descripción de los productos se presenta en idioma español, cumpliendo con la normativa de información comercial para productos extranjeros comercializados en territorio nacional.
     <br><br>
-    <strong>3. INFORMACIÓN COMERCIAL (NOM-050-SCFI-2004):</strong> La descripción y especificaciones de las partes cumplen con los requisitos de información comercial general para productos destinados a consumidores en el territorio nacional.
+    <strong>3. VIGENCIA (NOM-174-SCFI-2007):</strong> Precio válido al momento de la consulta: <strong>{fecha_actual.strftime("%d/%m/%Y %H:%M:%S")}</strong>.
 </div>
 """, unsafe_allow_html=True)
