@@ -136,7 +136,9 @@ def cargar_catalogo():
             with z.open(archivo_elegido) as f:
                 if archivo_elegido.endswith('.csv'):
                     try: df = pd.read_csv(f, dtype=str)
-                    except: f.seek(0); df = pd.read_csv(f, dtype=str, encoding='latin-1')
+                    except: 
+                        f.seek(0)
+                        df = pd.read_csv(f, dtype=str, encoding='latin-1')
                 else:
                     df = pd.read_excel(f, dtype=str)
 
@@ -191,7 +193,8 @@ def analizador_inteligente_archivos(df_raw):
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
             if 'VIN' not in metadata:
-                m = re.search(patron_vin, val); if m: metadata['VIN'] = m.group(0)
+                m = re.search(patron_vin, val)
+                if m: metadata['VIN'] = m.group(0)
             if 'ORDEN' not in metadata:
                 if any(k in val for k in keywords['ORDEN']):
                     m = re.search(patron_orden_8, val)
@@ -215,7 +218,10 @@ def analizador_inteligente_archivos(df_raw):
     if 'ORDEN' not in metadata:
         for _, row in df.iterrows():
             for val in row:
-                m = re.search(patron_orden_8, str(val)); if m: metadata['ORDEN'] = m.group(0); break
+                m = re.search(patron_orden_8, str(val))
+                if m: 
+                    metadata['ORDEN'] = m.group(0)
+                    break
             if 'ORDEN' in metadata: break
     return hallazgos, metadata
 
@@ -445,7 +451,6 @@ if st.session_state.carrito:
             st.markdown(f'<a href="https://wa.me/?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
 
 if st.session_state.ver_preview and st.session_state.carrito:
-    # (El HTML de vista previa se mantiene igual que en tu código original)
     rows_html = ""
     hay_p = any("Pedido" in i['Abasto'] or "Back" in i['Abasto'] for i in st.session_state.carrito)
     hay_r = any("REVISAR" in i['Abasto'] for i in st.session_state.carrito)
