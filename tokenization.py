@@ -6,10 +6,8 @@ from fpdf import FPDF
 import pytz
 import re
 import os
-import base64
-import urllib.parse
-import math
 import zipfile
+import urllib.parse
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -24,14 +22,10 @@ def obtener_hora_mx(): return datetime.now(tz_cdmx) if tz_cdmx else datetime.now
 def init_session():
     defaults = {
         'carrito': [],
-        'errores_carga': [],
         'cliente': "",
         'vin': "",
         'orden': "",
         'asesor': "",
-        'temp_sku': "",
-        'temp_desc': "",
-        'temp_precio': 0.0,
         'ver_preview': False,
         'nieve_activa': False
     }
@@ -41,29 +35,41 @@ def init_session():
 
 def limpiar_todo():
     st.session_state.carrito = []
-    st.session_state.errores_carga = []
     st.session_state.cliente = ""
     st.session_state.vin = ""
     st.session_state.orden = ""
     st.session_state.asesor = ""
-    st.session_state.temp_sku = ""
-    st.session_state.temp_desc = ""
-    st.session_state.temp_precio = 0.0
     st.session_state.ver_preview = False
     st.session_state.nieve_activa = False
 
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (ALTO CONTRASTE)
+# 2. ESTILOS CSS (ADAPTATIVO Y ALTO CONTRASTE)
 # ==========================================
 st.markdown("""
     <style>
-    /* Global Text High Contrast */
-    body, p, div, span, td, th, input, textarea { color: #000000 !important; }
-    
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-    
+    /* Texto General: Negrita para alto contraste pero adaptativo al tema (Blanco/Negro según sistema) */
+    .stMarkdown, .stTextInput, .stNumberInput, .stSelectbox, p, label {
+        font-weight: 600 !important;
+    }
+
+    /* Botón Rojo Toyota - Muy Llamativo */
+    .stButton button[kind="primary"] {
+        background-color: #eb0a1e !important;
+        color: white !important;
+        font-weight: 900 !important;
+        border: 2px solid white;
+        font-size: 16px !important;
+        padding: 0.8rem 1rem;
+        text-transform: uppercase;
+        box-shadow: 0 4px 10px rgba(235, 10, 30, 0.4);
+    }
+    .stButton button[kind="primary"]:hover {
+        background-color: #b70014 !important;
+        transform: scale(1.02);
+    }
+
     /* WhatsApp Button */
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
@@ -75,18 +81,18 @@ st.markdown("""
     }
     .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); }
 
-    /* Preview Paper - Alto Contraste */
-    .preview-container { background-color: #222; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; border: 2px solid #000; }
-    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 0 0 2px #000; font-family: 'Helvetica', 'Arial', sans-serif; }
+    /* VISTA PREVIA (Siempre Papel Blanco / Texto Negro) */
+    .preview-container { background-color: #333; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; border: 2px solid #555; }
+    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 0 15px rgba(0,0,0,0.5); font-family: 'Helvetica', 'Arial', sans-serif; }
     
     .preview-header { border-bottom: 4px solid #eb0a1e; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
     .preview-title { font-size: 28px; font-weight: 900; color: #eb0a1e !important; margin: 0; line-height: 1.2; text-transform: uppercase; }
     
     .group-header { background-color: #fff; color: #000 !important; font-weight: 900; padding: 8px; border: 2px solid #000; border-left: 10px solid #eb0a1e; margin-top: 20px; margin-bottom: 5px; text-transform: uppercase; font-size: 14px; display: flex; justify-content: space-between;}
     
-    .legend-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; padding: 10px; border: 1px solid #000; background: #eee; font-size: 11px; font-weight: bold; }
+    .legend-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; padding: 10px; border: 1px solid #000; background: #eee; font-size: 11px; font-weight: bold; color: black !important; }
     
-    /* Tables High Contrast */
+    /* Tablas Vista Previa */
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 5px; table-layout: fixed; border: 1px solid #000; }
     table.custom-table th { background-color: #000 !important; color: white !important; padding: 10px 8px; text-align: left; font-weight: 900; text-transform: uppercase; border: 1px solid #fff; }
     table.custom-table td { border-bottom: 1px solid #000; padding: 8px; color: #000 !important; vertical-align: middle; font-weight: 600; }
@@ -94,7 +100,7 @@ st.markdown("""
     .total-box { margin-left: auto; width: 300px; border: 2px solid #000; padding: 10px; margin-top: 20px; background: #fff; }
     .total-final { font-size: 26px; font-weight: 900; color: #000 !important; text-align: right; }
     
-    /* Badges High Contrast */
+    /* Badges Vista Previa */
     .badge-base { padding: 4px 8px; border-radius: 0px; font-weight: 900; font-size: 10px; display: inline-block; color: white !important; border: 1px solid #000; text-transform: uppercase; }
     .badge-urg { background: #d32f2f; }
     .badge-med { background: #1565C0; }
@@ -104,15 +110,14 @@ st.markdown("""
     .status-disp { color: #fff !important; background: #2E7D32; }
     .status-ped { color: #000 !important; background: #FFD600; }
     .status-bo { color: #fff !important; background: #000; }
-    .status-rev { color: #fff !important; background: #C62828; }
     
     /* Checkbox fix */
     div[data-testid="stCheckbox"] { display: flex; align-items: center; justify-content: center; padding-top: 15px; }
-    
-    /* Input adjustments for contrast */
-    input[type=number], input[type=text] { font-weight: bold; color: black; }
     </style>
     """, unsafe_allow_html=True)
+
+if st.session_state.nieve_activa:
+    st.markdown("".join([f'<div class="snowflake">{c}</div>' for c in ['❅','❆']*6]), unsafe_allow_html=True)
 
 # ==========================================
 # 3. LÓGICA DE DATOS
@@ -322,40 +327,45 @@ with st.sidebar:
     st.divider()
     if st.button("🗑️ Limpieza Total", type="secondary", use_container_width=True): limpiar_todo(); st.rerun()
 
-st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (Alto Contraste)")
+st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (Modo Adaptativo)")
 
-with st.expander("🔎 Agregar Ítems / Mano de Obra", expanded=True):
-    col_ref, col_mo = st.columns([1, 1], gap="large")
+# SECCIÓN DE AGREGAR ÍTEMS (PESTAÑAS EN LA MISMA ÁREA)
+with st.expander("🔎 AGREGAR CONCEPTOS", expanded=True):
+    # Uso de TABS para mantener todo junto pero organizado
+    tab_ref, tab_mo = st.tabs(["🔩 REFACCIONES (BUSCAR/MANUAL)", "🛠️ MANO DE OBRA"])
     
-    # Columna 1: Refacciones (Búsqueda + Manual)
-    with col_ref:
-        st.markdown("#### 🔩 Refacciones")
-        q = st.text_input("Buscar SKU o Nombre", placeholder="Ej. Filtro...")
-        if q and df_db is not None:
-            mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1)
-            for _, row in df_db[mask].head(3).iterrows():
-                c1, c2 = st.columns([3, 1])
-                c1.markdown(f"**{row[col_sku_db]}**\n${row['PRECIO_NUM']:,.2f}")
-                c2.button("➕", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
+    with tab_ref:
+        col_bus, col_man = st.columns([1.5, 1], gap="medium")
+        with col_bus:
+            st.markdown("##### 🔎 Buscar en Catálogo")
+            q = st.text_input("Buscar SKU o Nombre", placeholder="Ej. Filtro, Balata...")
+            if q and df_db is not None:
+                mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1)
+                for _, row in df_db[mask].head(3).iterrows():
+                    c1, c2 = st.columns([3, 1])
+                    c1.markdown(f"**{row[col_sku_db]}**\n${row['PRECIO_NUM']:,.2f}")
+                    c2.button("➕ Agregar", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
         
-        st.markdown("---")
-        with st.form("manual_ref"):
-            st.caption("Agregar Refacción Manual")
-            m_sku = st.text_input("SKU"); m_pr = st.number_input("Precio", 0.0)
-            if st.form_submit_button("Agregar Refacción"): 
-                agregar_item_callback(m_sku, "Refacción Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
-
-    # Columna 2: Mano de Obra (BOTÓN ROJO)
-    with col_mo:
-        st.markdown("#### 🛠️ Mano de Obra")
+        with col_man:
+            st.markdown("##### ✍️ Refacción Manual")
+            with st.form("manual_ref"):
+                m_sku = st.text_input("SKU")
+                m_pr = st.number_input("Precio Unitario", 0.0)
+                if st.form_submit_button("Agregar Manual"): 
+                    agregar_item_callback(m_sku, "Refacción Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
+    
+    with tab_mo:
+        st.markdown("##### 🛠️ Agregar Mano de Obra ($600/hr)")
         with st.form("form_mo"):
-            mo_desc = st.text_input("Descripción Servicio", placeholder="Ej. Afinación Mayor...")
-            c_hrs, c_cost = st.columns(2)
-            mo_hrs = c_hrs.number_input("Horas", min_value=0.1, value=1.0)
-            mo_cost = c_cost.number_input("Costo/Hr", min_value=0.0, value=600.0)
-            # BOTÓN ROJO (PRIMARY)
+            c_desc, c_hrs = st.columns([3, 1])
+            mo_desc = c_desc.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Cambio de Balatas...")
+            mo_hrs = c_hrs.number_input("Horas Requeridas", min_value=0.1, value=1.0, step=0.1)
+            
+            # BOTÓN ROJO MUY LLAMATIVO
             if st.form_submit_button("🔴 AGREGAR MANO DE OBRA", type="primary"):
-                agregar_item_callback("MO-TALLER", f"{mo_desc} ({mo_hrs} hrs)", mo_hrs * mo_cost, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
+                # Precio fijo 600
+                costo_mo = 600.0 * mo_hrs
+                agregar_item_callback("MO-TALLER", f"{mo_desc} ({mo_hrs} hrs @ $600)", costo_mo, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
                 st.rerun()
 
 st.divider(); st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
@@ -381,7 +391,8 @@ if st.session_state.carrito:
             
             with c_desc: st.markdown(f"**{item['Descripción']}** | {item['SKU']}"); st.caption(f"Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
             with c_tot: 
-                color_tot = "#000000" if item['Seleccionado'] else "#ccc" # Negro si activo
+                # Texto se adapta al tema (negro en claro, blanco en oscuro) a menos que esté inactivo
+                color_tot = "inherit" if item['Seleccionado'] else "#888" 
                 st.markdown(f"<div style='text-align:right; color:{color_tot}; font-weight:900;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
             c_del.button("🗑️", key=f"d_{i}", on_click=eliminar_item, args=(i,), type="tertiary")
             
@@ -419,7 +430,6 @@ if st.session_state.ver_preview and st.session_state.carrito:
     html_content = ""
     total_preview = 0
     
-    # Leyenda
     leyenda = """
     <div class='legend-bar'>
         <span>LEYENDA:</span>
