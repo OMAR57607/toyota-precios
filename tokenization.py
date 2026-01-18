@@ -226,7 +226,7 @@ class PDF(FPDF):
             "1. PRECIOS: En Moneda Nacional (MXN) con IVA incluido (Art. 7 LFPC). Válido por 24 horas.\n"
             "2. GARANTÍA: 12 meses o 20,000 km en refacciones instaladas en taller (Art. 77 LFPC). "
             "Partes eléctricas sujetas a diagnóstico.\n"
-            "3. PEDIDOS: Requieren 100% anticipo. Cancelaciones imputables al cliente aplican pena del 20%.\n"
+            "3. PEDIDOS: Requieren 100% anticipo.\n"
             "4. CLÁUSULAS: Este contrato NO contiene cláusulas abusivas, inequitativas o desproporcionadas (Art. 85 LFPC).\n"
             "5. ACEPTACIÓN: La firma o confirmación vía electrónica (WhatsApp/Correo) constituye aceptación total."
         )
