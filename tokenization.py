@@ -45,7 +45,7 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (EXPERIENCIA DE USUARIO ÁGIL Y UNIFICADA)
+# 2. ESTILOS CSS (EXPERIENCIA UNIFICADA)
 # ==========================================
 st.markdown("""
     <style>
@@ -56,7 +56,6 @@ st.markdown("""
     }
 
     /* ESTILO UNIFICADO DE BOTONES (ÁGIL Y OPTIMIZADO) */
-    /* Aplica a botones de formularios y botones normales */
     div.stButton > button, div[data-testid="stForm"] button {
         background-color: #eb0a1e !important; /* ROJO TOYOTA */
         color: white !important;
@@ -64,21 +63,21 @@ st.markdown("""
         font-weight: 900 !important;
         text-transform: uppercase;
         letter-spacing: 1px;
-        width: 100%; /* Botón ancho para clic rápido */
+        width: 100%;
         padding: 0.7rem 1rem;
         border-radius: 6px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         transition: all 0.2s ease-in-out;
     }
 
-    /* Efecto Hover para todos los botones */
+    /* Efecto Hover */
     div.stButton > button:hover, div[data-testid="stForm"] button:hover {
-        background-color: #b70014 !important; /* Rojo más oscuro */
+        background-color: #b70014 !important;
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     }
 
-    /* WhatsApp Button Específico */
+    /* WhatsApp Button */
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
         background-color: #25D366; color: white !important;
@@ -204,7 +203,7 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF (ALTO CONTRASTE Y TOTAL NEGRITA)
+# 4. GENERADOR PDF (ALTO CONTRASTE)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -219,7 +218,7 @@ class PDF(FPDF):
         self.set_y(-75)
         self.set_font('Arial', 'B', 7); self.set_text_color(0)
         self.cell(0, 4, 'CONTRATO DE ADHESIÓN (NOM-174-SCFI-2007)', 0, 1, 'L')
-        self.set_font('Arial', '', 6); self.set_text_color(0) # Negro absoluto
+        self.set_font('Arial', '', 6); self.set_text_color(0)
         legales = "1. VIGENCIA: 24 horas.\n2. PEDIDOS: Anticipo 100%.\n3. GARANTÍA: 12 meses genuinas.\n4. Firma electrónica válida."
         self.multi_cell(0, 3, legales, 0, 'J')
         self.ln(5); y_firma = self.get_y()
@@ -231,9 +230,7 @@ def generar_pdf():
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=80)
-    
-    # Datos Cliente Alto Contraste
-    pdf.set_text_color(0,0,0) # Negro Puro
+    pdf.set_text_color(0,0,0)
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(100, 5, str(st.session_state.cliente)[:50], 0, 0)
     pdf.set_font('Arial', 'B', 10); pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
@@ -252,38 +249,24 @@ def generar_pdf():
     for prio in orden_prioridad:
         grupo = [i for i in items_activos if i['Prioridad'] == prio]
         if not grupo: continue
-
         pdf.ln(2)
-        # Encabezado Grupo Negro/Rojo
         pdf.set_fill_color(0, 0, 0); pdf.set_font('Arial', 'B', 9); pdf.set_text_color(255, 255, 255)
         pdf.cell(0, 6, f" {prio.upper()} ", 0, 1, 'L', True)
-        
-        # Encabezado Tabla Alto Contraste
         pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255, 255, 255); pdf.set_font('Arial', 'B', 7)
         for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
         pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
 
         subtotal_grupo = 0
-        
         for item in grupo:
             subtotal_grupo += item['Importe Total']
             if "Pedido" in item['Abasto'] or "Back" in item['Abasto']: hay_pedido = True
-            
             sku = item['SKU'][:15]; desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
             st_txt = item['Abasto'].replace("⚠️ ", "")
-            
-            y_ini = pdf.get_y()
-            pdf.cell(cols[0], 6, sku, 1, 0, 'C')
-            x_desc = pdf.get_x()
-            pdf.multi_cell(cols[1], 6, desc[:35], 1, 'L')
-            pdf.set_xy(x_desc + cols[1], y_ini)
-            
-            pdf.cell(cols[2], 6, st_txt, 1, 0, 'C')
-            pdf.cell(cols[3], 6, str(item['Tiempo Entrega'])[:12], 1, 0, 'C')
-            pdf.cell(cols[4], 6, str(item['Cantidad']), 1, 0, 'C')
-            pdf.cell(cols[5], 6, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
-            pdf.cell(cols[6], 6, f"${item['IVA']/item['Cantidad']:,.2f}", 1, 0, 'R')
-            pdf.cell(cols[7], 6, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
+            y_ini = pdf.get_y(); pdf.cell(cols[0], 6, sku, 1, 0, 'C')
+            x_desc = pdf.get_x(); pdf.multi_cell(cols[1], 6, desc[:35], 1, 'L'); pdf.set_xy(x_desc + cols[1], y_ini)
+            pdf.cell(cols[2], 6, st_txt, 1, 0, 'C'); pdf.cell(cols[3], 6, str(item['Tiempo Entrega'])[:12], 1, 0, 'C')
+            pdf.cell(cols[4], 6, str(item['Cantidad']), 1, 0, 'C'); pdf.cell(cols[5], 6, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
+            pdf.cell(cols[6], 6, f"${item['IVA']/item['Cantidad']:,.2f}", 1, 0, 'R'); pdf.cell(cols[7], 6, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
 
         pdf.set_font('Arial', 'B', 8)
         pdf.cell(165, 5, f"SUBTOTAL {prio.upper()}:", 0, 0, 'R')
@@ -294,12 +277,8 @@ def generar_pdf():
     if hay_pedido: 
         pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 9)
         pdf.cell(0, 4, "** REQUIERE ANTICIPO DEL 100% POR PIEZAS DE PEDIDO **", 0, 1, 'R')
-    
-    # TOTAL EN NEGRITAS Y GRANDE
     pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 14)
-    pdf.cell(165, 10, 'GRAN TOTAL:', 0, 0, 'R')
-    pdf.cell(20, 10, f"${total_gral_pdf:,.2f}", 0, 1, 'R')
-    
+    pdf.cell(165, 10, 'GRAN TOTAL:', 0, 0, 'R'); pdf.cell(20, 10, f"${total_gral_pdf:,.2f}", 0, 1, 'R')
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
@@ -336,12 +315,9 @@ with st.sidebar:
 
 st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (Estilo Unificado)")
 
-# SECCIÓN DE AGREGAR ÍTEMS - EXPERIENCIA UNIFICADA
 with st.expander("🔎 AÑADIR CONCEPTOS (Búsqueda / Manual / Mano de Obra)", expanded=True):
-    # Tabs para organizar, pero con estilos unificados
     tab1, tab2, tab3 = st.tabs(["CATÁLOGO", "MANUAL", "MANO DE OBRA"])
     
-    # TAB 1: CATÁLOGO
     with tab1:
         c_search, c_btn = st.columns([3, 1])
         q = c_search.text_input("Buscar Refacción", placeholder="Nombre o SKU...", label_visibility="collapsed")
@@ -353,29 +329,24 @@ with st.expander("🔎 AÑADIR CONCEPTOS (Búsqueda / Manual / Mano de Obra)", e
                     rc1, rc2, rc3 = st.columns([2, 1, 1])
                     rc1.markdown(f"**{row[col_sku_db]}**")
                     rc2.markdown(f"${row['PRECIO_NUM']:,.2f}")
-                    # Botón ROJO UNIFICADO
                     rc3.button("AGREGAR", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
             else:
                 st.info("Sin resultados.")
 
-    # TAB 2: MANUAL
     with tab2:
         with st.form("manual_ref"):
             c_m1, c_m2, c_m3 = st.columns([1.5, 1, 1])
             m_sku = c_m1.text_input("SKU / Código")
             m_pr = c_m2.number_input("Precio", 0.0)
-            # Botón ROJO UNIFICADO
             c_m3.markdown("<br>", unsafe_allow_html=True)
             if c_m3.form_submit_button("AGREGAR MANUAL"): 
                 agregar_item_callback(m_sku, "Refacción Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
 
-    # TAB 3: MANO DE OBRA ($600/hr)
     with tab3:
         with st.form("form_mo"):
             c_mo1, c_mo2, c_mo3 = st.columns([2, 1, 1])
             mo_desc = c_mo1.text_input("Servicio", placeholder="Ej. Afinación")
             mo_hrs = c_mo2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
-            # Botón ROJO UNIFICADO
             c_mo3.markdown("<br>", unsafe_allow_html=True)
             if c_mo3.form_submit_button("AGREGAR M.O."):
                 costo_mo = 600.0 * mo_hrs
@@ -385,7 +356,6 @@ with st.expander("🔎 AÑADIR CONCEPTOS (Búsqueda / Manual / Mano de Obra)", e
 st.divider(); st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
-    # Funciones Auxiliares
     def actualizar_cantidad_input(idx, key):
         val = st.session_state[key]
         st.session_state.carrito[idx]['Cantidad'] = val
@@ -438,47 +408,53 @@ if st.session_state.carrito:
             msg = urllib.parse.quote(f"Hola {st.session_state.cliente},\nCotización Toyota: ${total_gral:,.2f}")
             st.markdown(f'<a href="https://wa.me/?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
 
-# Vista Previa HTML Agrupada con Leyendas y Alto Contraste
-# FIX ERROR: Si carrito está vacío, no intenta renderizar la vista previa
-if st.session_state.ver_preview and st.session_state.carrito:
-    html_content = ""
-    total_preview = 0
-    
-    leyenda = """
-    <div class='legend-bar'>
-        <span>LEYENDA:</span>
-        <span class='badge-base badge-urg'>URGENTE (Rojo)</span>
-        <span class='badge-base badge-med'>MEDIO (Azul)</span>
-        <span class='badge-base badge-baj'>BAJO (Gris)</span>
-        <span style='margin-left:10px;'>|</span>
-        <span class='status-base status-disp'>DISPONIBLE</span>
-        <span class='status-base status-ped'>POR PEDIDO</span>
-        <span class='status-base status-bo'>BACK ORDER</span>
-    </div>
-    """
-    
-    for prio in ['Urgente', 'Medio', 'Bajo']:
-        grupo = [i for i in st.session_state.carrito if i.get('Seleccionado', True) and i['Prioridad'] == prio]
-        if not grupo: continue
-        subtotal_html = sum(i['Importe Total'] for i in grupo)
-        total_preview += subtotal_html
-        html_content += f"<div class='group-header'><span>{prio}</span><span>SUB: ${subtotal_html:,.2f}</span></div>"
-        html_content += "<table class='custom-table'><thead><tr><th>SKU</th><th>DESC</th><th>ESTATUS</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
-        for item in grupo:
-            a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
-            html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='status-base {a_c}'>{item['Abasto']}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
-        html_content += "</tbody></table>"
-
-    st.markdown(f"""
-    <div class='preview-container'>
-        <div class='preview-paper'>
-            <div class='preview-header'><h1 class='preview-title'>TOYOTA LOS FUERTES</h1></div>
-            {leyenda}
-            {html_content}
-            <div class='total-box'><div class='total-final'>TOTAL: ${total_preview:,.2f}</div></div>
+# LÓGICA VISTA PREVIA CORREGIDA Y ROBUSTA
+if st.session_state.ver_preview:
+    if not st.session_state.carrito:
+        st.warning("⚠️ El carrito está vacío.")
+    else:
+        # Variables inicializadas ANTES de usarlas
+        html_content = ""
+        total_preview = 0
+        leyenda_html = """
+        <div class='legend-bar'>
+            <span>LEYENDA:</span>
+            <span class='badge-base badge-urg'>URGENTE (Rojo)</span>
+            <span class='badge-base badge-med'>MEDIO (Azul)</span>
+            <span class='badge-base badge-baj'>BAJO (Gris)</span>
+            <span style='margin-left:10px;'>|</span>
+            <span class='status-base status-disp'>DISPONIBLE</span>
+            <span class='status-base status-ped'>POR PEDIDO</span>
+            <span class='status-base status-bo'>BACK ORDER</span>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-elif st.session_state.ver_preview and not st.session_state.carrito:
-    st.warning("⚠️ El carrito está vacío. Agrega conceptos para ver la vista previa.")
-    st.session_state.ver_preview = False
+        """
+        
+        # Construcción segura del loop
+        for prio in ['Urgente', 'Medio', 'Bajo']:
+            grupo = [i for i in st.session_state.carrito if i.get('Seleccionado', True) and i['Prioridad'] == prio]
+            if not grupo: continue
+            
+            subtotal_html = sum(i['Importe Total'] for i in grupo)
+            total_preview += subtotal_html
+            
+            html_content += f"<div class='group-header'><span>{prio}</span><span>SUB: ${subtotal_html:,.2f}</span></div>"
+            html_content += "<table class='custom-table'><thead><tr><th>SKU</th><th>DESC</th><th>ESTATUS</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
+            
+            for item in grupo:
+                a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
+                html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='status-base {a_c}'>{item['Abasto']}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+            
+            html_content += "</tbody></table>"
+
+        # Renderizado final seguro
+        final_html = f"""
+        <div class='preview-container'>
+            <div class='preview-paper'>
+                <div class='preview-header'><h1 class='preview-title'>TOYOTA LOS FUERTES</h1></div>
+                {leyenda_html}
+                {html_content}
+                <div class='total-box'><div class='total-final'>TOTAL: ${total_preview:,.2f}</div></div>
+            </div>
+        </div>
+        """
+        st.markdown(final_html, unsafe_allow_html=True)
