@@ -93,6 +93,8 @@ st.markdown("""
     @keyframes snowflakes-fall { 0% { top: -10%; } 100% { top: 100%; } }
     @keyframes snowflakes-shake { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(80px); } }
     .snowflake:nth-of-type(0) { left: 1%; animation-delay: 0s, 0s; } .snowflake:nth-of-type(1) { left: 10%; animation-delay: 1s, 1s; } .snowflake:nth-of-type(2) { left: 20%; animation-delay: 6s, .5s; } .snowflake:nth-of-type(3) { left: 30%; animation-delay: 4s, 2s; }
+    /* Checkbox fix */
+    div[data-testid="stCheckbox"] { display: flex; align-items: center; justify-content: center; padding-top: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -167,7 +169,6 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
     else: desc = str(desc_raw)
     iva_monto = (precio_base * cant) * 0.16
     total_linea = (precio_base * cant) + iva_monto
-    # NOTA: Agregamos 'Seleccionado': True por defecto
     st.session_state.carrito.append({
         "SKU": sku, "Descripción": desc, "Prioridad": prioridad, "Abasto": abasto, "Tiempo Entrega": "",
         "Cantidad": cant, "Precio Base": precio_base, "Precio Unitario (c/IVA)": precio_base * 1.16,
@@ -179,7 +180,7 @@ def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_pr
 def toggle_nieve(): st.session_state.nieve_activa = not st.session_state.nieve_activa
 
 # ==========================================
-# 4. GENERADOR PDF (AGRUPADO POR PRIORIDAD)
+# 4. GENERADOR PDF (AGRUPADO)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -253,7 +254,7 @@ def generar_pdf():
             y_ini = pdf.get_y()
             pdf.cell(cols[0], 6, sku, 1, 0, 'C')
             x_desc = pdf.get_x()
-            pdf.multi_cell(cols[1], 6, desc[:35], 1, 'L') # Cortar desc si es muy larga
+            pdf.multi_cell(cols[1], 6, desc[:35], 1, 'L')
             pdf.set_xy(x_desc + cols[1], y_ini)
             
             pdf.cell(cols[2], 6, st_txt, 1, 0, 'C')
@@ -317,56 +318,66 @@ with st.sidebar:
 st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (Agrupado por Prioridad)")
 
 with st.expander("🔎 Agregar Ítems", expanded=True):
-    col_l, col_r = st.columns([1.2, 1])
-    with col_l:
-        q = st.text_input("Buscar SKU o Nombre", placeholder="Ej. Filtro...")
-        if q and df_db is not None:
-            mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1)
-            for _, row in df_db[mask].head(3).iterrows():
-                c1, c2 = st.columns([3, 1])
-                c1.markdown(f"**{row[col_sku_db]}**\n${row['PRECIO_NUM']:,.2f}")
-                c2.button("➕", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
-    with col_r:
-        with st.form("manual"):
-            m_sku = st.text_input("SKU Manual"); m_pr = st.number_input("Precio", 0.0)
-            if st.form_submit_button("Agregar"): agregar_item_callback(m_sku, "Item Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
+    # Restaurado: Selección de Tipo
+    tipo_add = st.radio("Tipo:", ["Refacción 🔧", "Mano de Obra 🛠️"], horizontal=True, label_visibility="collapsed")
+    
+    if tipo_add == "Refacción 🔧":
+        col_l, col_r = st.columns([1.2, 1])
+        with col_l:
+            q = st.text_input("Buscar SKU o Nombre", placeholder="Ej. Filtro...")
+            if q and df_db is not None:
+                mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1)
+                for _, row in df_db[mask].head(3).iterrows():
+                    c1, c2 = st.columns([3, 1])
+                    c1.markdown(f"**{row[col_sku_db]}**\n${row['PRECIO_NUM']:,.2f}")
+                    c2.button("➕", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
+        with col_r:
+            with st.form("manual"):
+                m_sku = st.text_input("SKU Manual"); m_pr = st.number_input("Precio", 0.0)
+                if st.form_submit_button("Agregar"): agregar_item_callback(m_sku, "Item Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
+    else:
+        # Lógica Mano de Obra
+        with st.form("form_mo"):
+            c1, c2, c3 = st.columns([2, 1, 1])
+            mo_desc = c1.text_input("Servicio", placeholder="Ej. Afinación...")
+            mo_hrs = c2.number_input("Horas", min_value=0.1, value=1.0)
+            mo_cost = c3.number_input("Costo/Hr", min_value=0.0, value=600.0)
+            if st.form_submit_button("Agregar MO"):
+                agregar_item_callback("MO-TALLER", f"{mo_desc} ({mo_hrs} hrs)", mo_hrs * mo_cost, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
+                st.rerun()
 
 st.divider(); st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
     # Funciones de actualización
-    def actualizar_cantidad(idx, delta):
-        st.session_state.carrito[idx]['Cantidad'] = max(1, st.session_state.carrito[idx]['Cantidad'] + delta)
+    def actualizar_cantidad_input(idx, key):
+        val = st.session_state[key]
+        st.session_state.carrito[idx]['Cantidad'] = val
         it = st.session_state.carrito[idx]
         it['IVA'] = (it['Precio Base'] * it['Cantidad']) * 0.16
         it['Importe Total'] = (it['Precio Base'] * it['Cantidad']) + it['IVA']
+    
     def eliminar_item(idx): st.session_state.carrito.pop(idx)
     def update_val(idx, k, w): st.session_state.carrito[idx][k] = st.session_state[w].replace("🔴 ", "").replace("🔵 ", "").replace("⚪ ", "").replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "").replace("⚠️ ", "")
     def update_chk(idx, k): st.session_state.carrito[idx]['Seleccionado'] = st.session_state[k]
 
     for i, item in enumerate(st.session_state.carrito):
-        # Asegurar clave Seleccionado
         if 'Seleccionado' not in item: item['Seleccionado'] = True
         
         with st.container(border=True):
-            # Layout con Checkbox a la izquierda
-            c_check, c_desc, c_tot, c_del = st.columns([0.2, 3, 1, 0.3])
+            # COLUMNA CHECKBOX AMPLIADA A 0.5
+            c_check, c_desc, c_tot, c_del = st.columns([0.5, 3, 1, 0.3])
             
-            # 1. Checkbox de Selección
             c_check.checkbox("", value=item['Seleccionado'], key=f"sel_{i}", on_change=update_chk, args=(i, f"sel_{i}"))
             
-            # 2. Detalles
             with c_desc: st.markdown(f"**{item['Descripción']}** | {item['SKU']}"); st.caption(f"Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
             
-            # 3. Total Item
             with c_tot: 
                 color_tot = "#eb0a1e" if item['Seleccionado'] else "#ccc"
                 st.markdown(f"<div style='text-align:right; color:{color_tot}; font-weight:bold;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
             
-            # 4. Eliminar
             c_del.button("🗑️", key=f"d_{i}", on_click=eliminar_item, args=(i,), type="tertiary")
             
-            # Controles Inferiores
             if item['Seleccionado']:
                 cp, cs, ct, cq = st.columns([1.3, 1.3, 1.5, 1.8])
                 idx_p = 0 if item['Prioridad']=="Urgente" else (2 if item['Prioridad']=="Bajo" else 1)
@@ -377,18 +388,13 @@ if st.session_state.carrito:
                 
                 ct.text_input("T.Ent", value=item['Tiempo Entrega'], key=f"t_{i}", label_visibility="collapsed", on_change=lambda idx=i: st.session_state.carrito[idx].update({'Tiempo Entrega': st.session_state[f"t_{idx}"]}))
                 
-                sc1, sc2, sc3 = cq.columns([1, 1, 1])
-                sc1.button("➖", key=f"m_{i}", on_click=actualizar_cantidad, args=(i, -1), use_container_width=True)
-                sc2.markdown(f"<div style='text-align:center; padding-top:5px;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
-                sc3.button("➕", key=f"pl_{i}", on_click=actualizar_cantidad, args=(i, 1), use_container_width=True)
+                # INPUT NUMÉRICO PARA CANTIDAD (Flechas)
+                cq.number_input("Cant", min_value=1, value=int(item['Cantidad']), step=1, key=f"qn_{i}", label_visibility="collapsed", on_change=actualizar_cantidad_input, args=(i, f"qn_{i}"))
             else:
                 st.caption("🚫 *Ítem excluido de la cotización*")
 
-    # Cálculos Totales (Solo activos)
     items_activos = [i for i in st.session_state.carrito if i.get('Seleccionado', True)]
     total_gral = sum(i['Importe Total'] for i in items_activos)
-    
-    # Alerta Bloqueante (Solo si items activos tienen warning)
     pendientes = [i for i in items_activos if "REVISAR" in str(i['Abasto'])]
     
     st.divider()
@@ -409,23 +415,16 @@ if st.session_state.carrito:
 if st.session_state.ver_preview and st.session_state.carrito:
     html_content = ""
     total_preview = 0
-    
-    # Loop Agrupado
     for prio in ['Urgente', 'Medio', 'Bajo']:
         grupo = [i for i in st.session_state.carrito if i.get('Seleccionado', True) and i['Prioridad'] == prio]
         if not grupo: continue
-        
         subtotal_html = sum(i['Importe Total'] for i in grupo)
         total_preview += subtotal_html
-        
-        # Header Grupo
         html_content += f"<div class='group-header'><span>{prio}</span><span>SUB: ${subtotal_html:,.2f}</span></div>"
         html_content += "<table class='custom-table'><thead><tr><th>SKU</th><th>DESC</th><th>ABASTO</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
-        
         for item in grupo:
             a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
             html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='status-base {a_c}'>{item['Abasto']}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
-        
         html_content += "</tbody></table>"
 
     st.markdown(f"""
