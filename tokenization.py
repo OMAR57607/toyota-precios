@@ -105,14 +105,7 @@ st.markdown("""
     .badge-urg { background: #d32f2f; } .badge-med { background: #1565C0; } .badge-baj { background: #424242; }
     .status-base { padding: 4px 8px; font-weight: 900; font-size: 10px; display: inline-block; text-transform: uppercase; border-radius: 3px;}
     .status-disp { color: #fff !important; background: #2E7D32; } .status-ped { color: #000 !important; background: #FFD600; } .status-bo { color: #fff !important; background: #000; }
-    
-    /* ETIQUETA ESTATICA DE SERVICIO (TIPO BADGE) */
-    .static-badge {
-        background-color: #e0e0e0; color: #444; padding: 6px 12px; 
-        border-radius: 4px; font-weight: 800; font-size: 11px; 
-        text-align: center; display: block; margin-top: 5px;
-        border: 1px solid #ccc;
-    }
+    .static-badge { background-color: #e0e0e0; color: #444; padding: 6px 12px; border-radius: 4px; font-weight: 800; font-size: 11px; text-align: center; display: block; margin-top: 5px; border: 1px solid #ccc; }
 
     div[data-testid="stCheckbox"] { display: flex; align-items: center; justify-content: center; padding-top: 25px; }
     </style>
@@ -206,7 +199,7 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF
+# 4. GENERADOR PDF (SEPARACIÓN MO Y REF)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -226,7 +219,7 @@ class PDF(FPDF):
             "1. PRECIOS: En Moneda Nacional (MXN) con IVA incluido (Art. 7 LFPC). Válido por 24 horas.\n"
             "2. GARANTÍA: 12 meses o 20,000 km en refacciones instaladas en taller (Art. 77 LFPC). "
             "Partes eléctricas sujetas a diagnóstico.\n"
-            "3. PEDIDOS: Requieren 100% anticipo.\n"
+            "3. PEDIDOS: Requieren 100% anticipo. Cancelaciones imputables al cliente aplican pena del 20%.\n"
             "4. CLÁUSULAS: Este contrato NO contiene cláusulas abusivas, inequitativas o desproporcionadas (Art. 85 LFPC).\n"
             "5. ACEPTACIÓN: La firma o confirmación vía electrónica (WhatsApp/Correo) constituye aceptación total."
         )
@@ -240,63 +233,144 @@ def generar_pdf():
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=80)
+    
     cli_safe = str(st.session_state.cliente).encode('latin-1', 'replace').decode('latin-1')
     vin_safe = str(st.session_state.vin).encode('latin-1', 'replace').decode('latin-1')
     ord_safe = str(st.session_state.orden).encode('latin-1', 'replace').decode('latin-1')
+    
     pdf.set_text_color(0,0,0); pdf.set_font('Arial', 'B', 10)
     pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(100, 5, cli_safe[:60], 0, 0)
     pdf.set_font('Arial', 'B', 10); pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
     pdf.cell(20, 5, 'VIN:', 0, 0); pdf.cell(100, 5, vin_safe, 0, 0)
     pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.cell(40, 5, ord_safe, 0, 1)
     pdf.ln(5)
+
     items_activos = [i for i in st.session_state.carrito if i.get('Seleccionado', True)]
+    
+    # SEPARAR ITEMS: Refacciones vs Mano de Obra
+    refacciones = [i for i in items_activos if i['Tipo'] != "Mano de Obra"]
+    mano_obra = [i for i in items_activos if i['Tipo'] == "Mano de Obra"]
+    
     orden_prioridad = ['Urgente', 'Medio', 'Bajo']
-    cols = [20, 55, 18, 25, 10, 20, 17, 20]
+    cols = [20, 55, 18, 25, 10, 20, 17, 20] 
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'ESTATUS', 'T.ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
+
     total_gral_pdf = 0; hay_pedido = False; hay_backorder = False
-    for prio in orden_prioridad:
-        grupo = [i for i in items_activos if i['Prioridad'] == prio]
-        if not grupo: continue
-        pdf.ln(2)
-        if prio == "Urgente": pdf.set_fill_color(211, 47, 47) 
-        elif prio == "Medio": pdf.set_fill_color(25, 118, 210)
-        else: pdf.set_fill_color(117, 117, 117)
-        pdf.set_font('Arial', 'B', 9); pdf.set_text_color(255, 255, 255)
-        pdf.cell(0, 6, f" {prio.upper()} ", 0, 1, 'L', True)
+
+    # --- 1. IMPRIMIR REFACCIONES ---
+    if refacciones:
+        for prio in orden_prioridad:
+            grupo = [i for i in refacciones if i['Prioridad'] == prio]
+            if not grupo: continue
+
+            pdf.ln(2)
+            if prio == "Urgente": pdf.set_fill_color(211, 47, 47) 
+            elif prio == "Medio": pdf.set_fill_color(25, 118, 210)
+            else: pdf.set_fill_color(117, 117, 117)
+            
+            pdf.set_font('Arial', 'B', 9); pdf.set_text_color(255, 255, 255)
+            pdf.cell(0, 6, f" REFACCIONES - {prio.upper()} ", 0, 1, 'L', True)
+            
+            pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
+            for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
+            pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
+
+            subtotal_grupo = 0
+            for item in grupo:
+                subtotal_grupo += item['Importe Total']
+                if "Pedido" in item['Abasto'] or "Back" in item['Abasto']: hay_pedido = True
+                if "Back" in item['Abasto']: hay_backorder = True
+                
+                sku = item['SKU'][:15]
+                desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
+                st_txt = item['Abasto'].replace("⚠️ ", "").replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "")
+                
+                col_desc_w = cols[1] - 2
+                text_len = pdf.get_string_width(desc)
+                lines_needed = int(math.ceil(text_len / col_desc_w))
+                lines_needed = max(1, lines_needed)
+                row_height = max(6, lines_needed * 4)
+                
+                if pdf.get_y() + row_height > 250:
+                    pdf.add_page()
+                    pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
+                    for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
+                    pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
+
+                y_start = pdf.get_y(); x_start = pdf.get_x()
+                pdf.cell(cols[0], row_height, sku, 1, 0, 'C')
+                x_desc = pdf.get_x()
+                pdf.multi_cell(cols[1], 4, desc, 1, 'L')
+                pdf.set_xy(x_desc + cols[1], y_start)
+                
+                if "Disponible" in item['Abasto']: pdf.set_fill_color(200, 230, 201)
+                elif "Pedido" in item['Abasto']: pdf.set_fill_color(255, 224, 178)
+                elif "Back" in item['Abasto']: pdf.set_fill_color(33, 33, 33); pdf.set_text_color(255, 255, 255)
+                else: pdf.set_fill_color(255, 205, 210)
+
+                pdf.cell(cols[2], row_height, st_txt, 1, 0, 'C', True)
+                pdf.set_text_color(0, 0, 0)
+                pdf.cell(cols[3], row_height, str(item['Tiempo Entrega'])[:12], 1, 0, 'C')
+                pdf.cell(cols[4], row_height, str(item['Cantidad']), 1, 0, 'C')
+                pdf.cell(cols[5], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
+                pdf.cell(cols[6], row_height, f"${item['IVA']/item['Cantidad']:,.2f}", 1, 0, 'R')
+                pdf.cell(cols[7], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
+
+            pdf.set_font('Arial', 'B', 8)
+            pdf.cell(165, 5, f"SUBTOTAL REFACCIONES ({prio.upper()}):", 0, 0, 'R')
+            pdf.cell(20, 5, f"${subtotal_grupo:,.2f}", 1, 1, 'R')
+            total_gral_pdf += subtotal_grupo
+
+    # --- 2. IMPRIMIR MANO DE OBRA (SIEMPRE APARTE) ---
+    if mano_obra:
+        pdf.ln(4)
+        pdf.set_fill_color(50, 50, 50); pdf.set_font('Arial', 'B', 9); pdf.set_text_color(255, 255, 255)
+        pdf.cell(0, 6, " MANO DE OBRA / SERVICIOS ", 0, 1, 'L', True)
+        
         pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
         for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
         pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
-        subtotal_grupo = 0
-        for item in grupo:
-            subtotal_grupo += item['Importe Total']
-            if "Pedido" in item['Abasto'] or "Back" in item['Abasto']: hay_pedido = True
-            if "Back" in item['Abasto']: hay_backorder = True
-            sku = item['SKU'][:15]; desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
-            st_txt = item['Abasto'].replace("⚠️ ", "").replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "")
-            col_desc_w = cols[1] - 2; text_len = pdf.get_string_width(desc)
-            lines_needed = int(math.ceil(text_len / col_desc_w)); lines_needed = max(1, lines_needed)
+        
+        subtotal_mo = 0
+        for item in mano_obra:
+            subtotal_mo += item['Importe Total']
+            
+            sku = item['SKU'][:15]
+            desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
+            
+            col_desc_w = cols[1] - 2
+            text_len = pdf.get_string_width(desc)
+            lines_needed = int(math.ceil(text_len / col_desc_w))
+            lines_needed = max(1, lines_needed)
             row_height = max(6, lines_needed * 4)
+            
             if pdf.get_y() + row_height > 250:
-                pdf.add_page(); pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
+                pdf.add_page()
+                pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
                 for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
                 pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
+
             y_start = pdf.get_y(); x_start = pdf.get_x()
             pdf.cell(cols[0], row_height, sku, 1, 0, 'C')
-            x_desc = pdf.get_x(); pdf.multi_cell(cols[1], 4, desc, 1, 'L'); pdf.set_xy(x_desc + cols[1], y_start)
-            if "Disponible" in item['Abasto']: pdf.set_fill_color(200, 230, 201)
-            elif "Pedido" in item['Abasto']: pdf.set_fill_color(255, 224, 178)
-            elif "Back" in item['Abasto']: pdf.set_fill_color(33, 33, 33); pdf.set_text_color(255, 255, 255)
-            else: pdf.set_fill_color(255, 205, 210)
-            pdf.cell(cols[2], row_height, st_txt, 1, 0, 'C', True); pdf.set_text_color(0, 0, 0)
-            pdf.cell(cols[3], row_height, str(item['Tiempo Entrega'])[:12], 1, 0, 'C')
-            pdf.cell(cols[4], row_height, str(item['Cantidad']), 1, 0, 'C')
+            x_desc = pdf.get_x()
+            pdf.multi_cell(cols[1], 4, desc, 1, 'L')
+            pdf.set_xy(x_desc + cols[1], y_start)
+            
+            # Estatus fijo para MO
+            pdf.set_fill_color(230, 230, 230)
+            pdf.cell(cols[2], row_height, "SERVICIO", 1, 0, 'C', True)
+            
+            pdf.cell(cols[3], row_height, "-", 1, 0, 'C')
+            pdf.cell(cols[4], row_height, "1", 1, 0, 'C')
             pdf.cell(cols[5], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
             pdf.cell(cols[6], row_height, f"${item['IVA']/item['Cantidad']:,.2f}", 1, 0, 'R')
             pdf.cell(cols[7], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
+
         pdf.set_font('Arial', 'B', 8)
-        pdf.cell(165, 5, f"SUBTOTAL {prio.upper()}:", 0, 0, 'R')
-        pdf.cell(20, 5, f"${subtotal_grupo:,.2f}", 1, 1, 'R')
-        total_gral_pdf += subtotal_grupo
+        pdf.cell(165, 5, f"SUBTOTAL MANO DE OBRA:", 0, 0, 'R')
+        pdf.cell(20, 5, f"${subtotal_mo:,.2f}", 1, 1, 'R')
+        total_gral_pdf += subtotal_mo
+
     pdf.ln(5)
     if hay_pedido: 
         pdf.set_text_color(230, 81, 0); pdf.set_font('Arial', 'B', 9)
@@ -304,6 +378,7 @@ def generar_pdf():
     if hay_backorder:
         pdf.set_text_color(183, 28, 28); pdf.set_font('Arial', 'B', 9)
         pdf.cell(0, 4, "(!) REFACCIONES EN BACK ORDER: CONSULTAR TIEMPO DE ESPERA CON ASESOR", 0, 1, 'R')
+
     pdf.ln(5); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 14)
     pdf.cell(145, 10, 'GRAN TOTAL (IVA INCLUIDO):', 0, 0, 'R')
     pdf.cell(45, 10, f"${total_gral_pdf:,.2f}", 0, 1, 'R')
@@ -420,7 +495,6 @@ if st.session_state.carrito:
             
             with c_desc:
                 if item['Tipo'] == "Mano de Obra":
-                    # TARJETA MO GRANDE Y NEGRITA
                     st.markdown(f"<h3 style='color:#000; margin:0; padding:0; font-size:18px;'>🛠️ {item['Descripción']}</h3>", unsafe_allow_html=True)
                     st.caption("Servicio de Taller")
                 else:
@@ -434,7 +508,6 @@ if st.session_state.carrito:
             if item['Seleccionado']:
                 cp, cs, ct, cq = st.columns([1.3, 1.3, 1.5, 1.8])
                 if item['Tipo'] == "Mano de Obra":
-                    # LIMPIEZA TOTAL PARA MO
                     cp.markdown("<div class='static-badge'>SERVICIO</div>", unsafe_allow_html=True)
                     cs.markdown("<div class='static-badge'>TALLER</div>", unsafe_allow_html=True)
                     ct.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold; color:#444;'>{item['Tiempo Entrega'] or '-'}</div>", unsafe_allow_html=True)
@@ -473,15 +546,26 @@ if st.session_state.ver_preview:
         html_content = ""; total_preview = 0
         leyenda_html = "<div class='legend-bar'><span>LEYENDA:</span><span class='badge-base badge-urg'>URGENTE (Rojo)</span><span class='badge-base badge-med'>MEDIO (Azul)</span><span class='badge-base badge-baj'>BAJO (Gris)</span><span style='margin-left:10px;'>|</span><span class='status-base status-disp'>DISPONIBLE</span><span class='status-base status-ped'>POR PEDIDO</span><span class='status-base status-bo'>BACK ORDER</span></div>"
         
-        for prio in ['Urgente', 'Medio', 'Bajo']:
-            grupo = [i for i in st.session_state.carrito if i.get('Seleccionado', True) and i['Prioridad'] == prio]
-            if not grupo: continue
-            subtotal_html = sum(i['Importe Total'] for i in grupo); total_preview += subtotal_html
-            html_content += f"<div class='group-header'><span>{prio}</span><span>SUB: ${subtotal_html:,.2f}</span></div><table class='custom-table'><thead><tr><th>SKU</th><th>DESC</th><th>ESTATUS</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
-            for item in grupo:
-                a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
-                status_html = f"<span class='status-base {a_c}'>{item['Abasto']}</span>" if item['Tipo'] != "Mano de Obra" else "<span class='static-badge'>SERVICIO</span>"
-                html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td>{status_html}</td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+        # 1. MOSTRAR REFACCIONES PRIMERO
+        refacciones_view = [i for i in st.session_state.carrito if i.get('Seleccionado', True) and i['Tipo'] != "Mano de Obra"]
+        if refacciones_view:
+            for prio in ['Urgente', 'Medio', 'Bajo']:
+                grupo = [i for i in refacciones_view if i['Prioridad'] == prio]
+                if not grupo: continue
+                subtotal_html = sum(i['Importe Total'] for i in grupo); total_preview += subtotal_html
+                html_content += f"<div class='group-header'><span>REFACCIONES - {prio}</span><span>SUB: ${subtotal_html:,.2f}</span></div><table class='custom-table'><thead><tr><th>SKU</th><th>DESC</th><th>ESTATUS</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
+                for item in grupo:
+                    a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
+                    html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='status-base {a_c}'>{item['Abasto']}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+                html_content += "</tbody></table>"
+
+        # 2. MOSTRAR MANO DE OBRA AL FINAL
+        mo_view = [i for i in st.session_state.carrito if i.get('Seleccionado', True) and i['Tipo'] == "Mano de Obra"]
+        if mo_view:
+            subtotal_mo = sum(i['Importe Total'] for i in mo_view); total_preview += subtotal_mo
+            html_content += f"<div class='group-header' style='border-left: 8px solid #333;'><span>MANO DE OBRA</span><span>SUB: ${subtotal_mo:,.2f}</span></div><table class='custom-table'><thead><tr><th>CÓDIGO</th><th>SERVICIO</th><th>TIPO</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
+            for item in mo_view:
+                html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='status-base' style='background:#e0e0e0; color:#333;'>SERVICIO</span></td><td style='text-align:center'>1</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
             html_content += "</tbody></table>"
 
         final_html = f"<div class='preview-container'><div class='preview-paper'><div class='preview-header'><h1 class='preview-title'>TOYOTA LOS FUERTES</h1></div>{leyenda_html}{html_content}<div class='total-box'><div class='total-final'>TOTAL: ${total_preview:,.2f}</div></div></div></div>"
