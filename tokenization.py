@@ -45,43 +45,50 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (ADAPTATIVO Y ALTO CONTRASTE)
+# 2. ESTILOS CSS (EXPERIENCIA DE USUARIO ÁGIL Y UNIFICADA)
 # ==========================================
 st.markdown("""
     <style>
-    /* Texto General: Negrita para alto contraste pero adaptativo al tema (Blanco/Negro según sistema) */
-    .stMarkdown, .stTextInput, .stNumberInput, .stSelectbox, p, label {
+    /* Texto General: Alto contraste adaptativo */
+    .stMarkdown, .stTextInput, .stNumberInput, .stSelectbox, p, label, div {
         font-weight: 600 !important;
+        font-size: 14px !important;
     }
 
-    /* Botón Rojo Toyota - Muy Llamativo */
-    .stButton button[kind="primary"] {
-        background-color: #eb0a1e !important;
+    /* ESTILO UNIFICADO DE BOTONES (ÁGIL Y OPTIMIZADO) */
+    /* Aplica a botones de formularios y botones normales */
+    div.stButton > button, div[data-testid="stForm"] button {
+        background-color: #eb0a1e !important; /* ROJO TOYOTA */
         color: white !important;
+        border: none !important;
         font-weight: 900 !important;
-        border: 2px solid white;
-        font-size: 16px !important;
-        padding: 0.8rem 1rem;
         text-transform: uppercase;
-        box-shadow: 0 4px 10px rgba(235, 10, 30, 0.4);
-    }
-    .stButton button[kind="primary"]:hover {
-        background-color: #b70014 !important;
-        transform: scale(1.02);
+        letter-spacing: 1px;
+        width: 100%; /* Botón ancho para clic rápido */
+        padding: 0.7rem 1rem;
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: all 0.2s ease-in-out;
     }
 
-    /* WhatsApp Button */
+    /* Efecto Hover para todos los botones */
+    div.stButton > button:hover, div[data-testid="stForm"] button:hover {
+        background-color: #b70014 !important; /* Rojo más oscuro */
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    /* WhatsApp Button Específico */
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
         background-color: #25D366; color: white !important;
-        padding: 0.6rem 1rem; border-radius: 8px; text-decoration: none;
+        padding: 0.8rem 1rem; border-radius: 8px; text-decoration: none;
         font-weight: 900; width: 100%; margin-top: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s ease;
-        text-shadow: 1px 1px 2px black;
+        text-shadow: 1px 1px 2px black; text-transform: uppercase;
     }
     .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); }
 
-    /* VISTA PREVIA (Siempre Papel Blanco / Texto Negro) */
+    /* VISTA PREVIA (Papel Blanco / Texto Negro) */
     .preview-container { background-color: #333; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; border: 2px solid #555; }
     .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 0 15px rgba(0,0,0,0.5); font-family: 'Helvetica', 'Arial', sans-serif; }
     
@@ -253,7 +260,7 @@ def generar_pdf():
         
         # Encabezado Tabla Alto Contraste
         pdf.set_fill_color(235, 10, 30); pdf.set_text_color(255, 255, 255); pdf.set_font('Arial', 'B', 7)
-        for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True) # Borde añadido
+        for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
         pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
 
         subtotal_grupo = 0
@@ -280,12 +287,12 @@ def generar_pdf():
 
         pdf.set_font('Arial', 'B', 8)
         pdf.cell(165, 5, f"SUBTOTAL {prio.upper()}:", 0, 0, 'R')
-        pdf.cell(20, 5, f"${subtotal_grupo:,.2f}", 1, 1, 'R') # Borde añadido
+        pdf.cell(20, 5, f"${subtotal_grupo:,.2f}", 1, 1, 'R')
         total_gral_pdf += subtotal_grupo
 
     pdf.ln(5)
     if hay_pedido: 
-        pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 9) # Negro
+        pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 9)
         pdf.cell(0, 4, "** REQUIERE ANTICIPO DEL 100% POR PIEZAS DE PEDIDO **", 0, 1, 'R')
     
     # TOTAL EN NEGRITAS Y GRANDE
@@ -309,7 +316,7 @@ with st.sidebar:
     st.session_state.asesor = st.text_input("Asesor", st.session_state.asesor)
     st.divider(); st.markdown("### 🤖 Carga Inteligente")
     uploaded_file = st.file_uploader("Excel / CSV", type=['xlsx', 'csv'], label_visibility="collapsed")
-    if uploaded_file and st.button("Analizar Archivo", type="primary"):
+    if uploaded_file and st.button("Analizar Archivo"):
         try:
             df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             items, meta = analizador_inteligente_archivos(df_up)
@@ -325,45 +332,52 @@ with st.sidebar:
             st.rerun()
         except: st.error("Error al procesar archivo.")
     st.divider()
-    if st.button("🗑️ Limpieza Total", type="secondary", use_container_width=True): limpiar_todo(); st.rerun()
+    if st.button("🗑️ Limpieza Total"): limpiar_todo(); st.rerun()
 
-st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (Modo Adaptativo)")
+st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (Estilo Unificado)")
 
-# SECCIÓN DE AGREGAR ÍTEMS (PESTAÑAS EN LA MISMA ÁREA)
-with st.expander("🔎 AGREGAR CONCEPTOS", expanded=True):
-    # Uso de TABS para mantener todo junto pero organizado
-    tab_ref, tab_mo = st.tabs(["🔩 REFACCIONES (BUSCAR/MANUAL)", "🛠️ MANO DE OBRA"])
+# SECCIÓN DE AGREGAR ÍTEMS - EXPERIENCIA UNIFICADA
+with st.expander("🔎 AÑADIR CONCEPTOS (Búsqueda / Manual / Mano de Obra)", expanded=True):
+    # Tabs para organizar, pero con estilos unificados
+    tab1, tab2, tab3 = st.tabs(["CATÁLOGO", "MANUAL", "MANO DE OBRA"])
     
-    with tab_ref:
-        col_bus, col_man = st.columns([1.5, 1], gap="medium")
-        with col_bus:
-            st.markdown("##### 🔎 Buscar en Catálogo")
-            q = st.text_input("Buscar SKU o Nombre", placeholder="Ej. Filtro, Balata...")
-            if q and df_db is not None:
-                mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1)
-                for _, row in df_db[mask].head(3).iterrows():
-                    c1, c2 = st.columns([3, 1])
-                    c1.markdown(f"**{row[col_sku_db]}**\n${row['PRECIO_NUM']:,.2f}")
-                    c2.button("➕ Agregar", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
-        
-        with col_man:
-            st.markdown("##### ✍️ Refacción Manual")
-            with st.form("manual_ref"):
-                m_sku = st.text_input("SKU")
-                m_pr = st.number_input("Precio Unitario", 0.0)
-                if st.form_submit_button("Agregar Manual"): 
-                    agregar_item_callback(m_sku, "Refacción Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
-    
-    with tab_mo:
-        st.markdown("##### 🛠️ Agregar Mano de Obra ($600/hr)")
+    # TAB 1: CATÁLOGO
+    with tab1:
+        c_search, c_btn = st.columns([3, 1])
+        q = c_search.text_input("Buscar Refacción", placeholder="Nombre o SKU...", label_visibility="collapsed")
+        if q and df_db is not None:
+            mask = df_db.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1)
+            results = df_db[mask].head(3)
+            if not results.empty:
+                for _, row in results.iterrows():
+                    rc1, rc2, rc3 = st.columns([2, 1, 1])
+                    rc1.markdown(f"**{row[col_sku_db]}**")
+                    rc2.markdown(f"${row['PRECIO_NUM']:,.2f}")
+                    # Botón ROJO UNIFICADO
+                    rc3.button("AGREGAR", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
+            else:
+                st.info("Sin resultados.")
+
+    # TAB 2: MANUAL
+    with tab2:
+        with st.form("manual_ref"):
+            c_m1, c_m2, c_m3 = st.columns([1.5, 1, 1])
+            m_sku = c_m1.text_input("SKU / Código")
+            m_pr = c_m2.number_input("Precio", 0.0)
+            # Botón ROJO UNIFICADO
+            c_m3.markdown("<br>", unsafe_allow_html=True)
+            if c_m3.form_submit_button("AGREGAR MANUAL"): 
+                agregar_item_callback(m_sku, "Refacción Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
+
+    # TAB 3: MANO DE OBRA ($600/hr)
+    with tab3:
         with st.form("form_mo"):
-            c_desc, c_hrs = st.columns([3, 1])
-            mo_desc = c_desc.text_input("Descripción del Servicio", placeholder="Ej. Afinación Mayor, Cambio de Balatas...")
-            mo_hrs = c_hrs.number_input("Horas Requeridas", min_value=0.1, value=1.0, step=0.1)
-            
-            # BOTÓN ROJO MUY LLAMATIVO
-            if st.form_submit_button("🔴 AGREGAR MANO DE OBRA", type="primary"):
-                # Precio fijo 600
+            c_mo1, c_mo2, c_mo3 = st.columns([2, 1, 1])
+            mo_desc = c_mo1.text_input("Servicio", placeholder="Ej. Afinación")
+            mo_hrs = c_mo2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
+            # Botón ROJO UNIFICADO
+            c_mo3.markdown("<br>", unsafe_allow_html=True)
+            if c_mo3.form_submit_button("AGREGAR M.O."):
                 costo_mo = 600.0 * mo_hrs
                 agregar_item_callback("MO-TALLER", f"{mo_desc} ({mo_hrs} hrs @ $600)", costo_mo, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
                 st.rerun()
@@ -371,7 +385,7 @@ with st.expander("🔎 AGREGAR CONCEPTOS", expanded=True):
 st.divider(); st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
-    # Funciones
+    # Funciones Auxiliares
     def actualizar_cantidad_input(idx, key):
         val = st.session_state[key]
         st.session_state.carrito[idx]['Cantidad'] = val
@@ -391,7 +405,6 @@ if st.session_state.carrito:
             
             with c_desc: st.markdown(f"**{item['Descripción']}** | {item['SKU']}"); st.caption(f"Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
             with c_tot: 
-                # Texto se adapta al tema (negro en claro, blanco en oscuro) a menos que esté inactivo
                 color_tot = "inherit" if item['Seleccionado'] else "#888" 
                 st.markdown(f"<div style='text-align:right; color:{color_tot}; font-weight:900;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
             c_del.button("🗑️", key=f"d_{i}", on_click=eliminar_item, args=(i,), type="tertiary")
@@ -417,10 +430,10 @@ if st.session_state.carrito:
     else:
         c1, c2, c3 = st.columns(3)
         with c1: 
-            if st.button("👁️ Vista Previa", use_container_width=True): toggle_preview(); st.rerun()
+            if st.button("👁️ Vista Previa"): toggle_preview(); st.rerun()
         with c2: 
             if items_activos:
-                st.download_button("📄 Generar PDF", generar_pdf(), f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary", use_container_width=True)
+                st.download_button("📄 Generar PDF", generar_pdf(), f"Cot_{st.session_state.orden}.pdf", "application/pdf")
         with c3:
             msg = urllib.parse.quote(f"Hola {st.session_state.cliente},\nCotización Toyota: ${total_gral:,.2f}")
             st.markdown(f'<a href="https://wa.me/?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
