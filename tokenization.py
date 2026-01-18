@@ -28,7 +28,8 @@ def init_session():
         'orden': "",
         'asesor': "",
         'ver_preview': False,
-        'nieve_activa': False
+        'nieve_activa': False,
+        'mensaje_exito': "" # Para notificaciones post-recarga
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -42,6 +43,7 @@ def limpiar_todo():
     st.session_state.asesor = ""
     st.session_state.ver_preview = False
     st.session_state.nieve_activa = False
+    st.session_state.mensaje_exito = ""
 
 init_session()
 
@@ -199,7 +201,7 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF (ROBUSTO)
+# 4. GENERADOR PDF (ROBUSTO Y SIN ENCIAMIENTOS)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -210,6 +212,7 @@ class PDF(FPDF):
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
         self.set_font('Arial', '', 10); self.set_text_color(0)
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
+    
     def footer(self):
         self.set_y(-75)
         self.set_font('Arial', 'B', 7); self.set_text_color(0)
@@ -233,66 +236,88 @@ def generar_pdf():
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=80)
+    
     cli_safe = str(st.session_state.cliente).encode('latin-1', 'replace').decode('latin-1')
     vin_safe = str(st.session_state.vin).encode('latin-1', 'replace').decode('latin-1')
     ord_safe = str(st.session_state.orden).encode('latin-1', 'replace').decode('latin-1')
+    
     pdf.set_text_color(0,0,0); pdf.set_font('Arial', 'B', 10)
     pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(100, 5, cli_safe[:60], 0, 0)
     pdf.set_font('Arial', 'B', 10); pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
     pdf.cell(20, 5, 'VIN:', 0, 0); pdf.cell(100, 5, vin_safe, 0, 0)
     pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.cell(40, 5, ord_safe, 0, 1)
     pdf.ln(5)
+
     items_activos = [i for i in st.session_state.carrito if i.get('Seleccionado', True)]
     orden_prioridad = ['Urgente', 'Medio', 'Bajo']
-    cols = [20, 55, 18, 25, 10, 20, 17, 20]
+    cols = [20, 55, 18, 25, 10, 20, 17, 20] 
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'ESTATUS', 'T.ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
+
     total_gral_pdf = 0; hay_pedido = False; hay_backorder = False
+
     for prio in orden_prioridad:
         grupo = [i for i in items_activos if i['Prioridad'] == prio]
         if not grupo: continue
+
         pdf.ln(2)
         if prio == "Urgente": pdf.set_fill_color(211, 47, 47) 
         elif prio == "Medio": pdf.set_fill_color(25, 118, 210)
         else: pdf.set_fill_color(117, 117, 117)
+        
         pdf.set_font('Arial', 'B', 9); pdf.set_text_color(255, 255, 255)
         pdf.cell(0, 6, f" {prio.upper()} ", 0, 1, 'L', True)
+        
         pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
         for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
         pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
+
         subtotal_grupo = 0
         for item in grupo:
             subtotal_grupo += item['Importe Total']
             if "Pedido" in item['Abasto'] or "Back" in item['Abasto']: hay_pedido = True
             if "Back" in item['Abasto']: hay_backorder = True
+            
             sku = item['SKU'][:15]
             desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
             st_txt = item['Abasto'].replace("⚠️ ", "").replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "")
+            
+            # --- CORRECCIÓN ENCIAMIENTO ---
             col_desc_w = cols[1] - 2
             text_len = pdf.get_string_width(desc)
-            lines_needed = int(math.ceil(text_len / col_desc_w)); lines_needed = max(1, lines_needed)
+            lines_needed = int(math.ceil(text_len / col_desc_w))
+            lines_needed = max(1, lines_needed)
             row_height = max(6, lines_needed * 4)
+            
             if pdf.get_y() + row_height > 250:
                 pdf.add_page()
                 pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
                 for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
                 pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
+
             y_start = pdf.get_y(); x_start = pdf.get_x()
             pdf.cell(cols[0], row_height, sku, 1, 0, 'C')
-            x_desc = pdf.get_x(); pdf.multi_cell(cols[1], 4, desc, 1, 'L'); pdf.set_xy(x_desc + cols[1], y_start)
+            x_desc = pdf.get_x()
+            pdf.multi_cell(cols[1], 4, desc, 1, 'L')
+            pdf.set_xy(x_desc + cols[1], y_start)
+            
             if "Disponible" in item['Abasto']: pdf.set_fill_color(200, 230, 201)
             elif "Pedido" in item['Abasto']: pdf.set_fill_color(255, 224, 178)
             elif "Back" in item['Abasto']: pdf.set_fill_color(33, 33, 33); pdf.set_text_color(255, 255, 255)
             else: pdf.set_fill_color(255, 205, 210)
-            pdf.cell(cols[2], row_height, st_txt, 1, 0, 'C', True); pdf.set_text_color(0, 0, 0)
+
+            pdf.cell(cols[2], row_height, st_txt, 1, 0, 'C', True)
+            pdf.set_text_color(0, 0, 0)
             pdf.cell(cols[3], row_height, str(item['Tiempo Entrega'])[:12], 1, 0, 'C')
             pdf.cell(cols[4], row_height, str(item['Cantidad']), 1, 0, 'C')
             pdf.cell(cols[5], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
             pdf.cell(cols[6], row_height, f"${item['IVA']/item['Cantidad']:,.2f}", 1, 0, 'R')
             pdf.cell(cols[7], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
+
         pdf.set_font('Arial', 'B', 8)
         pdf.cell(165, 5, f"SUBTOTAL {prio.upper()}:", 0, 0, 'R')
         pdf.cell(20, 5, f"${subtotal_grupo:,.2f}", 1, 1, 'R')
         total_gral_pdf += subtotal_grupo
+
     pdf.ln(5)
     if hay_pedido: 
         pdf.set_text_color(230, 81, 0); pdf.set_font('Arial', 'B', 9)
@@ -300,15 +325,28 @@ def generar_pdf():
     if hay_backorder:
         pdf.set_text_color(183, 28, 28); pdf.set_font('Arial', 'B', 9)
         pdf.cell(0, 4, "(!) REFACCIONES EN BACK ORDER: CONSULTAR TIEMPO DE ESPERA CON ASESOR", 0, 1, 'R')
-    pdf.ln(2); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 14)
-    pdf.cell(165, 10, 'GRAN TOTAL:', 0, 0, 'R')
-    pdf.cell(20, 10, f"${total_gral_pdf:,.2f}", 0, 1, 'R')
+
+    pdf.ln(5)
+    # --- CORRECCIÓN ENCIAMIENTO TOTAL ---
+    # Usar celdas con ancho suficiente y posiciones claras
+    pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 14)
+    # Etiqueta
+    pdf.cell(145, 10, 'GRAN TOTAL (IVA INCLUIDO):', 0, 0, 'R')
+    # Valor
+    pdf.cell(45, 10, f"${total_gral_pdf:,.2f}", 0, 1, 'R')
+    
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
 # 5. UI PRINCIPAL
 # ==========================================
 if df_db is None: st.warning(f"⚠️ Atención: No se encontró base de datos.")
+
+# Mostrar mensaje de éxito si existe en sesión
+if st.session_state.mensaje_exito:
+    st.success(st.session_state.mensaje_exito)
+    st.toast(st.session_state.mensaje_exito, icon="✅")
+    st.session_state.mensaje_exito = "" # Limpiar tras mostrar
 
 with st.sidebar:
     if os.path.exists("logo.png"): st.image("logo.png", use_container_width=True)
@@ -328,16 +366,13 @@ with st.sidebar:
                 df_dict = pd.read_excel(uploaded_file, sheet_name=None)
             
             found_total = 0
-            # FIX: Priorizar hoja "RESUMEN_DATOS" y NO duplicar
             target_df = None
             if 'RESUMEN_DATOS' in df_dict:
                 target_df = df_dict['RESUMEN_DATOS']
             else:
-                # Si no existe, tomar la primera hoja disponible
                 first_sheet = list(df_dict.keys())[0]
                 target_df = df_dict[first_sheet]
             
-            # Procesar SOLO la hoja objetivo
             items, meta = analizador_inteligente_archivos(target_df)
             
             if 'CLIENTE' in meta and not st.session_state.cliente: st.session_state.cliente = meta['CLIENTE']
@@ -354,7 +389,7 @@ with st.sidebar:
                         found_total += 1
             
             if found_total > 0:
-                st.success(f"✅ Se importaron {found_total} partidas de la hoja seleccionada.")
+                st.session_state.mensaje_exito = f"✅ Se importaron {found_total} partidas exitosamente."
                 st.rerun()
             else:
                 st.warning("⚠️ No se detectaron números de parte válidos.")
@@ -420,27 +455,33 @@ if st.session_state.carrito:
         with st.container(border=True):
             c_check, c_desc, c_tot, c_del = st.columns([0.5, 3, 1, 0.3])
             c_check.checkbox("", value=item['Seleccionado'], key=f"sel_{i}", on_change=update_chk, args=(i, f"sel_{i}"))
-            with c_desc: st.markdown(f"**{item['Descripción']}** | {item['SKU']}"); st.caption(f"Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
+            
+            with c_desc:
+                # MANO DE OBRA: Texto Grande y Diferente
+                if item['Tipo'] == "Mano de Obra":
+                    st.markdown(f"<h4 style='color:#333; margin:0; padding:0;'>🛠️ {item['Descripción']}</h4>", unsafe_allow_html=True)
+                    st.caption("Servicio de Taller")
+                else:
+                    st.markdown(f"**{item['Descripción']}** | {item['SKU']}"); st.caption(f"Unit: ${item['Precio Unitario (c/IVA)']:,.2f}")
+            
             with c_tot: 
                 color_tot = "inherit" if item['Seleccionado'] else "#888" 
                 st.markdown(f"<div style='text-align:right; color:{color_tot}; font-weight:900;'>${item['Importe Total']:,.2f}</div>", unsafe_allow_html=True)
             c_del.button("🗑️", key=f"d_{i}", on_click=eliminar_item, args=(i,), type="tertiary")
+            
             if item['Seleccionado']:
                 cp, cs, ct, cq = st.columns([1.3, 1.3, 1.5, 1.8])
-                # FIX: TARJETA MANO DE OBRA LIMPIA (SIN SELECTBOX)
+                
+                # --- TARJETA LIMPIA PARA MANO DE OBRA ---
                 if item['Tipo'] == "Mano de Obra":
-                    cp.markdown("<div style='padding-top:10px; color:#666; font-size:12px; font-weight:bold; text-align:center;'>-</div>", unsafe_allow_html=True)
-                    cs.markdown("<div style='padding-top:10px; color:#666; font-size:12px; font-weight:bold; text-align:center;'>SERVICIO</div>", unsafe_allow_html=True)
+                    # Dejar vacíos los selectores
+                    cp.empty(); cs.empty(); ct.empty(); cq.empty()
                 else:
                     idx_p = 0 if item['Prioridad']=="Urgente" else (2 if item['Prioridad']=="Bajo" else 1)
                     cp.selectbox("Prio", ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"], index=idx_p, key=f"p_{i}", label_visibility="collapsed", on_change=update_val, args=(i, 'Prioridad', f"p_{i}"))
                     idx_a = 0 if "Disponible" in item['Abasto'] else (1 if "Pedido" in item['Abasto'] else (2 if "Back" in item['Abasto'] else 3))
                     cs.selectbox("Abasto", ["✅ Disponible", "📦 Pedido", "⚫ Back Order", "⚠️ REVISAR"], index=idx_a, key=f"a_{i}", label_visibility="collapsed", on_change=update_val, args=(i, 'Abasto', f"a_{i}"))
-                
-                ct.text_input("T.Ent", value=item['Tiempo Entrega'], key=f"t_{i}", label_visibility="collapsed", on_change=lambda idx=i: st.session_state.carrito[idx].update({'Tiempo Entrega': st.session_state[f"t_{idx}"]}))
-                if item['Tipo'] == "Mano de Obra":
-                    cq.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold; color:#666;'>1</div>", unsafe_allow_html=True)
-                else:
+                    ct.text_input("T.Ent", value=item['Tiempo Entrega'], key=f"t_{i}", label_visibility="collapsed", on_change=lambda idx=i: st.session_state.carrito[idx].update({'Tiempo Entrega': st.session_state[f"t_{idx}"]}))
                     cq.number_input("Cant", min_value=1, value=int(item['Cantidad']), step=1, key=f"qn_{i}", label_visibility="collapsed", on_change=actualizar_cantidad_input, args=(i, f"qn_{i}"))
             else: st.caption("🚫 *Ítem excluido*")
 
@@ -476,7 +517,6 @@ if st.session_state.ver_preview:
             html_content += f"<div class='group-header'><span>{prio}</span><span>SUB: ${subtotal_html:,.2f}</span></div><table class='custom-table'><thead><tr><th>SKU</th><th>DESC</th><th>ESTATUS</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
             for item in grupo:
                 a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
-                # Si es MO, no mostrar status de abasto
                 status_html = f"<span class='status-base {a_c}'>{item['Abasto']}</span>" if item['Tipo'] != "Mano de Obra" else "<span style='font-weight:bold;'>SERVICIO</span>"
                 html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td>{status_html}</td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
             html_content += "</tbody></table>"
