@@ -153,24 +153,17 @@ df_db = st.session_state.df_maestro
 col_sku_db = st.session_state.col_sku_db
 col_desc_db = st.session_state.col_desc_db
 
-# --- ANALIZADOR INTELIGENTE MEJORADO (Patrones Flexibles y Hoja Específica) ---
+# --- ANALIZADOR INTELIGENTE (Patrones Flexibles y Hoja Específica) ---
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
-    # Convertir todo a string, quitar espacios y mayúsculas
     df = df_raw.fillna('').astype(str).apply(lambda x: x.str.upper().str.strip())
-    
-    # Patrones
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
     patron_orden = r'\b\d{8}\b'
-    # SKU TOYOTA FLEXIBLE: 10 o 12 caracteres alfanuméricos, con o sin guiones
-    # Ej: 04465-0E010, 044650E010, 90915-YZZD1
     patron_sku_flex = r'\b[A-Z0-9]{5}-?[A-Z0-9]{5}(?:-?[A-Z0-9]{2})?\b' 
     
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
             val_str = str(val)
-            
-            # Buscar VIN y Orden
             if 'VIN' not in metadata:
                 m = re.search(patron_vin, val_str)
                 if m: metadata['VIN'] = m.group(0)
@@ -178,19 +171,15 @@ def analizador_inteligente_archivos(df_raw):
                 m = re.search(patron_orden, val_str)
                 if m: metadata['ORDEN'] = m.group(0)
             
-            # Buscar SKU (Parte)
-            # Validamos que no sea el VIN (porque el patrón SKU podría confundirse con partes de un VIN)
             if re.match(patron_sku_flex, val_str) and len(val_str.replace('-','')) in [10, 12] and val_str != metadata.get('VIN', ''):
                 cant = 1
                 try:
-                    # Buscar cantidad en la columna inmediata derecha
                     col_pos = df.columns.get_loc(c_idx)
                     if col_pos + 1 < len(df.columns):
                         vecino = str(df.iloc[r_idx, col_pos + 1]).replace('.0', '').strip()
                         if vecino.isdigit(): cant = int(vecino)
                 except: pass
                 hallazgos.append({'sku': val_str, 'cant': cant})
-                
     return hallazgos, metadata
 
 def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Medio", abasto="⚠️ REVISAR", traducir=True):
@@ -221,7 +210,6 @@ class PDF(FPDF):
         self.cell(0, 10, 'TOYOTA LOS FUERTES', 0, 1, 'C')
         self.set_font('Arial', '', 10); self.set_text_color(0)
         self.cell(0, 5, 'PRESUPUESTO DE SERVICIOS Y REFACCIONES', 0, 1, 'C'); self.ln(15)
-    
     def footer(self):
         self.set_y(-75)
         self.set_font('Arial', 'B', 7); self.set_text_color(0)
@@ -245,87 +233,66 @@ def generar_pdf():
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=80)
-    
     cli_safe = str(st.session_state.cliente).encode('latin-1', 'replace').decode('latin-1')
     vin_safe = str(st.session_state.vin).encode('latin-1', 'replace').decode('latin-1')
     ord_safe = str(st.session_state.orden).encode('latin-1', 'replace').decode('latin-1')
-    
     pdf.set_text_color(0,0,0); pdf.set_font('Arial', 'B', 10)
     pdf.cell(20, 5, 'CLIENTE:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(100, 5, cli_safe[:60], 0, 0)
     pdf.set_font('Arial', 'B', 10); pdf.cell(20, 5, 'FECHA:', 0, 0); pdf.set_font('Arial', '', 10); pdf.cell(40, 5, obtener_hora_mx().strftime("%d/%m/%Y"), 0, 1)
     pdf.cell(20, 5, 'VIN:', 0, 0); pdf.cell(100, 5, vin_safe, 0, 0)
     pdf.cell(20, 5, 'ORDEN:', 0, 0); pdf.cell(40, 5, ord_safe, 0, 1)
     pdf.ln(5)
-
     items_activos = [i for i in st.session_state.carrito if i.get('Seleccionado', True)]
     orden_prioridad = ['Urgente', 'Medio', 'Bajo']
-    cols = [20, 55, 18, 25, 10, 20, 17, 20] 
+    cols = [20, 55, 18, 25, 10, 20, 17, 20]
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'ESTATUS', 'T.ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
-
     total_gral_pdf = 0; hay_pedido = False; hay_backorder = False
-
     for prio in orden_prioridad:
         grupo = [i for i in items_activos if i['Prioridad'] == prio]
         if not grupo: continue
-
         pdf.ln(2)
         if prio == "Urgente": pdf.set_fill_color(211, 47, 47) 
         elif prio == "Medio": pdf.set_fill_color(25, 118, 210)
         else: pdf.set_fill_color(117, 117, 117)
-        
         pdf.set_font('Arial', 'B', 9); pdf.set_text_color(255, 255, 255)
         pdf.cell(0, 6, f" {prio.upper()} ", 0, 1, 'L', True)
-        
         pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
         for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
         pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
-
         subtotal_grupo = 0
         for item in grupo:
             subtotal_grupo += item['Importe Total']
             if "Pedido" in item['Abasto'] or "Back" in item['Abasto']: hay_pedido = True
             if "Back" in item['Abasto']: hay_backorder = True
-            
             sku = item['SKU'][:15]
             desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
             st_txt = item['Abasto'].replace("⚠️ ", "").replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "")
-            
             col_desc_w = cols[1] - 2
             text_len = pdf.get_string_width(desc)
-            lines_needed = int(math.ceil(text_len / col_desc_w))
-            lines_needed = max(1, lines_needed)
+            lines_needed = int(math.ceil(text_len / col_desc_w)); lines_needed = max(1, lines_needed)
             row_height = max(6, lines_needed * 4)
-            
             if pdf.get_y() + row_height > 250:
                 pdf.add_page()
                 pdf.set_fill_color(240, 240, 240); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 7)
                 for i, h in enumerate(headers): pdf.cell(cols[i], 8, h, 1, 0, 'C', True)
                 pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', '', 8)
-
             y_start = pdf.get_y(); x_start = pdf.get_x()
             pdf.cell(cols[0], row_height, sku, 1, 0, 'C')
-            x_desc = pdf.get_x()
-            pdf.multi_cell(cols[1], 4, desc, 1, 'L')
-            pdf.set_xy(x_desc + cols[1], y_start)
-            
+            x_desc = pdf.get_x(); pdf.multi_cell(cols[1], 4, desc, 1, 'L'); pdf.set_xy(x_desc + cols[1], y_start)
             if "Disponible" in item['Abasto']: pdf.set_fill_color(200, 230, 201)
             elif "Pedido" in item['Abasto']: pdf.set_fill_color(255, 224, 178)
             elif "Back" in item['Abasto']: pdf.set_fill_color(33, 33, 33); pdf.set_text_color(255, 255, 255)
             else: pdf.set_fill_color(255, 205, 210)
-
-            pdf.cell(cols[2], row_height, st_txt, 1, 0, 'C', True)
-            pdf.set_text_color(0, 0, 0)
+            pdf.cell(cols[2], row_height, st_txt, 1, 0, 'C', True); pdf.set_text_color(0, 0, 0)
             pdf.cell(cols[3], row_height, str(item['Tiempo Entrega'])[:12], 1, 0, 'C')
             pdf.cell(cols[4], row_height, str(item['Cantidad']), 1, 0, 'C')
             pdf.cell(cols[5], row_height, f"${item['Precio Base']:,.2f}", 1, 0, 'R')
             pdf.cell(cols[6], row_height, f"${item['IVA']/item['Cantidad']:,.2f}", 1, 0, 'R')
             pdf.cell(cols[7], row_height, f"${item['Importe Total']:,.2f}", 1, 1, 'R')
-
         pdf.set_font('Arial', 'B', 8)
         pdf.cell(165, 5, f"SUBTOTAL {prio.upper()}:", 0, 0, 'R')
         pdf.cell(20, 5, f"${subtotal_grupo:,.2f}", 1, 1, 'R')
         total_gral_pdf += subtotal_grupo
-
     pdf.ln(5)
     if hay_pedido: 
         pdf.set_text_color(230, 81, 0); pdf.set_font('Arial', 'B', 9)
@@ -333,7 +300,6 @@ def generar_pdf():
     if hay_backorder:
         pdf.set_text_color(183, 28, 28); pdf.set_font('Arial', 'B', 9)
         pdf.cell(0, 4, "(!) REFACCIONES EN BACK ORDER: CONSULTAR TIEMPO DE ESPERA CON ASESOR", 0, 1, 'R')
-
     pdf.ln(2); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 14)
     pdf.cell(165, 10, 'GRAN TOTAL:', 0, 0, 'R')
     pdf.cell(20, 10, f"${total_gral_pdf:,.2f}", 0, 1, 'R')
@@ -356,42 +322,42 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Excel (XLSX, XLSM, XLS, CSV)", type=['xlsx', 'xlsm', 'xls', 'csv'], label_visibility="collapsed")
     if uploaded_file and st.button("ANALIZAR ARCHIVO", type="primary"):
         try:
-            # Lógica para leer TODAS las hojas
             if uploaded_file.name.endswith('.csv'):
                 df_dict = {'Hoja1': pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')}
             else:
-                # sheet_name=None lee todas las hojas en un diccionario
                 df_dict = pd.read_excel(uploaded_file, sheet_name=None)
             
             found_total = 0
-            # Priorizar hoja "RESUMEN_DATOS" si existe
-            hojas_ordenadas = list(df_dict.keys())
+            # FIX: Priorizar hoja "RESUMEN_DATOS" y NO duplicar
+            target_df = None
             if 'RESUMEN_DATOS' in df_dict:
-                hojas_ordenadas.remove('RESUMEN_DATOS')
-                hojas_ordenadas.insert(0, 'RESUMEN_DATOS') # Poner al inicio
+                target_df = df_dict['RESUMEN_DATOS']
+            else:
+                # Si no existe, tomar la primera hoja disponible
+                first_sheet = list(df_dict.keys())[0]
+                target_df = df_dict[first_sheet]
             
-            for sheet_name in hojas_ordenadas:
-                df_sheet = df_dict[sheet_name]
-                items, meta = analizador_inteligente_archivos(df_sheet)
-                
-                if 'CLIENTE' in meta and not st.session_state.cliente: st.session_state.cliente = meta['CLIENTE']
-                if 'VIN' in meta and not st.session_state.vin: st.session_state.vin = meta['VIN']
-                if 'ORDEN' in meta and not st.session_state.orden: st.session_state.orden = meta['ORDEN']
-                
-                for it in items:
-                    clean = str(it['sku']).upper().replace('-', '').strip()
-                    if df_db is not None:
-                        match = df_db[df_db['SKU_CLEAN'] == clean]
-                        if not match.empty:
-                            row = match.iloc[0]
-                            agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción")
-                            found_total += 1
+            # Procesar SOLO la hoja objetivo
+            items, meta = analizador_inteligente_archivos(target_df)
+            
+            if 'CLIENTE' in meta and not st.session_state.cliente: st.session_state.cliente = meta['CLIENTE']
+            if 'VIN' in meta and not st.session_state.vin: st.session_state.vin = meta['VIN']
+            if 'ORDEN' in meta and not st.session_state.orden: st.session_state.orden = meta['ORDEN']
+            
+            for it in items:
+                clean = str(it['sku']).upper().replace('-', '').strip()
+                if df_db is not None:
+                    match = df_db[df_db['SKU_CLEAN'] == clean]
+                    if not match.empty:
+                        row = match.iloc[0]
+                        agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción")
+                        found_total += 1
             
             if found_total > 0:
-                st.success(f"✅ Se importaron {found_total} partidas exitosamente.")
+                st.success(f"✅ Se importaron {found_total} partidas de la hoja seleccionada.")
                 st.rerun()
             else:
-                st.warning("⚠️ No se detectaron números de parte válidos en ninguna hoja.")
+                st.warning("⚠️ No se detectaron números de parte válidos.")
                 
         except Exception as e: 
             st.error(f"Error procesando archivo: {e}")
@@ -415,8 +381,7 @@ with st.expander("🔎 AÑADIR CONCEPTOS", expanded=True):
                     rc1.markdown(f"**{row[col_sku_db]}**")
                     rc2.markdown(f"${row['PRECIO_NUM']:,.2f}")
                     rc3.button("AGREGAR", key=f"add_{row[col_sku_db]}", type="primary", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
-            else:
-                st.info("Sin resultados.")
+            else: st.info("Sin resultados.")
     with tab2:
         with st.form("manual_ref"):
             c_m1, c_m2, c_m3 = st.columns([1.5, 1, 1])
@@ -462,10 +427,16 @@ if st.session_state.carrito:
             c_del.button("🗑️", key=f"d_{i}", on_click=eliminar_item, args=(i,), type="tertiary")
             if item['Seleccionado']:
                 cp, cs, ct, cq = st.columns([1.3, 1.3, 1.5, 1.8])
-                idx_p = 0 if item['Prioridad']=="Urgente" else (2 if item['Prioridad']=="Bajo" else 1)
-                cp.selectbox("Prio", ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"], index=idx_p, key=f"p_{i}", label_visibility="collapsed", on_change=update_val, args=(i, 'Prioridad', f"p_{i}"))
-                idx_a = 0 if "Disponible" in item['Abasto'] else (1 if "Pedido" in item['Abasto'] else (2 if "Back" in item['Abasto'] else 3))
-                cs.selectbox("Abasto", ["✅ Disponible", "📦 Pedido", "⚫ Back Order", "⚠️ REVISAR"], index=idx_a, key=f"a_{i}", label_visibility="collapsed", on_change=update_val, args=(i, 'Abasto', f"a_{i}"))
+                # FIX: TARJETA MANO DE OBRA LIMPIA (SIN SELECTBOX)
+                if item['Tipo'] == "Mano de Obra":
+                    cp.markdown("<div style='padding-top:10px; color:#666; font-size:12px; font-weight:bold; text-align:center;'>-</div>", unsafe_allow_html=True)
+                    cs.markdown("<div style='padding-top:10px; color:#666; font-size:12px; font-weight:bold; text-align:center;'>SERVICIO</div>", unsafe_allow_html=True)
+                else:
+                    idx_p = 0 if item['Prioridad']=="Urgente" else (2 if item['Prioridad']=="Bajo" else 1)
+                    cp.selectbox("Prio", ["🔴 Urgente", "🔵 Medio", "⚪ Bajo"], index=idx_p, key=f"p_{i}", label_visibility="collapsed", on_change=update_val, args=(i, 'Prioridad', f"p_{i}"))
+                    idx_a = 0 if "Disponible" in item['Abasto'] else (1 if "Pedido" in item['Abasto'] else (2 if "Back" in item['Abasto'] else 3))
+                    cs.selectbox("Abasto", ["✅ Disponible", "📦 Pedido", "⚫ Back Order", "⚠️ REVISAR"], index=idx_a, key=f"a_{i}", label_visibility="collapsed", on_change=update_val, args=(i, 'Abasto', f"a_{i}"))
+                
                 ct.text_input("T.Ent", value=item['Tiempo Entrega'], key=f"t_{i}", label_visibility="collapsed", on_change=lambda idx=i: st.session_state.carrito[idx].update({'Tiempo Entrega': st.session_state[f"t_{idx}"]}))
                 if item['Tipo'] == "Mano de Obra":
                     cq.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold; color:#666;'>1</div>", unsafe_allow_html=True)
@@ -505,7 +476,9 @@ if st.session_state.ver_preview:
             html_content += f"<div class='group-header'><span>{prio}</span><span>SUB: ${subtotal_html:,.2f}</span></div><table class='custom-table'><thead><tr><th>SKU</th><th>DESC</th><th>ESTATUS</th><th>CANT</th><th>TOTAL</th></tr></thead><tbody>"
             for item in grupo:
                 a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
-                html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='status-base {a_c}'>{item['Abasto']}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
+                # Si es MO, no mostrar status de abasto
+                status_html = f"<span class='status-base {a_c}'>{item['Abasto']}</span>" if item['Tipo'] != "Mano de Obra" else "<span style='font-weight:bold;'>SERVICIO</span>"
+                html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td>{status_html}</td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
             html_content += "</tbody></table>"
 
         final_html = f"<div class='preview-container'><div class='preview-paper'><div class='preview-header'><h1 class='preview-title'>TOYOTA LOS FUERTES</h1></div>{leyenda_html}{html_content}<div class='total-box'><div class='total-final'>TOTAL: ${total_preview:,.2f}</div></div></div></div>"
