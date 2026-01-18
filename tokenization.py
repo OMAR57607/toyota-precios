@@ -45,80 +45,112 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (EXPERIENCIA UNIFICADA)
+# 2. ESTILOS CSS (TOYOTA CLEAN UI/UX)
 # ==========================================
 st.markdown("""
     <style>
-    /* Texto General: Alto contraste adaptativo */
-    .stMarkdown, .stTextInput, .stNumberInput, .stSelectbox, p, label, div {
+    /* TIPOGRAFÍA Y GENERAL */
+    .stApp { font-family: 'Helvetica', 'Arial', sans-serif; }
+    
+    /* INPUTS & LABELS */
+    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+        border-radius: 6px !important;
         font-weight: 600 !important;
-        font-size: 14px !important;
+        padding: 0.5rem !important;
     }
+    label { font-weight: 700 !important; letter-spacing: 0.5px; }
 
-    /* ESTILO UNIFICADO DE BOTONES (ÁGIL Y OPTIMIZADO) */
-    div.stButton > button, div[data-testid="stForm"] button {
-        background-color: #eb0a1e !important; /* ROJO TOYOTA */
+    /* --- ESTANDARIZACIÓN DE BOTONES --- */
+    
+    /* Botones PRIMARIOS (Rojo Toyota: Agregar, PDF, Analizar) */
+    div.stButton > button[kind="primary"], div[data-testid="stForm"] button {
+        background-color: #eb0a1e !important;
         color: white !important;
         border: none !important;
-        font-weight: 900 !important;
+        font-weight: 800 !important;
         text-transform: uppercase;
         letter-spacing: 1px;
-        width: 100%;
-        padding: 0.7rem 1rem;
         border-radius: 6px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        transition: all 0.2s ease-in-out;
+        padding: 0.6rem 1rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        width: 100%;
     }
-
-    /* Efecto Hover */
-    div.stButton > button:hover, div[data-testid="stForm"] button:hover {
+    div.stButton > button[kind="primary"]:hover, div[data-testid="stForm"] button:hover {
         background-color: #b70014 !important;
-        transform: translateY(-2px);
+        transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     }
 
-    /* WhatsApp Button */
+    /* Botones SECUNDARIOS (Gris: Vista Previa, Limpiar, +) */
+    div.stButton > button[kind="secondary"] {
+        background-color: #f0f2f6 !important;
+        color: #31333F !important;
+        border: 1px solid #d0d7de !important;
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        border-radius: 6px;
+        width: 100%;
+        transition: all 0.2s ease;
+    }
+    div.stButton > button[kind="secondary"]:hover {
+        border-color: #eb0a1e !important;
+        color: #eb0a1e !important;
+    }
+    
+    /* Botones TERCIARIOS (Eliminar - Íconos) */
+    div.stButton > button[kind="tertiary"] {
+        color: #666 !important;
+        border: none !important;
+    }
+    div.stButton > button[kind="tertiary"]:hover {
+        color: #eb0a1e !important;
+        background-color: rgba(235, 10, 30, 0.1) !important;
+    }
+
+    /* WHATSAPP BUTTON */
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
         background-color: #25D366; color: white !important;
-        padding: 0.8rem 1rem; border-radius: 8px; text-decoration: none;
-        font-weight: 900; width: 100%; margin-top: 10px;
-        text-shadow: 1px 1px 2px black; text-transform: uppercase;
+        padding: 0.7rem 1rem; border-radius: 6px; text-decoration: none;
+        font-weight: 800; width: 100%; margin-top: 5px;
+        text-transform: uppercase; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
-    .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); }
+    .wa-btn:hover { background-color: #128C7E; transform: translateY(-1px); }
 
-    /* VISTA PREVIA (Papel Blanco / Texto Negro) */
-    .preview-container { background-color: #333; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; border: 2px solid #555; }
-    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 0 15px rgba(0,0,0,0.5); font-family: 'Helvetica', 'Arial', sans-serif; }
+    /* VISTA PREVIA (HOJA DE PAPEL) */
+    .preview-container { background-color: #2b2b2b; padding: 25px; border-radius: 10px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; border: 1px solid #444; }
+    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 900px; min-width: 700px; padding: 40px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-family: 'Helvetica', 'Arial', sans-serif; }
     
     .preview-header { border-bottom: 4px solid #eb0a1e; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
     .preview-title { font-size: 28px; font-weight: 900; color: #eb0a1e !important; margin: 0; line-height: 1.2; text-transform: uppercase; }
     
-    .group-header { background-color: #fff; color: #000 !important; font-weight: 900; padding: 8px; border: 2px solid #000; border-left: 10px solid #eb0a1e; margin-top: 20px; margin-bottom: 5px; text-transform: uppercase; font-size: 14px; display: flex; justify-content: space-between;}
+    .group-header { background-color: #f8f9fa; color: #000 !important; font-weight: 900; padding: 10px; border: 1px solid #ddd; border-left: 8px solid #eb0a1e; margin-top: 25px; margin-bottom: 5px; text-transform: uppercase; font-size: 13px; display: flex; justify-content: space-between;}
     
-    .legend-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; padding: 10px; border: 1px solid #000; background: #eee; font-size: 11px; font-weight: bold; color: black !important; }
+    .legend-bar { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; padding: 12px; border: 1px solid #ddd; background: #f1f1f1; font-size: 11px; font-weight: bold; color: #333 !important; border-radius: 4px; }
     
     /* Tablas Vista Previa */
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 5px; table-layout: fixed; border: 1px solid #000; }
     table.custom-table th { background-color: #000 !important; color: white !important; padding: 10px 8px; text-align: left; font-weight: 900; text-transform: uppercase; border: 1px solid #fff; }
-    table.custom-table td { border-bottom: 1px solid #000; padding: 8px; color: #000 !important; vertical-align: middle; font-weight: 600; }
+    table.custom-table td { border-bottom: 1px solid #ddd; padding: 10px 8px; color: #000 !important; vertical-align: middle; font-weight: 600; }
     
-    .total-box { margin-left: auto; width: 300px; border: 2px solid #000; padding: 10px; margin-top: 20px; background: #fff; }
-    .total-final { font-size: 26px; font-weight: 900; color: #000 !important; text-align: right; }
+    .total-box { margin-left: auto; width: 300px; border-top: 3px solid #000; padding-top: 15px; margin-top: 25px; }
+    .total-final { font-size: 28px; font-weight: 900; color: #eb0a1e !important; text-align: right; }
     
     /* Badges Vista Previa */
-    .badge-base { padding: 4px 8px; border-radius: 0px; font-weight: 900; font-size: 10px; display: inline-block; color: white !important; border: 1px solid #000; text-transform: uppercase; }
+    .badge-base { padding: 4px 8px; font-weight: 900; font-size: 10px; display: inline-block; color: white !important; text-transform: uppercase; border-radius: 3px;}
     .badge-urg { background: #d32f2f; }
     .badge-med { background: #1565C0; }
     .badge-baj { background: #424242; }
     
-    .status-base { padding: 4px 8px; border-radius: 0px; font-weight: 900; font-size: 10px; display: inline-block; border: 1px solid #000; text-transform: uppercase; }
+    .status-base { padding: 4px 8px; font-weight: 900; font-size: 10px; display: inline-block; text-transform: uppercase; border-radius: 3px;}
     .status-disp { color: #fff !important; background: #2E7D32; }
     .status-ped { color: #000 !important; background: #FFD600; }
     .status-bo { color: #fff !important; background: #000; }
     
-    /* Checkbox fix */
-    div[data-testid="stCheckbox"] { display: flex; align-items: center; justify-content: center; padding-top: 15px; }
+    /* Checkbox Alignment */
+    div[data-testid="stCheckbox"] { display: flex; align-items: center; justify-content: center; padding-top: 25px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -128,7 +160,7 @@ if st.session_state.nieve_activa:
 # ==========================================
 # 3. LÓGICA DE DATOS
 # ==========================================
-@st.cache_data(show_spinner="Cargando base de datos maestra...")
+@st.cache_data(show_spinner="Cargando catálogo...")
 def cargar_catalogo():
     archivo_zip = "base_datos_2026.zip"
     archivo_parquet = "base_datos_2026.parquet"
@@ -203,7 +235,7 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF (SANITIZADO PARA EVITAR ERRORES)
+# 4. GENERADOR PDF (SANITIZADO Y COLOREADO)
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -231,7 +263,7 @@ def generar_pdf():
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=80)
     
-    # Sanitizar Textos Usuario (Evitar emojis en nombres)
+    # Sanitizar Textos
     cli_safe = str(st.session_state.cliente).encode('latin-1', 'replace').decode('latin-1')
     vin_safe = str(st.session_state.vin).encode('latin-1', 'replace').decode('latin-1')
     ord_safe = str(st.session_state.orden).encode('latin-1', 'replace').decode('latin-1')
@@ -277,7 +309,7 @@ def generar_pdf():
             if "Back" in item['Abasto']: hay_backorder = True
             
             sku = item['SKU'][:15]; desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
-            # Limpiar Emojis del Estatus para PDF
+            # Limpiar Emojis
             st_txt = item['Abasto'].replace("⚠️ ", "").replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "")
             
             y_ini = pdf.get_y(); pdf.cell(cols[0], 6, sku, 1, 0, 'C')
@@ -313,7 +345,6 @@ def generar_pdf():
     
     if hay_backorder:
         pdf.set_text_color(213, 0, 0); pdf.set_font('Arial', 'B', 9)
-        # TEXTO SIN EMOJIS (CRUCIAL)
         pdf.cell(0, 4, "(!) REFACCIONES EN BACK ORDER: CONSULTAR TIEMPO DE ESPERA", 0, 1, 'R')
 
     pdf.ln(2)
@@ -335,9 +366,10 @@ with st.sidebar:
     st.session_state.vin = st.text_input("VIN", st.session_state.vin)
     st.session_state.cliente = st.text_input("Cliente", st.session_state.cliente)
     st.session_state.asesor = st.text_input("Asesor", st.session_state.asesor)
+    
     st.divider(); st.markdown("### 🤖 Carga Inteligente")
     uploaded_file = st.file_uploader("Excel / CSV", type=['xlsx', 'csv'], label_visibility="collapsed")
-    if uploaded_file and st.button("Analizar Archivo"):
+    if uploaded_file and st.button("ANALIZAR ARCHIVO", type="primary"):
         try:
             df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             items, meta = analizador_inteligente_archivos(df_up)
@@ -352,14 +384,17 @@ with st.sidebar:
                         agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción")
             st.rerun()
         except: st.error("Error al procesar archivo.")
+    
     st.divider()
-    if st.button("🗑️ Limpieza Total"): limpiar_todo(); st.rerun()
+    if st.button("LIMPIAR TODO", type="secondary"): limpiar_todo(); st.rerun()
 
-st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (Estilo Unificado)")
+st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (UX Optimizada)")
 
-with st.expander("🔎 AÑADIR CONCEPTOS (Búsqueda / Manual / Mano de Obra)", expanded=True):
+# --- SECCIÓN AÑADIR CONCEPTOS ---
+with st.expander("🔎 AÑADIR CONCEPTOS", expanded=True):
     tab1, tab2, tab3 = st.tabs(["CATÁLOGO", "MANUAL", "MANO DE OBRA"])
     
+    # TAB 1: CATÁLOGO
     with tab1:
         c_search, c_btn = st.columns([3, 1])
         q = c_search.text_input("Buscar Refacción", placeholder="Nombre o SKU...", label_visibility="collapsed")
@@ -371,33 +406,39 @@ with st.expander("🔎 AÑADIR CONCEPTOS (Búsqueda / Manual / Mano de Obra)", e
                     rc1, rc2, rc3 = st.columns([2, 1, 1])
                     rc1.markdown(f"**{row[col_sku_db]}**")
                     rc2.markdown(f"${row['PRECIO_NUM']:,.2f}")
-                    rc3.button("AGREGAR", key=f"add_{row[col_sku_db]}", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
+                    rc3.button("AGREGAR", key=f"add_{row[col_sku_db]}", type="primary", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
             else:
                 st.info("Sin resultados.")
 
+    # TAB 2: MANUAL
     with tab2:
         with st.form("manual_ref"):
             c_m1, c_m2, c_m3 = st.columns([1.5, 1, 1])
             m_sku = c_m1.text_input("SKU / Código")
             m_pr = c_m2.number_input("Precio", 0.0)
             c_m3.markdown("<br>", unsafe_allow_html=True)
-            if c_m3.form_submit_button("AGREGAR MANUAL"): 
+            if c_m3.form_submit_button("AGREGAR MANUAL", type="primary"): 
                 agregar_item_callback(m_sku, "Refacción Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
 
+    # TAB 3: MANO DE OBRA
     with tab3:
         with st.form("form_mo"):
             c_mo1, c_mo2, c_mo3 = st.columns([2, 1, 1])
             mo_desc = c_mo1.text_input("Servicio", placeholder="Ej. Afinación")
             mo_hrs = c_mo2.number_input("Horas", min_value=0.1, value=1.0, step=0.1)
             c_mo3.markdown("<br>", unsafe_allow_html=True)
-            if c_mo3.form_submit_button("AGREGAR M.O."):
+            if c_mo3.form_submit_button("AGREGAR M.O.", type="primary"):
                 costo_mo = 600.0 * mo_hrs
                 agregar_item_callback("MO-TALLER", f"{mo_desc} ({mo_hrs} hrs @ $600)", costo_mo, 1, "Mano de Obra", "Medio", "Disponible", traducir=False)
                 st.rerun()
 
-st.divider(); st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
+st.divider()
+
+# --- SECCIÓN CARRITO ---
+st.subheader(f"🛒 Carrito ({len(st.session_state.carrito)})")
 
 if st.session_state.carrito:
+    # Funciones Auxiliares
     def actualizar_cantidad_input(idx, key):
         val = st.session_state[key]
         st.session_state.carrito[idx]['Cantidad'] = val
@@ -429,9 +470,9 @@ if st.session_state.carrito:
                 cs.selectbox("Abasto", ["✅ Disponible", "📦 Pedido", "⚫ Back Order", "⚠️ REVISAR"], index=idx_a, key=f"a_{i}", label_visibility="collapsed", on_change=update_val, args=(i, 'Abasto', f"a_{i}"))
                 ct.text_input("T.Ent", value=item['Tiempo Entrega'], key=f"t_{i}", label_visibility="collapsed", on_change=lambda idx=i: st.session_state.carrito[idx].update({'Tiempo Entrega': st.session_state[f"t_{idx}"]}))
                 
-                # BLOQUEO DE CANTIDAD PARA MANO DE OBRA
+                # BLOQUEO DE CANTIDAD MANO DE OBRA
                 if item['Tipo'] == "Mano de Obra":
-                    cq.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold;'>{item['Cantidad']}</div>", unsafe_allow_html=True)
+                    cq.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold; color:#666;'>1</div>", unsafe_allow_html=True)
                 else:
                     cq.number_input("Cant", min_value=1, value=int(item['Cantidad']), step=1, key=f"qn_{i}", label_visibility="collapsed", on_change=actualizar_cantidad_input, args=(i, f"qn_{i}"))
             else:
@@ -442,19 +483,24 @@ if st.session_state.carrito:
     pendientes = [i for i in items_activos if "REVISAR" in str(i['Abasto'])]
     
     st.divider()
+    
+    # --- METRIC TOTAL ---
+    st.metric(label="GRAN TOTAL (IVA INCLUIDO)", value=f"${total_gral:,.2f}")
+    
     if pendientes:
         st.error(f"🛑 Hay {len(pendientes)} partida(s) marcadas como 'REVISAR' activas.")
     else:
         c1, c2, c3 = st.columns(3)
         with c1: 
-            if st.button("👁️ Vista Previa"): toggle_preview(); st.rerun()
+            if st.button("VISTA PREVIA", type="secondary"): toggle_preview(); st.rerun()
         with c2: 
             if items_activos:
-                st.download_button("📄 Generar PDF", generar_pdf(), f"Cot_{st.session_state.orden}.pdf", "application/pdf")
+                st.download_button("GENERAR PDF", generar_pdf(), f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary")
         with c3:
             msg = urllib.parse.quote(f"Hola {st.session_state.cliente},\nCotización Toyota: ${total_gral:,.2f}")
             st.markdown(f'<a href="https://wa.me/?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
 
+# LÓGICA VISTA PREVIA SEGURA
 if st.session_state.ver_preview:
     if not st.session_state.carrito:
         st.warning("⚠️ El carrito está vacío.")
