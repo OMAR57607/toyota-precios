@@ -467,8 +467,7 @@ if st.session_state.ver_preview and st.session_state.carrito:
             a_c = "status-disp" if "Disponible" in item['Abasto'] else ("status-ped" if "Pedido" in item['Abasto'] else "status-bo")
             html_content += f"<tr><td>{item['SKU']}</td><td>{item['Descripción']}</td><td><span class='status-base {a_c}'>{item['Abasto']}</span></td><td style='text-align:center'>{item['Cantidad']}</td><td style='text-align:right'>${item['Importe Total']:,.2f}</td></tr>"
         html_content += "</tbody></table>"
-
-    st.markdown(f"""
+st.markdown(f"""
     <div class='preview-container'>
         <div class='preview-paper'>
             <div class='preview-header'><h1 class='preview-title'>TOYOTA LOS FUERTES</h1></div>
