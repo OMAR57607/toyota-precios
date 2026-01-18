@@ -9,6 +9,7 @@ import os
 import zipfile
 import urllib.parse
 import math
+import json
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -29,7 +30,7 @@ def init_session():
         'asesor': "",
         'ver_preview': False,
         'nieve_activa': False,
-        'mensaje_exito': "" # Variable para el aviso
+        'mensaje_exito': ""
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -199,7 +200,77 @@ def agregar_item_callback(sku, desc_raw, precio_base, cant, tipo, prioridad="Med
 def toggle_preview(): st.session_state.ver_preview = not st.session_state.ver_preview
 
 # ==========================================
-# 4. GENERADOR PDF
+# 4. FUNCIONES DE EXPORTACIÓN (WHATSAPP Y JSON)
+# ==========================================
+def generar_link_whatsapp():
+    cliente = st.session_state.cliente or "Cliente"
+    orden = st.session_state.orden or "N/A"
+    
+    msg = f"🚗 *PRESUPUESTO TOYOTA LOS FUERTES*\n"
+    msg += f"👤 Cliente: {cliente}\n📋 Orden: {orden}\n\n"
+    
+    items_activos = [i for i in st.session_state.carrito if i.get('Seleccionado', True)]
+    refacciones = [i for i in items_activos if i['Tipo'] != "Mano de Obra"]
+    mano_obra = [i for i in items_activos if i['Tipo'] == "Mano de Obra"]
+    
+    total_gral = 0
+    
+    # 1. REFACCIONES
+    if refacciones:
+        msg += "*--- REFACCIONES ---*\n"
+        for prio in ['Urgente', 'Medio', 'Bajo']:
+            grupo = [i for i in refacciones if i['Prioridad'] == prio]
+            if grupo:
+                msg += f"\n🔴 *{prio.upper()}*\n" if prio == "Urgente" else (f"\n🔵 *{prio.upper()}*\n" if prio == "Medio" else f"\n⚪ *{prio.upper()}*\n")
+                subtotal = 0
+                for item in grupo:
+                    total_item = item['Importe Total']
+                    subtotal += total_item
+                    msg += f"▪️ {item['Cantidad']}x {item['Descripción']} (${total_item:,.2f})\n"
+                msg += f"   _Subtotal: ${subtotal:,.2f}_\n"
+                total_gral += subtotal
+
+    # 2. MANO DE OBRA
+    if mano_obra:
+        msg += "\n*--- SERVICIOS ---*\n"
+        subtotal_mo = 0
+        for item in mano_obra:
+            total_item = item['Importe Total']
+            subtotal_mo += total_item
+            msg += f"🛠️ {item['Descripción']} (${total_item:,.2f})\n"
+        msg += f"   _Subtotal: ${subtotal_mo:,.2f}_\n"
+        total_gral += subtotal_mo
+    
+    msg += f"\n💰 *GRAN TOTAL: ${total_gral:,.2f}* (IVA Incluido)"
+    
+    return f"https://wa.me/?text={urllib.parse.quote(msg)}"
+
+def descargar_sesion_json():
+    # Crear diccionario con todo el estado
+    estado = {
+        'carrito': st.session_state.carrito,
+        'cliente': st.session_state.cliente,
+        'vin': st.session_state.vin,
+        'orden': st.session_state.orden,
+        'asesor': st.session_state.asesor
+    }
+    return json.dumps(estado, indent=2)
+
+def cargar_sesion_json(archivo):
+    try:
+        estado = json.load(archivo)
+        st.session_state.carrito = estado.get('carrito', [])
+        st.session_state.cliente = estado.get('cliente', "")
+        st.session_state.vin = estado.get('vin', "")
+        st.session_state.orden = estado.get('orden', "")
+        st.session_state.asesor = estado.get('asesor', "")
+        st.session_state.mensaje_exito = "✅ Sesión cargada correctamente."
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error al cargar archivo: {e}")
+
+# ==========================================
+# 5. GENERADOR PDF
 # ==========================================
 class PDF(FPDF):
     def header(self):
@@ -342,11 +413,10 @@ def generar_pdf():
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 5. UI PRINCIPAL
+# 6. UI PRINCIPAL
 # ==========================================
 if df_db is None: st.warning(f"⚠️ Atención: No se encontró base de datos.")
 
-# AVISO CARGA EXITOSA (Posición Correcta)
 if st.session_state.mensaje_exito:
     st.success(st.session_state.mensaje_exito)
     st.toast(st.session_state.mensaje_exito, icon="✅")
@@ -360,7 +430,7 @@ with st.sidebar:
     st.session_state.cliente = st.text_input("Cliente", st.session_state.cliente)
     st.session_state.asesor = st.text_input("Asesor", st.session_state.asesor)
     
-    st.divider(); st.markdown("### 🤖 Carga Inteligente (IA)")
+    st.divider(); st.markdown("### 🤖 Carga Inteligente")
     uploaded_file = st.file_uploader("Excel (XLSX, XLSM, XLS, CSV)", type=['xlsx', 'xlsm', 'xls', 'csv'], label_visibility="collapsed")
     if uploaded_file and st.button("ANALIZAR ARCHIVO", type="primary"):
         try:
@@ -392,6 +462,18 @@ with st.sidebar:
             else: st.warning("⚠️ No se detectaron números de parte válidos.")
         except Exception as e: st.error(f"Error procesando archivo: {e}")
     
+    st.divider(); st.markdown("### 💾 Guardar / Cargar")
+    
+    # BOTÓN GUARDAR (DOWNLOAD)
+    json_sesion = descargar_sesion_json()
+    st.download_button("GUARDAR SESIÓN ACTUAL", json_sesion, file_name=f"cotizacion_{st.session_state.orden}.json", mime="application/json", type="secondary")
+    
+    # BOTÓN CARGAR (UPLOAD)
+    archivo_carga = st.file_uploader("Cargar JSON anterior", type="json", label_visibility="collapsed")
+    if archivo_carga is not None:
+        if st.button("CARGAR SESIÓN"):
+            cargar_sesion_json(archivo_carga)
+
     st.divider()
     if st.button("LIMPIAR TODO", type="secondary"): limpiar_todo(); st.rerun()
 
@@ -466,7 +548,6 @@ if st.session_state.carrito:
             if item['Seleccionado']:
                 cp, cs, ct, cq = st.columns([1.3, 1.3, 1.5, 1.8])
                 if item['Tipo'] == "Mano de Obra":
-                    # TARJETA MO LIMPIA
                     cp.markdown("<div class='static-badge'>SERVICIO</div>", unsafe_allow_html=True)
                     cs.markdown("<div class='static-badge'>TALLER</div>", unsafe_allow_html=True)
                     ct.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold; color:#444;'>{item['Tiempo Entrega'] or '-'}</div>", unsafe_allow_html=True)
@@ -496,8 +577,8 @@ if st.session_state.carrito:
             if items_activos:
                 st.download_button("GENERAR PDF", generar_pdf(), f"Cot_{st.session_state.orden}.pdf", "application/pdf", type="primary")
         with c3:
-            msg = urllib.parse.quote(f"Hola {st.session_state.cliente},\nCotización Toyota: ${total_gral:,.2f}")
-            st.markdown(f'<a href="https://wa.me/?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
+            link_wa = generar_link_whatsapp()
+            st.markdown(f'<a href="{link_wa}" target="_blank" class="wa-btn">📱 ENVIAR POR WHATSAPP</a>', unsafe_allow_html=True)
 
 if st.session_state.ver_preview:
     if not st.session_state.carrito: st.warning("⚠️ El carrito está vacío.")
