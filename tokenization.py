@@ -49,7 +49,7 @@ init_session()
 # ==========================================
 st.markdown("""
     <style>
-    /* Texto General: Alto contraste adaptativo */
+    /* Texto General: Alto contraste */
     .stMarkdown, .stTextInput, .stNumberInput, .stSelectbox, p, label, div {
         font-weight: 600 !important;
         font-size: 14px !important;
@@ -408,12 +408,11 @@ if st.session_state.carrito:
             msg = urllib.parse.quote(f"Hola {st.session_state.cliente},\nCotización Toyota: ${total_gral:,.2f}")
             st.markdown(f'<a href="https://wa.me/?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
 
-# LÓGICA VISTA PREVIA CORREGIDA Y ROBUSTA
+# LÓGICA VISTA PREVIA CORREGIDA
 if st.session_state.ver_preview:
     if not st.session_state.carrito:
         st.warning("⚠️ El carrito está vacío.")
     else:
-        # Variables inicializadas ANTES de usarlas
         html_content = ""
         total_preview = 0
         leyenda_html = """
@@ -429,7 +428,6 @@ if st.session_state.ver_preview:
         </div>
         """
         
-        # Construcción segura del loop
         for prio in ['Urgente', 'Medio', 'Bajo']:
             grupo = [i for i in st.session_state.carrito if i.get('Seleccionado', True) and i['Prioridad'] == prio]
             if not grupo: continue
@@ -446,15 +444,14 @@ if st.session_state.ver_preview:
             
             html_content += "</tbody></table>"
 
-        # Renderizado final seguro
-        final_html = f"""
-        <div class='preview-container'>
-            <div class='preview-paper'>
-                <div class='preview-header'><h1 class='preview-title'>TOYOTA LOS FUERTES</h1></div>
-                {leyenda_html}
-                {html_content}
-                <div class='total-box'><div class='total-final'>TOTAL: ${total_preview:,.2f}</div></div>
-            </div>
-        </div>
-        """
+        # IMPORTANTE: Construir el string final con concatenación simple para evitar errores de sintaxis
+        final_html = "<div class='preview-container'><div class='preview-paper'>"
+        final_html += "<div class='preview-header'><h1 class='preview-title'>TOYOTA LOS FUERTES</h1></div>"
+        final_html += leyenda_html
+        final_html += html_content
+        final_html += f"<div class='total-box'><div class='total-final'>TOTAL: ${total_preview:,.2f}</div></div>"
+        final_html += "</div></div>"
+        
         st.markdown(final_html, unsafe_allow_html=True)
+elif st.session_state.ver_preview and not st.session_state.carrito:
+    st.session_state.ver_preview = False
