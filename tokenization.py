@@ -45,112 +45,80 @@ def limpiar_todo():
 init_session()
 
 # ==========================================
-# 2. ESTILOS CSS (TOYOTA CLEAN UI/UX)
+# 2. ESTILOS CSS (EXPERIENCIA UNIFICADA)
 # ==========================================
 st.markdown("""
     <style>
-    /* TIPOGRAFÍA Y GENERAL */
-    .stApp { font-family: 'Helvetica', 'Arial', sans-serif; }
-    
-    /* INPUTS & LABELS */
-    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
-        border-radius: 6px !important;
+    /* Texto General: Alto contraste adaptativo */
+    .stMarkdown, .stTextInput, .stNumberInput, .stSelectbox, p, label, div {
         font-weight: 600 !important;
-        padding: 0.5rem !important;
+        font-size: 14px !important;
     }
-    label { font-weight: 700 !important; letter-spacing: 0.5px; }
 
-    /* --- ESTANDARIZACIÓN DE BOTONES --- */
-    
-    /* Botones PRIMARIOS (Rojo Toyota: Agregar, PDF, Analizar) */
-    div.stButton > button[kind="primary"], div[data-testid="stForm"] button {
-        background-color: #eb0a1e !important;
+    /* ESTILO UNIFICADO DE BOTONES (ÁGIL Y OPTIMIZADO) */
+    div.stButton > button, div[data-testid="stForm"] button {
+        background-color: #eb0a1e !important; /* ROJO TOYOTA */
         color: white !important;
         border: none !important;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
         text-transform: uppercase;
         letter-spacing: 1px;
-        border-radius: 6px;
-        padding: 0.6rem 1rem;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         width: 100%;
+        padding: 0.7rem 1rem;
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: all 0.2s ease-in-out;
     }
-    div.stButton > button[kind="primary"]:hover, div[data-testid="stForm"] button:hover {
+
+    /* Efecto Hover */
+    div.stButton > button:hover, div[data-testid="stForm"] button:hover {
         background-color: #b70014 !important;
-        transform: translateY(-1px);
+        transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     }
 
-    /* Botones SECUNDARIOS (Gris: Vista Previa, Limpiar, +) */
-    div.stButton > button[kind="secondary"] {
-        background-color: #f0f2f6 !important;
-        color: #31333F !important;
-        border: 1px solid #d0d7de !important;
-        font-weight: 700 !important;
-        text-transform: uppercase;
-        border-radius: 6px;
-        width: 100%;
-        transition: all 0.2s ease;
-    }
-    div.stButton > button[kind="secondary"]:hover {
-        border-color: #eb0a1e !important;
-        color: #eb0a1e !important;
-    }
-    
-    /* Botones TERCIARIOS (Eliminar - Íconos) */
-    div.stButton > button[kind="tertiary"] {
-        color: #666 !important;
-        border: none !important;
-    }
-    div.stButton > button[kind="tertiary"]:hover {
-        color: #eb0a1e !important;
-        background-color: rgba(235, 10, 30, 0.1) !important;
-    }
-
-    /* WHATSAPP BUTTON */
+    /* WhatsApp Button */
     .wa-btn {
         display: inline-flex; align-items: center; justify-content: center;
         background-color: #25D366; color: white !important;
-        padding: 0.7rem 1rem; border-radius: 6px; text-decoration: none;
-        font-weight: 800; width: 100%; margin-top: 5px;
-        text-transform: uppercase; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        padding: 0.8rem 1rem; border-radius: 8px; text-decoration: none;
+        font-weight: 900; width: 100%; margin-top: 10px;
+        text-shadow: 1px 1px 2px black; text-transform: uppercase;
     }
-    .wa-btn:hover { background-color: #128C7E; transform: translateY(-1px); }
+    .wa-btn:hover { background-color: #128C7E; transform: translateY(-2px); }
 
-    /* VISTA PREVIA (HOJA DE PAPEL) */
-    .preview-container { background-color: #2b2b2b; padding: 25px; border-radius: 10px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; border: 1px solid #444; }
-    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 900px; min-width: 700px; padding: 40px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-family: 'Helvetica', 'Arial', sans-serif; }
+    /* VISTA PREVIA (Papel Blanco / Texto Negro) */
+    .preview-container { background-color: #333; padding: 20px; border-radius: 8px; display: flex; justify-content: center; margin-top: 20px; overflow-x: auto; border: 2px solid #555; }
+    .preview-paper { background-color: white !important; color: black !important; width: 100%; max-width: 950px; min-width: 700px; padding: 40px; box-shadow: 0 0 15px rgba(0,0,0,0.5); font-family: 'Helvetica', 'Arial', sans-serif; }
     
     .preview-header { border-bottom: 4px solid #eb0a1e; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
     .preview-title { font-size: 28px; font-weight: 900; color: #eb0a1e !important; margin: 0; line-height: 1.2; text-transform: uppercase; }
     
-    .group-header { background-color: #f8f9fa; color: #000 !important; font-weight: 900; padding: 10px; border: 1px solid #ddd; border-left: 8px solid #eb0a1e; margin-top: 25px; margin-bottom: 5px; text-transform: uppercase; font-size: 13px; display: flex; justify-content: space-between;}
+    .group-header { background-color: #fff; color: #000 !important; font-weight: 900; padding: 8px; border: 2px solid #000; border-left: 10px solid #eb0a1e; margin-top: 20px; margin-bottom: 5px; text-transform: uppercase; font-size: 14px; display: flex; justify-content: space-between;}
     
-    .legend-bar { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; padding: 12px; border: 1px solid #ddd; background: #f1f1f1; font-size: 11px; font-weight: bold; color: #333 !important; border-radius: 4px; }
+    .legend-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; padding: 10px; border: 1px solid #000; background: #eee; font-size: 11px; font-weight: bold; color: black !important; }
     
     /* Tablas Vista Previa */
     table.custom-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 5px; table-layout: fixed; border: 1px solid #000; }
     table.custom-table th { background-color: #000 !important; color: white !important; padding: 10px 8px; text-align: left; font-weight: 900; text-transform: uppercase; border: 1px solid #fff; }
-    table.custom-table td { border-bottom: 1px solid #ddd; padding: 10px 8px; color: #000 !important; vertical-align: middle; font-weight: 600; }
+    table.custom-table td { border-bottom: 1px solid #000; padding: 8px; color: #000 !important; vertical-align: middle; font-weight: 600; }
     
-    .total-box { margin-left: auto; width: 300px; border-top: 3px solid #000; padding-top: 15px; margin-top: 25px; }
-    .total-final { font-size: 28px; font-weight: 900; color: #eb0a1e !important; text-align: right; }
+    .total-box { margin-left: auto; width: 300px; border: 2px solid #000; padding: 10px; margin-top: 20px; background: #fff; }
+    .total-final { font-size: 26px; font-weight: 900; color: #000 !important; text-align: right; }
     
     /* Badges Vista Previa */
-    .badge-base { padding: 4px 8px; font-weight: 900; font-size: 10px; display: inline-block; color: white !important; text-transform: uppercase; border-radius: 3px;}
+    .badge-base { padding: 4px 8px; border-radius: 0px; font-weight: 900; font-size: 10px; display: inline-block; color: white !important; border: 1px solid #000; text-transform: uppercase; }
     .badge-urg { background: #d32f2f; }
     .badge-med { background: #1565C0; }
     .badge-baj { background: #424242; }
     
-    .status-base { padding: 4px 8px; font-weight: 900; font-size: 10px; display: inline-block; text-transform: uppercase; border-radius: 3px;}
+    .status-base { padding: 4px 8px; border-radius: 0px; font-weight: 900; font-size: 10px; display: inline-block; border: 1px solid #000; text-transform: uppercase; }
     .status-disp { color: #fff !important; background: #2E7D32; }
     .status-ped { color: #000 !important; background: #FFD600; }
     .status-bo { color: #fff !important; background: #000; }
     
-    /* Checkbox Alignment */
-    div[data-testid="stCheckbox"] { display: flex; align-items: center; justify-content: center; padding-top: 25px; }
+    /* Checkbox fix */
+    div[data-testid="stCheckbox"] { display: flex; align-items: center; justify-content: center; padding-top: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -160,7 +128,7 @@ if st.session_state.nieve_activa:
 # ==========================================
 # 3. LÓGICA DE DATOS
 # ==========================================
-@st.cache_data(show_spinner="Cargando catálogo...")
+@st.cache_data(show_spinner="Cargando base de datos maestra...")
 def cargar_catalogo():
     archivo_zip = "base_datos_2026.zip"
     archivo_parquet = "base_datos_2026.parquet"
@@ -199,19 +167,27 @@ df_db = st.session_state.df_maestro
 col_sku_db = st.session_state.col_sku_db
 col_desc_db = st.session_state.col_desc_db
 
+# Lógica IA de Reconocimiento de Archivos (Soporta XLS, XLSM, CSV)
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
+    # Convertir todo a string mayúsculas limpio
     df = df_raw.astype(str).apply(lambda x: x.str.upper().str.strip())
-    patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
-    patron_orden = r'\b\d{8}\b'
-    patron_sku = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
+    
+    patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b' # VIN 17 digitos
+    patron_orden = r'\b\d{8}\b' # Orden de 8 digitos
+    patron_sku = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b' # SKU formato Toyota
+    
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
+            # Buscar Metadata
             if 'VIN' not in metadata and re.search(patron_vin, val): metadata['VIN'] = re.search(patron_vin, val).group(0)
             if 'ORDEN' not in metadata and re.search(patron_orden, val): metadata['ORDEN'] = re.search(patron_orden, val).group(0)
+            
+            # Buscar SKUs (Partes)
             if re.match(patron_sku, val):
                 cant = 1
                 try: 
+                    # Intentar leer columna adyacente para cantidad
                     vecino = df.iloc[r_idx, df.columns.get_loc(c_idx)+1].replace('.0', '')
                     if vecino.isdigit(): cant = int(vecino)
                 except: pass
@@ -367,14 +343,23 @@ with st.sidebar:
     st.session_state.cliente = st.text_input("Cliente", st.session_state.cliente)
     st.session_state.asesor = st.text_input("Asesor", st.session_state.asesor)
     
-    st.divider(); st.markdown("### 🤖 Carga Inteligente")
-    uploaded_file = st.file_uploader("Excel / CSV", type=['xlsx', 'csv'], label_visibility="collapsed")
+    st.divider(); st.markdown("### 🤖 Carga Inteligente (IA)")
+    # Acepta XLSM (Macros), XLS (Viejo), XLSX y CSV
+    uploaded_file = st.file_uploader("Excel (Macros/Normal) / CSV", type=['xlsx', 'xlsm', 'xls', 'csv'], label_visibility="collapsed")
     if uploaded_file and st.button("ANALIZAR ARCHIVO", type="primary"):
         try:
-            df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+            # Pandas detecta automáticamente el motor (openpyxl para xlsx/xlsm)
+            if uploaded_file.name.endswith('.csv'):
+                df_up = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
+            else:
+                df_up = pd.read_excel(uploaded_file)
+                
             items, meta = analizador_inteligente_archivos(df_up)
             if 'CLIENTE' in meta: st.session_state.cliente = meta['CLIENTE']
             if 'VIN' in meta: st.session_state.vin = meta['VIN']
+            if 'ORDEN' in meta: st.session_state.orden = meta['ORDEN']
+            
+            exitos = 0
             for it in items:
                 clean = str(it['sku']).upper().replace('-', '').strip()
                 if df_db is not None:
@@ -382,8 +367,14 @@ with st.sidebar:
                     if not match.empty:
                         row = match.iloc[0]
                         agregar_item_callback(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], it['cant'], "Refacción")
-            st.rerun()
-        except: st.error("Error al procesar archivo.")
+                        exitos += 1
+            if exitos > 0:
+                st.success(f"✅ Se encontraron {exitos} refacciones automáticamente.")
+                st.rerun()
+            else:
+                st.warning("⚠️ No se encontraron SKUs válidos en el archivo.")
+        except Exception as e: 
+            st.error(f"Error al procesar archivo: {e}")
     
     st.divider()
     if st.button("LIMPIAR TODO", type="secondary"): limpiar_todo(); st.rerun()
