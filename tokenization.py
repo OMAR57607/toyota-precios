@@ -56,7 +56,7 @@ st.markdown("""
     }
     label { font-weight: 700 !important; letter-spacing: 0.5px; }
     
-    /* BOTONES UNIFICADOS */
+    /* BOTONES */
     div.stButton > button, div[data-testid="stForm"] button {
         background-color: #eb0a1e !important; color: white !important; border: none !important;
         font-weight: 800 !important; text-transform: uppercase; letter-spacing: 1px;
@@ -66,8 +66,6 @@ st.markdown("""
     div.stButton > button:hover, div[data-testid="stForm"] button:hover {
         background-color: #b70014 !important; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     }
-    
-    /* BOTONES SECUNDARIOS */
     div.stButton > button[kind="secondary"] {
         background-color: #f0f2f6 !important; color: #31333F !important; border: 1px solid #d0d7de !important;
     }
@@ -155,19 +153,24 @@ df_db = st.session_state.df_maestro
 col_sku_db = st.session_state.col_sku_db
 col_desc_db = st.session_state.col_desc_db
 
-# --- ANALIZADOR INTELIGENTE (VERSIÓN MULTI-HOJA) ---
+# --- ANALIZADOR INTELIGENTE MEJORADO (Patrones Flexibles y Hoja Específica) ---
 def analizador_inteligente_archivos(df_raw):
     hallazgos = []; metadata = {}
-    # Convertir todo a string limpio, manejando nulos
+    # Convertir todo a string, quitar espacios y mayúsculas
     df = df_raw.fillna('').astype(str).apply(lambda x: x.str.upper().str.strip())
     
+    # Patrones
     patron_vin = r'\b[A-HJ-NPR-Z0-9]{17}\b'
     patron_orden = r'\b\d{8}\b'
-    patron_sku = r'\b[A-Z0-9]{5}-[A-Z0-9]{5}\b'
+    # SKU TOYOTA FLEXIBLE: 10 o 12 caracteres alfanuméricos, con o sin guiones
+    # Ej: 04465-0E010, 044650E010, 90915-YZZD1
+    patron_sku_flex = r'\b[A-Z0-9]{5}-?[A-Z0-9]{5}(?:-?[A-Z0-9]{2})?\b' 
     
     for r_idx, row in df.iterrows():
         for c_idx, val in row.items():
-            val_str = str(val) # Asegurar string
+            val_str = str(val)
+            
+            # Buscar VIN y Orden
             if 'VIN' not in metadata:
                 m = re.search(patron_vin, val_str)
                 if m: metadata['VIN'] = m.group(0)
@@ -175,11 +178,12 @@ def analizador_inteligente_archivos(df_raw):
                 m = re.search(patron_orden, val_str)
                 if m: metadata['ORDEN'] = m.group(0)
             
-            # Detectar SKU
-            if re.match(patron_sku, val_str):
+            # Buscar SKU (Parte)
+            # Validamos que no sea el VIN (porque el patrón SKU podría confundirse con partes de un VIN)
+            if re.match(patron_sku_flex, val_str) and len(val_str.replace('-','')) in [10, 12] and val_str != metadata.get('VIN', ''):
                 cant = 1
                 try:
-                    # Buscar cantidad en la columna siguiente (derecha)
+                    # Buscar cantidad en la columna inmediata derecha
                     col_pos = df.columns.get_loc(c_idx)
                     if col_pos + 1 < len(df.columns):
                         vecino = str(df.iloc[r_idx, col_pos + 1]).replace('.0', '').strip()
@@ -255,7 +259,7 @@ def generar_pdf():
 
     items_activos = [i for i in st.session_state.carrito if i.get('Seleccionado', True)]
     orden_prioridad = ['Urgente', 'Medio', 'Bajo']
-    cols = [20, 55, 18, 25, 10, 20, 17, 20]
+    cols = [20, 55, 18, 25, 10, 20, 17, 20] 
     headers = ['CÓDIGO', 'DESCRIPCIÓN', 'ESTATUS', 'T.ENTREGA', 'CANT', 'UNITARIO', 'IVA', 'TOTAL']
 
     total_gral_pdf = 0; hay_pedido = False; hay_backorder = False
@@ -286,7 +290,6 @@ def generar_pdf():
             desc = str(item['Descripción']).encode('latin-1','replace').decode('latin-1')
             st_txt = item['Abasto'].replace("⚠️ ", "").replace("✅ ", "").replace("📦 ", "").replace("⚫ ", "")
             
-            # Altura dinámica
             col_desc_w = cols[1] - 2
             text_len = pdf.get_string_width(desc)
             lines_needed = int(math.ceil(text_len / col_desc_w))
@@ -350,7 +353,6 @@ with st.sidebar:
     st.session_state.asesor = st.text_input("Asesor", st.session_state.asesor)
     
     st.divider(); st.markdown("### 🤖 Carga Inteligente (IA)")
-    # Acepta TODOS los formatos
     uploaded_file = st.file_uploader("Excel (XLSX, XLSM, XLS, CSV)", type=['xlsx', 'xlsm', 'xls', 'csv'], label_visibility="collapsed")
     if uploaded_file and st.button("ANALIZAR ARCHIVO", type="primary"):
         try:
@@ -362,16 +364,20 @@ with st.sidebar:
                 df_dict = pd.read_excel(uploaded_file, sheet_name=None)
             
             found_total = 0
-            # Iterar sobre TODAS las hojas encontradas
-            for sheet_name, df_sheet in df_dict.items():
+            # Priorizar hoja "RESUMEN_DATOS" si existe
+            hojas_ordenadas = list(df_dict.keys())
+            if 'RESUMEN_DATOS' in df_dict:
+                hojas_ordenadas.remove('RESUMEN_DATOS')
+                hojas_ordenadas.insert(0, 'RESUMEN_DATOS') # Poner al inicio
+            
+            for sheet_name in hojas_ordenadas:
+                df_sheet = df_dict[sheet_name]
                 items, meta = analizador_inteligente_archivos(df_sheet)
                 
-                # Actualizar metadatos si se encuentran nuevos
                 if 'CLIENTE' in meta and not st.session_state.cliente: st.session_state.cliente = meta['CLIENTE']
                 if 'VIN' in meta and not st.session_state.vin: st.session_state.vin = meta['VIN']
                 if 'ORDEN' in meta and not st.session_state.orden: st.session_state.orden = meta['ORDEN']
                 
-                # Agregar items encontrados
                 for it in items:
                     clean = str(it['sku']).upper().replace('-', '').strip()
                     if df_db is not None:
@@ -385,7 +391,7 @@ with st.sidebar:
                 st.success(f"✅ Se importaron {found_total} partidas exitosamente.")
                 st.rerun()
             else:
-                st.warning("⚠️ No se detectaron números de parte válidos en ninguna hoja del archivo.")
+                st.warning("⚠️ No se detectaron números de parte válidos en ninguna hoja.")
                 
         except Exception as e: 
             st.error(f"Error procesando archivo: {e}")
@@ -397,7 +403,6 @@ st.title("Toyota Los Fuertes"); st.caption("Sistema de Cotización (UX Optimizad
 
 with st.expander("🔎 AÑADIR CONCEPTOS", expanded=True):
     tab1, tab2, tab3 = st.tabs(["CATÁLOGO", "MANUAL", "MANO DE OBRA"])
-    
     with tab1:
         c_search, c_btn = st.columns([3, 1])
         q = c_search.text_input("Buscar Refacción", placeholder="Nombre o SKU...", label_visibility="collapsed")
@@ -412,7 +417,6 @@ with st.expander("🔎 AÑADIR CONCEPTOS", expanded=True):
                     rc3.button("AGREGAR", key=f"add_{row[col_sku_db]}", type="primary", on_click=agregar_item_callback, args=(row[col_sku_db], row[col_desc_db], row['PRECIO_NUM'], 1, "Refacción"))
             else:
                 st.info("Sin resultados.")
-
     with tab2:
         with st.form("manual_ref"):
             c_m1, c_m2, c_m3 = st.columns([1.5, 1, 1])
@@ -421,7 +425,6 @@ with st.expander("🔎 AÑADIR CONCEPTOS", expanded=True):
             c_m3.markdown("<br>", unsafe_allow_html=True)
             if c_m3.form_submit_button("AGREGAR MANUAL", type="primary"): 
                 agregar_item_callback(m_sku, "Refacción Manual", m_pr, 1, "Refacción", traducir=False); st.rerun()
-
     with tab3:
         with st.form("form_mo"):
             c_mo1, c_mo2, c_mo3 = st.columns([2, 1, 1])
